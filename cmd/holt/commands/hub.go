@@ -197,7 +197,17 @@ func (h *Hub) welcomeBanner() string {
 	}
 
 	rows = append(rows,
-		style.BannerRow{Key: "proxy", Value: h.ProxyAddr, Hint: "reach peers: curl -H 'x-tunnel-peer: <peer>'"},
+		style.BannerRow{Key: "proxy", Value: h.ProxyAddr, Hint: "reach peers: curl -H 'x-tunnel-peer: <peer>'"})
+
+	if h.ExternalURL != "" {
+		rows = append(rows, style.BannerRow{
+			Key:   "external",
+			Value: strings.TrimRight(h.ExternalURL, "/"),
+			Hint:  "public URL peers are reached at",
+		})
+	}
+
+	rows = append(rows,
 		style.BannerRow{Key: "state", Value: tildePath(h.State), Hint: "cert, JWT secret, blocklist"})
 
 	return style.Banner("holt is up", rows, "enroll your first peer:  holt enroll <name>")
