@@ -27,7 +27,7 @@ export function StatusMenu({ error, live, updatedAt }: { error: unknown; live: b
 	const key = "text-muted-foreground";
 
 	return (
-		<div className="relative ml-auto" ref={root}>
+		<div className="relative" ref={root}>
 			<button
 				aria-expanded={open}
 				aria-haspopup="menu"

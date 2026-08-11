@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
+	"os/signal"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	c "github.com/merlindorin/go-shared/pkg/cmd"
@@ -154,11 +156,21 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 
 	<-ctx.Done()
 
+	h.shutdown(registry, []*http.Server{tunnelSrv, adminSrv, proxySrv}, logger, out)
+
+	return nil
+}
+
+// shutdown drains the listeners after Ctrl-C, printing progress. A
+// second signal during the grace period force-closes immediately
+// instead of waiting the drain out.
+func (h *Hub) shutdown(registry *hub.Registry, servers []*http.Server, logger *zap.Logger, out *style.Output) {
 	// Ctrl-C lands mid-line, hence the leading newline. Closing can
 	// take a moment (peers get a GoAway, listeners drain), so say so
-	// instead of looking frozen.
+	// instead of looking frozen — and that a second Ctrl-C forces it.
 	if out.Pretty {
-		fmt.Printf("\n%s\n", style.Note("shutting down: closing %d tunnel(s), draining listeners (up to %s grace)...",
+		fmt.Printf("\n%s\n", style.Note(
+			"shutting down: closing %d tunnel(s), draining listeners (up to %s grace; ctrl-c again to force)...",
 			registry.CountTunnels(), gracePeriod))
 	} else {
 		logger.Info("shutting down", zap.Int("tunnels", registry.CountTunnels()))
@@ -169,15 +181,53 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), gracePeriod)
 	defer cancel()
 
-	_ = tunnelSrv.Shutdown(shutdownCtx)
-	_ = adminSrv.Shutdown(shutdownCtx)
-	_ = proxySrv.Shutdown(shutdownCtx)
+	// The parent context already consumed the first signal, so re-arm
+	// to catch a second Ctrl-C during the grace period.
+	hardStop := make(chan os.Signal, 1)
+	signal.Notify(hardStop, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(hardStop)
 
-	if out.Pretty {
-		fmt.Println(style.Success("stopped cleanly"))
+	drained := make(chan struct{})
+	go func() {
+		for _, srv := range servers {
+			_ = srv.Shutdown(shutdownCtx)
+		}
+
+		close(drained)
+	}()
+
+	forceClose := func() {
+		cancel()
+
+		for _, srv := range servers {
+			_ = srv.Close()
+		}
 	}
 
-	return nil
+	if awaitShutdown(drained, hardStop, forceClose) {
+		if out.Pretty {
+			fmt.Printf("\n%s\n", style.Warn("forced shutdown"))
+		} else {
+			logger.Warn("forced shutdown on second signal")
+		}
+	} else if out.Pretty {
+		fmt.Println(style.Success("stopped cleanly"))
+	}
+}
+
+// awaitShutdown blocks until the graceful drain finishes or a second
+// signal arrives. On the signal it force-closes and reports true, so a
+// second Ctrl-C ends the process now instead of waiting out the grace
+// period.
+func awaitShutdown(drained <-chan struct{}, hardStop <-chan os.Signal, forceClose func()) bool {
+	select {
+	case <-drained:
+		return false
+	case <-hardStop:
+		forceClose()
+
+		return true
+	}
 }
 
 // gracePeriod bounds how long shutdown waits for tunnels and listeners

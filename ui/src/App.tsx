@@ -1,6 +1,6 @@
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Copy, RefreshCw, ShieldAlert, ShieldOff, Terminal, X } from "lucide-react";
+import { Ban, Check, Copy, Github, RefreshCw, ShieldAlert, ShieldOff, Star, Terminal, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -18,6 +18,8 @@ import { blockPeer, listBlocked, listTunnels, stopTunnel, unblockPeer } from "@/
 // and invalidations silently no-op. cardinality undefined = filter
 // matching both finite and infinite queries.
 const BLOCKED_KEY = createConnectQueryKey({ cardinality: undefined, schema: listBlocked });
+
+const REPO_URL = "https://github.com/openotters/holt";
 
 // useHubConfig fetches the proxy port + routing header once, so the
 // "call this peer" command points at the right address (the console is
@@ -81,7 +83,27 @@ export function App() {
 					🌀
 				</span>
 				<span className="font-semibold tracking-tight">holt console</span>
-				<StatusMenu error={error} live={live} updatedAt={live ? stream.lastEventAt : dataUpdatedAt} />
+				<div className="ml-auto flex items-center gap-1.5">
+					<a
+						className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+						href={`${REPO_URL}/stargazers`}
+						rel="noreferrer"
+						target="_blank"
+						title="Star holt on GitHub"
+					>
+						<Star className="h-3.5 w-3.5" /> Star
+					</a>
+					<a
+						className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+						href={REPO_URL}
+						rel="noreferrer"
+						target="_blank"
+						title="holt on GitHub"
+					>
+						<Github className="h-4 w-4" />
+					</a>
+					<StatusMenu error={error} live={live} updatedAt={live ? stream.lastEventAt : dataUpdatedAt} />
+				</div>
 			</header>
 
 			<main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
