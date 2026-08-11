@@ -1,11 +1,12 @@
 import { useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Copy, Radio, ShieldOff, X } from "lucide-react";
+import { Ban, Check, Copy, ShieldOff, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Footer } from "@/components/footer";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusMenu } from "@/components/status-menu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -50,13 +51,7 @@ export function App() {
 					🌀
 				</span>
 				<span className="font-semibold tracking-tight">holt console</span>
-				<span className="group relative ml-auto inline-flex cursor-default items-center gap-1.5 text-muted-foreground text-xs">
-					<Radio className={`h-3.5 w-3.5 ${error ? "text-red-500" : "text-emerald-500"}`} />
-					{error ? "hub unreachable" : "connected"}
-					<span className="invisible absolute top-full right-0 z-50 mt-2 w-72 rounded-md border bg-popover p-3 text-left font-normal text-popover-foreground shadow-md group-hover:visible">
-						<ConnectionDetails error={error} updatedAt={dataUpdatedAt} />
-					</span>
-				</span>
+				<StatusMenu error={error} updatedAt={dataUpdatedAt} />
 			</header>
 
 			<main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
@@ -231,42 +226,6 @@ function CopyField({ label, value }: { label: string; value: string }) {
 				</Button>
 			</div>
 		</div>
-	);
-}
-
-// ConnectionDetails is the hover card behind the header status dot:
-// where the console talks to, over what, and how fresh the data is.
-function ConnectionDetails({ error, updatedAt }: { error: unknown; updatedAt: number }) {
-	const row = "flex justify-between gap-4";
-	const key = "text-muted-foreground";
-	return (
-		<span className="flex flex-col gap-1.5">
-			<span className={row}>
-				<span className={key}>status</span>
-				<span className={error ? "text-red-500" : "text-emerald-500"}>
-					{error ? "unreachable" : "connected"}
-				</span>
-			</span>
-			<span className={row}>
-				<span className={key}>endpoint</span>
-				<span className="font-mono">{window.location.host}</span>
-			</span>
-			<span className={row}>
-				<span className={key}>service</span>
-				<span className="font-mono">openotters.holt.v1.Admin</span>
-			</span>
-			<span className={row}>
-				<span className={key}>protocol</span>
-				<span>Connect (JSON) over HTTP</span>
-			</span>
-			<span className={row}>
-				<span className={key}>last update</span>
-				<span>{updatedAt ? new Date(updatedAt).toLocaleTimeString() : "never"}</span>
-			</span>
-			{error instanceof Error && (
-				<span className="mt-1 border-t border-dashed pt-1.5 text-red-500">{error.message}</span>
-			)}
-		</span>
 	);
 }
 
