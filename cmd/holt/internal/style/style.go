@@ -80,7 +80,9 @@ func Banner(heading string, rows []BannerRow, hint string) string {
 	}
 
 	if hint != "" {
-		out += "\n  " + dim.Render(hint) + "\n"
+		// Trailing blank line separates the banner from the logs that
+		// follow it.
+		out += "\n  " + dim.Render(hint) + "\n\n"
 	}
 
 	return out

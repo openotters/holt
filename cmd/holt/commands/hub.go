@@ -156,25 +156,25 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 
 	<-ctx.Done()
 
-	h.shutdown(registry, []*http.Server{tunnelSrv, adminSrv, proxySrv}, logger, out)
+	// The terminal echoes "^C" with no newline; emit one so the
+	// shutdown logs start on their own line. Pretty (interactive) only,
+	// so JSON log streams stay clean.
+	if out.Pretty {
+		fmt.Println()
+	}
+
+	h.shutdown(registry, []*http.Server{tunnelSrv, adminSrv, proxySrv}, logger)
 
 	return nil
 }
 
-// shutdown drains the listeners after Ctrl-C, printing progress. A
-// second signal during the grace period force-closes immediately
-// instead of waiting the drain out.
-func (h *Hub) shutdown(registry *hub.Registry, servers []*http.Server, logger *zap.Logger, out *style.Output) {
-	// Ctrl-C lands mid-line, hence the leading newline. Closing can
-	// take a moment (peers get a GoAway, listeners drain), so say so
-	// instead of looking frozen — and that a second Ctrl-C forces it.
-	if out.Pretty {
-		fmt.Printf("\n%s\n", style.Note(
-			"shutting down: closing %d tunnel(s), draining listeners (up to %s grace; ctrl-c again to force)...",
-			registry.CountTunnels(), gracePeriod))
-	} else {
-		logger.Info("shutting down", zap.Int("tunnels", registry.CountTunnels()))
-	}
+// shutdown drains the listeners after Ctrl-C. Everything past the
+// welcome banner is a plain log line (the hub is a server now), so this
+// logs rather than prints. A second signal during the grace period
+// force-closes immediately instead of waiting the drain out.
+func (h *Hub) shutdown(registry *hub.Registry, servers []*http.Server, logger *zap.Logger) {
+	logger.Info("shutting down, draining listeners (ctrl-c again to force)",
+		zap.Int("tunnels", registry.CountTunnels()), zap.Duration("grace", gracePeriod))
 
 	registry.StopAllTunnels("shutting-down")
 
@@ -205,13 +205,9 @@ func (h *Hub) shutdown(registry *hub.Registry, servers []*http.Server, logger *z
 	}
 
 	if awaitShutdown(drained, hardStop, forceClose) {
-		if out.Pretty {
-			fmt.Printf("\n%s\n", style.Warn("forced shutdown"))
-		} else {
-			logger.Warn("forced shutdown on second signal")
-		}
-	} else if out.Pretty {
-		fmt.Println(style.Success("stopped cleanly"))
+		logger.Warn("forced shutdown on second signal")
+	} else {
+		logger.Info("stopped cleanly")
 	}
 }
 
