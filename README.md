@@ -31,6 +31,8 @@ No listener, no inbound port, no published container port on the peer.
 - [How it works](#how-it-works)
 - [Use it as a library](#use-it-as-a-library)
 - [CLI cheat sheet](#cli-cheat-sheet)
+- [Web console](#web-console)
+- [Securing an exposed hub](#securing-an-exposed-hub)
 - [Operating the hub](#operating-the-hub)
 - [Presence directory](#presence-directory)
 - [Identity](#identity)
@@ -161,6 +163,7 @@ holt ls                      # list live tunnels
 holt kill <peer>             # disconnect a tunnel (the peer may reconnect)
 holt block <peer>            # disconnect AND ban the peer id
 holt unblock <peer>          # lift a block
+holt renew                   # regenerate the hub cert (invalidates all tokens)
 ```
 
 Run `holt <cmd> --help` for details. Hub state (certificate, JWT
@@ -169,7 +172,44 @@ secret, blocklist) lives in `~/.holt`.
 Output is friendly by default: a welcome banner with the addresses,
 readable logs, tables and checkmarks. For production, switch to the
 classic structured logs with `--log-format json` (or the
-`HOLT_LOG_FORMAT=json` environment variable).
+`HOLT_LOG_FORMAT=json` environment variable). A first `Ctrl-C` drains
+gracefully (peers get a `GoAway`, listeners finish in flight requests);
+a second one forces the process to exit now.
+
+## Web console
+
+<p align="center">
+  <img src="docs/console.png" alt="holt web console" width="640" />
+</p>
+
+`holt hub --ui` serves a small React console on the admin listener:
+
+- the live tunnel list, updated over a server stream (no polling), with
+  per-peer **Kill**, **Block**, and a **Call** button that shows the
+  `curl` command to reach that peer through the proxy.
+- an **enroll** form that mints a join token (shown in full, one click
+  to copy).
+- a **Danger zone** to renew the hub certificate. It hot-swaps the live
+  cert and closes existing tunnels, so peers must re-enroll (the same
+  effect as `holt renew`, without a restart).
+
+Set `--external-url https://peers.example.com` when the proxy is
+reachable at a public address; the console's Call command then shows
+that URL too, and it appears in the startup banner.
+
+## Securing an exposed hub
+
+The tunnel listener is always TLS + JWT. The **admin** and **proxy**
+listeners have no built-in auth and bind to `127.0.0.1` by default;
+they are meant to stay on loopback or sit behind an authenticating
+proxy (a zero trust tunnel, an auth ingress). When you do expose them:
+
+- a **Host guard** on the console rejects requests whose `Host` is not
+  loopback or an allow-listed name, defeating DNS-rebinding. Add your
+  public hostname with `--allowed-host` (repeatable; `*` disables it).
+- `--max-conns` caps concurrent tunnel connections.
+- the [Helm chart](charts/holt) keeps both ingresses disabled by
+  default and auto-adds the admin ingress host to the guard.
 
 ## Operating the hub
 
