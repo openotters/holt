@@ -1,6 +1,22 @@
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Copy, Github, RefreshCw, ShieldAlert, ShieldOff, Star, Terminal, X } from "lucide-react";
+import {
+	Ban,
+	Beer,
+	Check,
+	Container,
+	Copy,
+	Download,
+	Github,
+	RefreshCw,
+	Ship,
+	ShieldAlert,
+	ShieldOff,
+	Star,
+	Terminal,
+	X,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -116,6 +132,8 @@ export function App() {
 				</div>
 
 				<EnrollCard />
+
+				<InstallCard />
 
 				<Card>
 					<CardHeader>
@@ -280,6 +298,131 @@ function CallPeerModal({
 	);
 }
 
+// Install methods shown as tiles in InstallCard; clicking one opens a
+// modal with the command. The enroll token is only useful once holt is
+// installed on the peer.
+type InstallMethod = {
+	key: string;
+	label: string;
+	icon: LucideIcon;
+	blurb: string;
+	command: string;
+	note?: string;
+};
+
+const INSTALL_METHODS: InstallMethod[] = [
+	{
+		key: "brew",
+		label: "Homebrew",
+		icon: Beer,
+		blurb: "macOS and Linux, via the openotters tap.",
+		command: "brew install openotters/tap/holt",
+	},
+	{
+		key: "binary",
+		label: "Go / binary",
+		icon: Terminal,
+		blurb: "Install with Go, or grab a prebuilt binary from the releases page.",
+		command: "go install github.com/openotters/holt/cmd/holt@latest",
+	},
+	{
+		key: "docker",
+		label: "Docker",
+		icon: Container,
+		blurb: "Multi-arch image (amd64/arm64) on ghcr.",
+		command: "docker run --rm ghcr.io/openotters/holt:latest --version",
+	},
+	{
+		key: "kube",
+		label: "Kubernetes",
+		icon: Ship,
+		blurb: "Helm chart published as an OCI artifact.",
+		command: "helm install holt oci://ghcr.io/openotters/charts/holt",
+	},
+];
+
+function InstallCard() {
+	const [selected, setSelected] = useState<InstallMethod | null>(null);
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2">
+					<Download className="h-4 w-4 text-muted-foreground" /> Install holt on a peer
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+					{INSTALL_METHODS.map((m) => (
+						<button
+							key={m.key}
+							className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground"
+							type="button"
+							onClick={() => setSelected(m)}
+						>
+							<m.icon className="h-6 w-6" />
+							<span className="font-medium text-sm">{m.label}</span>
+						</button>
+					))}
+				</div>
+			</CardContent>
+			{selected && <InstallModal method={selected} onClose={() => setSelected(null)} />}
+		</Card>
+	);
+}
+
+// InstallModal shows a single install method's command with a copy
+// button. Closes on Escape, the close button, or a backdrop click.
+function InstallModal({ method, onClose }: { method: InstallMethod; onClose: () => void }) {
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, [onClose]);
+
+	const Icon = method.icon;
+
+	return (
+		<div
+			className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+			onClick={onClose}
+			onKeyDown={() => {}}
+			role="presentation"
+		>
+			<div
+				className="w-full max-w-lg rounded-lg border bg-background p-5 shadow-lg"
+				onClick={(e) => e.stopPropagation()}
+				onKeyDown={() => {}}
+				role="dialog"
+				aria-modal="true"
+			>
+				<div className="mb-3 flex items-center justify-between">
+					<h2 className="flex items-center gap-2 font-semibold">
+						<Icon className="h-4 w-4" /> Install with {method.label}
+					</h2>
+					<Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClose}>
+						<X className="h-4 w-4" />
+					</Button>
+				</div>
+				<p className="mb-3 text-muted-foreground text-sm">{method.blurb}</p>
+				<CopyField label="Run this on the peer" value={method.command} multiline />
+				<p className="mt-3 text-muted-foreground text-xs">
+					Prebuilt binaries for every OS and arch are on the{" "}
+					<a
+						className="font-medium text-foreground hover:text-accent-foreground"
+						href={`${REPO_URL}/releases`}
+						rel="noreferrer"
+						target="_blank"
+					>
+						releases page
+					</a>
+					.
+				</p>
+			</div>
+		</div>
+	);
+}
+
 // EnrollCard mints a join token via the hub's /api/enroll endpoint and
 // shows both the raw token (for any client) and the ready-to-run
 // expose command (to tunnel a local endpoint).
@@ -323,7 +466,7 @@ function EnrollCard() {
 				{result && (
 					<div className="flex flex-col gap-3">
 						<CopyField
-							label="Token — for any client (starter-client, your own)"
+							label="Token (for any client: starter-client, your own)"
 							value={result.token}
 							multiline
 						/>
@@ -395,7 +538,7 @@ function DangerZone() {
 			toast.success("Certificate renewed", {
 				description:
 					`Closed ${closedTunnels} tunnel${closedTunnels === 1 ? "" : "s"}. ` +
-					"Existing join tokens are now invalid — re-enroll your peers.",
+					"Existing join tokens are now invalid, re-enroll your peers.",
 			});
 		} catch (e) {
 			toast.error("Renew failed", { description: e instanceof Error ? e.message : String(e) });
@@ -418,7 +561,7 @@ function DangerZone() {
 						<div className="font-medium text-sm">Renew hub certificate</div>
 						<p className="text-muted-foreground text-sm">
 							Generates a fresh certificate and serves it immediately. Every existing join token pins the
-							old certificate and stops working — peers must be re-enrolled.
+							old certificate and stops working, so peers must be re-enrolled.
 						</p>
 					</div>
 					{confirming ? (
