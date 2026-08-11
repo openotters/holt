@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Footer } from "@/components/footer";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusMenu } from "@/components/status-menu";
-import { useTunnelStream } from "@/lib/use-tunnel-stream";
+import { useLiveTunnels } from "@/lib/use-tunnel-stream";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,30 +17,31 @@ import { blockPeer, listBlocked, listTunnels, stopTunnel, unblockPeer } from "@/
 // {...}], so hand-written ["Service", "Method"] arrays match nothing
 // and invalidations silently no-op. cardinality undefined = filter
 // matching both finite and infinite queries.
-const LIST_KEY = createConnectQueryKey({ cardinality: undefined, schema: listTunnels });
 const BLOCKED_KEY = createConnectQueryKey({ cardinality: undefined, schema: listBlocked });
 
 export function App() {
 	const queryClient = useQueryClient();
-	const invalidate = () => queryClient.invalidateQueries({ queryKey: LIST_KEY });
 
 	const { data, error, isLoading, dataUpdatedAt } = useQuery(listTunnels, {});
-	const tunnels = data?.tunnels ?? [];
+
+	// While the stream is live the tunnel list is maintained client
+	// side from its events (zero ListTunnels per change); the query is
+	// the initial render and the fallback when the stream is down.
+	const stream = useLiveTunnels();
+	const live = stream.live;
+	const tunnels = live ? stream.tunnels : (data?.tunnels ?? []);
 
 	const invalidateBlocked = () => queryClient.invalidateQueries({ queryKey: BLOCKED_KEY });
 
-	// Live updates: every WatchTunnels event refreshes the list, so
-	// attaches/detaches appear instantly instead of on the next poll.
-	const live = useTunnelStream(invalidate);
-
+	// Kill/block do not invalidate the tunnels list themselves: the
+	// WatchTunnels stream reports the detach and triggers the single
+	// refetch. Only the blocked list (not streamed) is invalidated.
 	const kill = useMutation(stopTunnel, {
-		onSuccess: () => invalidate(),
 		onError: (e) => toast.error("Kill failed", { description: e.message }),
 	});
 	const block = useMutation(blockPeer, {
 		onSuccess: (_r, req) => {
 			toast.success(`Blocked ${req.peer}`);
-			invalidate();
 			invalidateBlocked();
 		},
 		onError: (e) => toast.error("Block failed", { description: e.message }),
@@ -60,7 +61,7 @@ export function App() {
 					🌀
 				</span>
 				<span className="font-semibold tracking-tight">holt console</span>
-				<StatusMenu error={error} live={live} updatedAt={dataUpdatedAt} />
+				<StatusMenu error={error} live={live} updatedAt={live ? stream.lastEventAt : dataUpdatedAt} />
 			</header>
 
 			<main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
