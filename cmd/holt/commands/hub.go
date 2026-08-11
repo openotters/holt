@@ -116,36 +116,60 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 	// The banner replaces the "hub up" log line for humans; production
 	// (--log-format json) keeps the structured line instead.
 	if out.Pretty {
-		rows := []style.BannerRow{
-			{Key: "tunnel", Value: h.TunnelAddr, Hint: "peers attach here (TLS + JWT)"},
-			{Key: "admin", Value: h.AdminAddr, Hint: "holt ls / kill / block"},
-		}
-		if h.UI {
-			rows = append(rows,
-				style.BannerRow{Key: "console", Value: "http://" + h.AdminAddr + "/", Hint: "web console"})
-		}
-
-		rows = append(rows,
-			style.BannerRow{Key: "proxy", Value: h.ProxyAddr, Hint: "reach peers: curl -H 'x-tunnel-peer: <peer>'"},
-			style.BannerRow{Key: "state", Value: tildePath(h.State), Hint: "cert, JWT secret, blocklist"})
-
-		fmt.Print(style.Banner("holt is up", rows,
-			"enroll your first peer:  holt enroll <name>"))
+		fmt.Print(h.welcomeBanner())
 	} else {
 		logger.Info("hub up", fields...)
 	}
 
 	<-ctx.Done()
+
+	// Ctrl-C lands mid-line, hence the leading newline. Closing can
+	// take a moment (peers get a GoAway, listeners drain), so say so
+	// instead of looking frozen.
+	if out.Pretty {
+		fmt.Printf("\n%s\n", style.Note("shutting down: closing %d tunnel(s), draining listeners (up to %s grace)...",
+			registry.CountTunnels(), gracePeriod))
+	} else {
+		logger.Info("shutting down", zap.Int("tunnels", registry.CountTunnels()))
+	}
+
 	registry.StopAllTunnels("shutting-down")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), gracePeriod)
 	defer cancel()
 
 	_ = tunnelSrv.Shutdown(shutdownCtx)
 	_ = adminSrv.Shutdown(shutdownCtx)
 	_ = proxySrv.Shutdown(shutdownCtx)
 
+	if out.Pretty {
+		fmt.Println(style.Success("stopped cleanly"))
+	}
+
 	return nil
+}
+
+// gracePeriod bounds how long shutdown waits for tunnels and listeners
+// to drain before exiting anyway.
+const gracePeriod = 5 * time.Second
+
+// welcomeBanner renders the pretty startup block with the addresses
+// and a first-step hint.
+func (h *Hub) welcomeBanner() string {
+	rows := []style.BannerRow{
+		{Key: "tunnel", Value: h.TunnelAddr, Hint: "peers attach here (TLS + JWT)"},
+		{Key: "admin", Value: h.AdminAddr, Hint: "holt ls / kill / block"},
+	}
+	if h.UI {
+		rows = append(rows,
+			style.BannerRow{Key: "console", Value: "http://" + h.AdminAddr + "/", Hint: "web console"})
+	}
+
+	rows = append(rows,
+		style.BannerRow{Key: "proxy", Value: h.ProxyAddr, Hint: "reach peers: curl -H 'x-tunnel-peer: <peer>'"},
+		style.BannerRow{Key: "state", Value: tildePath(h.State), Hint: "cert, JWT secret, blocklist"})
+
+	return style.Banner("holt is up", rows, "enroll your first peer:  holt enroll <name>")
 }
 
 // serveTunnels runs the TLS tunnel listener; peers authenticate with a
