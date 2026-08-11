@@ -360,7 +360,7 @@ func (h *Hub) serveAdmin(
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"token":   tok,
-				"command": "expose --token " + tok + " --target localhost:PORT",
+				"command": "holt expose localhost:PORT --token " + tok,
 			})
 		})
 
