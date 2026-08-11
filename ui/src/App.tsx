@@ -200,6 +200,7 @@ function EnrollCard() {
 						<CopyField
 							label="Token — for any client (starter-client, your own)"
 							value={result.token}
+							multiline
 						/>
 						<CopyField
 							label="Expose a local endpoint"
@@ -218,8 +219,10 @@ function EnrollCard() {
 }
 
 // CopyField shows a labelled, copyable mono value in the openotters
-// command-chip style.
-function CopyField({ label, value }: { label: string; value: string }) {
+// command-chip style. With multiline, the value wraps across lines and
+// scrolls if tall (for the long join token); the copy button always
+// copies the clean single-line value.
+function CopyField({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) {
 	const [copied, setCopied] = useState(false);
 
 	async function copy() {
@@ -231,9 +234,18 @@ function CopyField({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="flex flex-col gap-1">
 			<span className="text-muted-foreground text-xs">{label}</span>
-			<div className="flex items-center gap-2 rounded-md border bg-muted/50 py-1 pr-1 pl-3 font-mono text-xs">
-				<code className="truncate">{value}</code>
-				<Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={copy}>
+			<div
+				className={`flex gap-2 rounded-md border bg-muted/50 py-1 pr-1 pl-3 font-mono text-xs ${multiline ? "items-start" : "items-center"}`}
+			>
+				<code className={multiline ? "max-h-32 flex-1 overflow-auto whitespace-pre-wrap break-all py-1" : "truncate"}>
+					{value}
+				</code>
+				<Button
+					size="icon"
+					variant="ghost"
+					className={`h-6 w-6 shrink-0 ${multiline ? "sticky top-1" : ""}`}
+					onClick={copy}
+				>
 					{copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
 				</Button>
 			</div>
