@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	c "github.com/merlindorin/go-shared/pkg/cmd"
@@ -32,6 +33,17 @@ import (
 const routeHeader = "x-tunnel-peer"
 
 type peerCtxKey struct{}
+
+// certState holds the hub's current serving identity behind an atomic
+// pointer, so `holt renew` (CLI restart, or the console's renew button)
+// swaps the certificate the tunnel listener serves and the cert PEM
+// enroll stamps into tokens, without a process restart.
+type certState struct {
+	v atomic.Pointer[selfsigned.Material]
+}
+
+func (c *certState) get() *selfsigned.Material  { return c.v.Load() }
+func (c *certState) set(m *selfsigned.Material) { c.v.Store(m) }
 
 // Hub runs the reverse-tunnel hub with three listeners: a TLS+JWT
 // tunnel endpoint peers attach to, an Admin gRPC endpoint (list, stop,
@@ -66,6 +78,12 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 		return err
 	}
 
+	// …held behind an atomic so `holt renew` (CLI or console) can swap
+	// the serving cert without a restart. The JWT secret is preserved
+	// across renews, so it stays a plain value.
+	certs := &certState{}
+	certs.set(mat)
+
 	// …everything else (blocklist, tunnel presence) in a SQLite DB
 	// alongside them.
 	st, err := store.Open(h.State)
@@ -96,12 +114,12 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 		return err
 	}
 
-	tunnelSrv, err := h.serveTunnels(registry, mat, blocks, logger)
+	tunnelSrv, err := h.serveTunnels(registry, certs, blocks, logger)
 	if err != nil {
 		return err
 	}
 
-	adminSrv, err := h.serveAdmin(registry, blocks, mat, logger)
+	adminSrv, err := h.serveAdmin(registry, blocks, certs, logger)
 	if err != nil {
 		return err
 	}
@@ -183,7 +201,7 @@ func (h *Hub) welcomeBanner() string {
 // JWT whose subject becomes the tunnel key. A blocked subject is
 // rejected even with a valid token.
 func (h *Hub) serveTunnels(
-	registry *hub.Registry, mat *selfsigned.Material, blocks *blockList, logger *zap.Logger,
+	registry *hub.Registry, certs *certState, blocks *blockList, logger *zap.Logger,
 ) (*http.Server, error) {
 	identity := func(ctx context.Context) (string, error) {
 		peer, _ := ctx.Value(peerCtxKey{}).(string)
@@ -197,7 +215,10 @@ func (h *Hub) serveTunnels(
 	path, handler := holtv1connect.NewTunnelHandler(hub.NewHandler(registry, identity, logger))
 
 	mux := http.NewServeMux()
-	mux.Handle(path, jwtMiddleware(mat.JWTSecret, blocks, handler))
+	// The JWT secret is preserved across renews, so reading it once is
+	// safe; the CERT is read per-handshake via GetCertificate so a
+	// renew takes effect on the next connection.
+	mux.Handle(path, jwtMiddleware(certs.get().JWTSecret, blocks, handler))
 
 	srv := &http.Server{
 		Handler:           mux,
@@ -207,7 +228,12 @@ func (h *Hub) serveTunnels(
 		// tunnels. Slow-header and idle connections are bounded below;
 		// a wedged peer is reaped by the inner HTTP/2 PINGs.
 		IdleTimeout: idleTimeout,
-		TLSConfig:   &tls.Config{Certificates: []tls.Certificate{mat.Cert}, MinVersion: tls.VersionTLS13},
+		TLSConfig: &tls.Config{
+			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+				return &certs.get().Cert, nil
+			},
+			MinVersion: tls.VersionTLS13,
+		},
 	}
 
 	lis, err := listen(h.TunnelAddr)
@@ -234,7 +260,7 @@ func (h *Hub) serveTunnels(
 // serveAdmin runs the Admin gRPC service (list / stop / block) and,
 // with --ui, the web console plus its enroll endpoint.
 func (h *Hub) serveAdmin(
-	registry *hub.Registry, blocks *blockList, mat *selfsigned.Material, logger *zap.Logger,
+	registry *hub.Registry, blocks *blockList, certs *certState, logger *zap.Logger,
 ) (*http.Server, error) {
 	mux := http.NewServeMux()
 
@@ -256,7 +282,9 @@ func (h *Hub) serveAdmin(
 				return
 			}
 
-			tok, err := mintToken(mat, h.TunnelAddr, body.Peer, h.TokenTTL)
+			// Read the current cert PEM so tokens minted after a renew
+			// pin the new certificate.
+			tok, err := mintToken(certs.get(), h.TunnelAddr, body.Peer, h.TokenTTL)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -268,6 +296,25 @@ func (h *Hub) serveAdmin(
 				"token":   tok,
 				"command": "expose --token " + tok + " --target localhost:PORT",
 			})
+		})
+
+		// Danger zone: renew the hub certificate. Regenerates on disk
+		// and hot-swaps the serving cert, so it takes effect
+		// immediately. Every existing join token is invalidated (peers
+		// pinned the old cert); they must be re-enrolled.
+		mux.HandleFunc("POST /api/renew", func(w http.ResponseWriter, _ *http.Request) {
+			mat, err := selfsigned.Renew(h.State)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+
+				return
+			}
+
+			certs.set(mat)
+			logger.Warn("hub certificate renewed via console; all existing tokens invalidated")
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]bool{"renewed": true})
 		})
 
 		mux.Handle("/", webui.Handler(h.UIPath))

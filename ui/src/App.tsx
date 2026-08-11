@@ -1,6 +1,6 @@
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Copy, ShieldOff, X } from "lucide-react";
+import { Ban, Check, Copy, RefreshCw, ShieldAlert, ShieldOff, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -146,6 +146,8 @@ export function App() {
 				</Card>
 
 				<BlockedCard onUnblock={(peer) => unblock.mutate({ peer })} />
+
+				<DangerZone />
 			</main>
 
 			<Footer />
@@ -236,6 +238,72 @@ function CopyField({ label, value }: { label: string; value: string }) {
 				</Button>
 			</div>
 		</div>
+	);
+}
+
+// DangerZone holds destructive, hub-wide actions. Renewing the
+// certificate invalidates every join token (peers pinned the old cert),
+// so it is gated behind an inline two-step confirmation rather than a
+// one-click button.
+function DangerZone() {
+	const [confirming, setConfirming] = useState(false);
+	const [renewing, setRenewing] = useState(false);
+
+	const renew = async () => {
+		setRenewing(true);
+		try {
+			const res = await fetch("/api/renew", { method: "POST" });
+			if (!res.ok) throw new Error(await res.text());
+			toast.success("Certificate renewed", {
+				description: "Existing join tokens are now invalid — re-enroll your peers.",
+			});
+		} catch (e) {
+			toast.error("Renew failed", { description: e instanceof Error ? e.message : String(e) });
+		} finally {
+			setRenewing(false);
+			setConfirming(false);
+		}
+	};
+
+	return (
+		<Card className="border-red-500/40">
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2 text-red-500">
+					<ShieldAlert className="h-4 w-4" /> Danger zone
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div>
+						<div className="font-medium text-sm">Renew hub certificate</div>
+						<p className="text-muted-foreground text-sm">
+							Generates a fresh certificate and serves it immediately. Every existing join token pins the
+							old certificate and stops working — peers must be re-enrolled.
+						</p>
+					</div>
+					{confirming ? (
+						<div className="flex shrink-0 items-center gap-2">
+							<Button size="sm" variant="destructive" disabled={renewing} onClick={renew}>
+								<RefreshCw className={`h-3.5 w-3.5 ${renewing ? "animate-spin" : ""}`} />
+								{renewing ? "Renewing…" : "Confirm renew"}
+							</Button>
+							<Button size="sm" variant="secondary" disabled={renewing} onClick={() => setConfirming(false)}>
+								Cancel
+							</Button>
+						</div>
+					) : (
+						<Button
+							className="shrink-0"
+							size="sm"
+							variant="outline"
+							onClick={() => setConfirming(true)}
+						>
+							<RefreshCw className="h-3.5 w-3.5" /> Renew certificate
+						</Button>
+					)}
+				</div>
+			</CardContent>
+		</Card>
 	);
 }
 

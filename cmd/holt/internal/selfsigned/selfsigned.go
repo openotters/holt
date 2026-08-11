@@ -72,14 +72,73 @@ func Load(dir string) (*Material, error) {
 }
 
 func create(dir string, hosts []string) (*Material, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	certPEM, keyPEM, err := generateCert(hosts)
 	if err != nil {
 		return nil, err
 	}
 
-	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	secret := make([]byte, 32)
+	if _, err = rand.Read(secret); err != nil {
+		return nil, err
+	}
+
+	if err = writeFiles(dir, certPEM, keyPEM, secret); err != nil {
+		return nil, err
+	}
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, err
+	}
+
+	return &Material{Cert: cert, CertPEM: certPEM, JWTSecret: secret}, nil
+}
+
+// Renew regenerates the hub's TLS certificate and key in place,
+// preserving the existing certificate's SANs and the JWT secret. Every
+// enroll token already handed out pins the OLD certificate, so they
+// stop working after a renew: peers must be re-enrolled. Errors if no
+// material exists yet (run the hub once first).
+func Renew(dir string) (*Material, error) {
+	old, err := Load(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	hosts := sansFromPEM(old.CertPEM)
+	if len(hosts) == 0 {
+		hosts = []string{"127.0.0.1", "localhost"}
+	}
+
+	certPEM, keyPEM, err := generateCert(hosts)
+	if err != nil {
+		return nil, err
+	}
+
+	// The secret is preserved: renewing rotates the pinned identity,
+	// not the JWT signing key.
+	if err = writeFiles(dir, certPEM, keyPEM, old.JWTSecret); err != nil {
+		return nil, err
+	}
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Material{Cert: cert, CertPEM: certPEM, JWTSecret: old.JWTSecret}, nil
+}
+
+// generateCert produces a fresh self-signed cert + key PEM for hosts.
+func generateCert(hosts []string) ([]byte, []byte, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, nil, err
 	}
 
 	tmpl := &x509.Certificate{
@@ -102,22 +161,22 @@ func create(dir string, hosts []string) (*Material, error) {
 
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	keyDER, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 
-	secret := make([]byte, 32)
-	if _, err = rand.Read(secret); err != nil {
-		return nil, err
-	}
+	return certPEM, keyPEM, nil
+}
 
+// writeFiles persists the cert, key, and secret with owner-only perms.
+func writeFiles(dir string, certPEM, keyPEM, secret []byte) error {
 	for _, f := range []struct {
 		name string
 		data []byte
@@ -126,15 +185,30 @@ func create(dir string, hosts []string) (*Material, error) {
 		{keyFile, keyPEM},
 		{secretFile, secret},
 	} {
-		if err = os.WriteFile(filepath.Join(dir, f.name), f.data, 0o600); err != nil {
-			return nil, err
+		if err := os.WriteFile(filepath.Join(dir, f.name), f.data, 0o600); err != nil {
+			return err
 		}
 	}
 
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, err
+	return nil
+}
+
+// sansFromPEM extracts the IP and DNS SANs from a leaf certificate PEM.
+func sansFromPEM(certPEM []byte) []string {
+	block, _ := pem.Decode(certPEM)
+	if block == nil {
+		return nil
 	}
 
-	return &Material{Cert: cert, CertPEM: certPEM, JWTSecret: secret}, nil
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil
+	}
+
+	hosts := make([]string, 0, len(leaf.IPAddresses)+len(leaf.DNSNames))
+	for _, ip := range leaf.IPAddresses {
+		hosts = append(hosts, ip.String())
+	}
+
+	return append(hosts, leaf.DNSNames...)
 }

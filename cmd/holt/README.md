@@ -104,6 +104,22 @@ holt hub --log-format json      # or HOLT_LOG_FORMAT=json
 
 `-D` enables debug-level logging in either mode.
 
+## Renew the certificate
+
+The hub's self-signed certificate is pinned by peers through their
+join token. Renewing it generates a fresh one and **invalidates every
+token already handed out** — peers must be re-enrolled.
+
+```bash
+holt renew                 # asks for confirmation first
+holt renew --yes           # skip the prompt (automation)
+```
+
+From the CLI you renew the files, then restart the hub to serve the new
+cert. The web console's **Danger zone** does both at once: it renews and
+hot-swaps the serving certificate immediately (no restart), then you
+re-enroll your peers.
+
 - **kill** sends a terminal GoAway; the running peer stops redialing,
   but the same token still works if it re-runs.
 - **block** additionally denies the peer's JWT subject at the door. The

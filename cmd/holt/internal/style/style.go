@@ -12,6 +12,7 @@ import (
 
 var (
 	okMark    = lipgloss.NewStyle().Foreground(lipgloss.Color("35"))
+	warnMark  = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
 	dim       = lipgloss.NewStyle().Faint(true)
 	headerRow = lipgloss.NewStyle().Bold(true).Padding(0, 1)
 	cell      = lipgloss.NewStyle().Padding(0, 1)
@@ -21,6 +22,11 @@ var (
 // Success renders a green check followed by the message.
 func Success(format string, a ...any) string {
 	return okMark.Render("✓") + " " + fmt.Sprintf(format, a...)
+}
+
+// Warn renders an amber warning line.
+func Warn(format string, a ...any) string {
+	return warnMark.Render("⚠ " + fmt.Sprintf(format, a...))
 }
 
 // Note renders a dim informational line.

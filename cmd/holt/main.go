@@ -8,6 +8,7 @@
 //
 //	holt hub                     # run the hub
 //	holt enroll <peer>           # mint a join token for a peer
+//	holt renew                   # regenerate the hub cert (invalidates tokens)
 //	holt expose <addr> --token … # expose a local HTTP service through the hub
 //	holt ls                      # list live tunnels
 //	holt kill <peer>             # disconnect a tunnel (peer may reconnect)
@@ -48,6 +49,7 @@ func main() {
 
 		Hub:     &commands.Hub{},
 		Enroll:  &commands.Enroll{},
+		Renew:   &commands.Renew{},
 		Expose:  &commands.Expose{},
 		Ls:      &commands.Ls{},
 		Kill:    &commands.Kill{},
@@ -97,6 +99,7 @@ type CMD struct {
 
 	Hub     *commands.Hub     `cmd:"" help:"Run the hub: TLS+JWT tunnel listener, Admin gRPC, and header-routed proxy."`
 	Enroll  *commands.Enroll  `cmd:"" help:"Mint a join token (JWT + pinned hub cert) for a peer."`
+	Renew   *commands.Renew   `cmd:"" help:"Regenerate the hub's TLS certificate (invalidates all existing join tokens)."`
 	Expose  *commands.Expose  `cmd:"" help:"Expose a local HTTP service through the hub (ngrok style)."`
 	Ls      *commands.Ls      `cmd:"" aliases:"list" help:"List live tunnels via the hub's Admin service."`
 	Kill    *commands.Kill    `cmd:"" help:"Force a peer's tunnel closed (it may reconnect)."`
