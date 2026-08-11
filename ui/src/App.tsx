@@ -41,10 +41,16 @@ const REPO_URL = "https://github.com/openotters/holt";
 // "call this peer" command points at the right address (the console is
 // served from the admin port, not the proxy one).
 function useHubConfig() {
-	const [cfg, setCfg] = useState<{ routeHeader: string; proxyPort: string; externalURL: string }>({
+	const [cfg, setCfg] = useState<{
+		routeHeader: string;
+		proxyPort: string;
+		externalURL: string;
+		metricsPort: string;
+	}>({
 		routeHeader: "x-tunnel-peer",
 		proxyPort: "7002",
 		externalURL: "",
+		metricsPort: "",
 	});
 	useEffect(() => {
 		fetch("/api/config")
@@ -118,7 +124,12 @@ export function App() {
 					>
 						<Github className="h-4 w-4" />
 					</a>
-					<StatusMenu error={error} live={live} updatedAt={live ? stream.lastEventAt : dataUpdatedAt} />
+					<StatusMenu
+						error={error}
+						live={live}
+						metricsPort={config.metricsPort}
+						updatedAt={live ? stream.lastEventAt : dataUpdatedAt}
+					/>
 				</div>
 			</header>
 

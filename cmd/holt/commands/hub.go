@@ -17,6 +17,9 @@ import (
 	"time"
 
 	c "github.com/merlindorin/go-shared/pkg/cmd"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	promexporter "go.opentelemetry.io/otel/exporters/prometheus"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/zap"
 	"golang.org/x/net/netutil"
 
@@ -70,6 +73,12 @@ type Hub struct {
 	// or a zero trust tunnel). Shown in the console's "Call" command so
 	// operators get the externally-reachable curl, not just localhost.
 	ExternalURL string `help:"Public base URL the proxy is reachable at, shown in the console's Call command (e.g. https://peers.example.com)." name:"external-url"`
+
+	// Prometheus metrics: the hub already records OTel instruments
+	// (holt.tunnels.active / .attaches / .detaches); this exposes them
+	// on a /metrics endpoint via an OTel Prometheus exporter.
+	Metrics     bool   `help:"Serve Prometheus metrics on /metrics."`
+	MetricsAddr string `help:"Metrics listener address." default:"127.0.0.1:7003"`
 }
 
 // Run starts the hub and blocks until the context is cancelled.
@@ -112,7 +121,22 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 		return migErr
 	}
 
-	registry := hub.NewRegistry(logger, hub.WithHubID(hostname()), hub.WithDirectory(dir))
+	regOpts := []hub.RegistryOption{hub.WithHubID(hostname()), hub.WithDirectory(dir)}
+
+	// Prometheus metrics: an OTel exporter feeds the SDK meter provider
+	// the registry records against, and promhttp serves them below.
+	if h.Metrics {
+		mp, mpErr := meterProvider()
+		if mpErr != nil {
+			return mpErr
+		}
+
+		defer func() { _ = mp.Shutdown(context.Background()) }()
+
+		regOpts = append(regOpts, hub.WithMeterProvider(mp))
+	}
+
+	registry := hub.NewRegistry(logger, regOpts...)
 	if clearErr := registry.ClearStale(ctx); clearErr != nil {
 		return clearErr
 	}
@@ -122,28 +146,9 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 		return err
 	}
 
-	tunnelSrv, err := h.serveTunnels(registry, certs, blocks, logger)
+	servers, err := h.startServers(registry, blocks, certs, logger)
 	if err != nil {
 		return err
-	}
-
-	adminSrv, err := h.serveAdmin(registry, blocks, certs, logger)
-	if err != nil {
-		return err
-	}
-
-	proxySrv, err := h.serveProxy(registry)
-	if err != nil {
-		return err
-	}
-
-	fields := []zap.Field{
-		zap.String("tunnel", h.TunnelAddr),
-		zap.String("admin", h.AdminAddr),
-		zap.String("proxy", h.ProxyAddr),
-	}
-	if h.UI {
-		fields = append(fields, zap.String("console", "http://"+h.AdminAddr+"/"))
 	}
 
 	// The banner replaces the "hub up" log line for humans; production
@@ -151,7 +156,7 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 	if out.Pretty {
 		fmt.Print(h.welcomeBanner())
 	} else {
-		logger.Info("hub up", fields...)
+		logger.Info("hub up", h.logFields()...)
 	}
 
 	<-ctx.Done()
@@ -163,7 +168,7 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 		fmt.Println()
 	}
 
-	h.shutdown(registry, []*http.Server{tunnelSrv, adminSrv, proxySrv}, logger)
+	h.shutdown(registry, servers, logger, out.Pretty)
 
 	return nil
 }
@@ -172,7 +177,7 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 // welcome banner is a plain log line (the hub is a server now), so this
 // logs rather than prints. A second signal during the grace period
 // force-closes immediately instead of waiting the drain out.
-func (h *Hub) shutdown(registry *hub.Registry, servers []*http.Server, logger *zap.Logger) {
+func (h *Hub) shutdown(registry *hub.Registry, servers []*http.Server, logger *zap.Logger, pretty bool) {
 	logger.Info("shutting down, draining listeners (ctrl-c again to force)",
 		zap.Int("tunnels", registry.CountTunnels()), zap.Duration("grace", gracePeriod))
 
@@ -205,6 +210,11 @@ func (h *Hub) shutdown(registry *hub.Registry, servers []*http.Server, logger *z
 	}
 
 	if awaitShutdown(drained, hardStop, forceClose) {
+		// Clear the second "^C" the terminal just echoed.
+		if pretty {
+			fmt.Println()
+		}
+
 		logger.Warn("forced shutdown on second signal")
 	} else {
 		logger.Info("stopped cleanly")
@@ -230,6 +240,58 @@ func awaitShutdown(drained <-chan struct{}, hardStop <-chan os.Signal, forceClos
 // to drain before exiting anyway.
 const gracePeriod = 5 * time.Second
 
+// startServers boots the tunnel, admin, proxy, and (optional) metrics
+// listeners and returns them for shutdown.
+func (h *Hub) startServers(
+	registry *hub.Registry, blocks *blockList, certs *certState, logger *zap.Logger,
+) ([]*http.Server, error) {
+	tunnelSrv, err := h.serveTunnels(registry, certs, blocks, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	adminSrv, err := h.serveAdmin(registry, blocks, certs, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	proxySrv, err := h.serveProxy(registry)
+	if err != nil {
+		return nil, err
+	}
+
+	servers := []*http.Server{tunnelSrv, adminSrv, proxySrv}
+
+	if h.Metrics {
+		metricsSrv, metricsErr := h.serveMetrics(logger)
+		if metricsErr != nil {
+			return nil, metricsErr
+		}
+
+		servers = append(servers, metricsSrv)
+	}
+
+	return servers, nil
+}
+
+// logFields is the "hub up" structured line for --log-format json.
+func (h *Hub) logFields() []zap.Field {
+	fields := []zap.Field{
+		zap.String("tunnel", h.TunnelAddr),
+		zap.String("admin", h.AdminAddr),
+		zap.String("proxy", h.ProxyAddr),
+	}
+	if h.UI {
+		fields = append(fields, zap.String("console", "http://"+h.AdminAddr+"/"))
+	}
+
+	if h.Metrics {
+		fields = append(fields, zap.String("metrics", "http://"+h.MetricsAddr+"/metrics"))
+	}
+
+	return fields
+}
+
 // welcomeBanner renders the pretty startup block with the addresses
 // and a first-step hint.
 func (h *Hub) welcomeBanner() string {
@@ -244,6 +306,11 @@ func (h *Hub) welcomeBanner() string {
 
 	rows = append(rows,
 		style.BannerRow{Key: "proxy", Value: h.ProxyAddr, Hint: "reach peers: curl -H 'x-tunnel-peer: <peer>'"})
+
+	if h.Metrics {
+		rows = append(rows,
+			style.BannerRow{Key: "metrics", Value: h.MetricsAddr + "/metrics", Hint: "prometheus metrics"})
+	}
 
 	if h.ExternalURL != "" {
 		rows = append(rows, style.BannerRow{
@@ -332,81 +399,7 @@ func (h *Hub) serveAdmin(
 	mux.Handle(adminPath, adminHandler)
 
 	if h.UI {
-		// The console's "add" button mints a join token; the browser
-		// posts {peer} here and gets back the token + a run command.
-		mux.HandleFunc("POST /api/enroll", func(w http.ResponseWriter, r *http.Request) {
-			var body struct {
-				Peer string `json:"peer"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Peer == "" {
-				http.Error(w, "peer is required", http.StatusBadRequest)
-
-				return
-			}
-
-			// Read the current cert PEM so tokens minted after a renew
-			// pin the new certificate.
-			tok, err := mintToken(certs.get(), h.TunnelAddr, body.Peer, h.TokenTTL)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"token":   tok,
-				"command": "holt expose localhost:PORT --token " + tok,
-			})
-		})
-
-		// Danger zone: renew the hub certificate. Regenerates on disk
-		// and hot-swaps the serving cert, so it takes effect
-		// immediately. Every existing join token is invalidated (peers
-		// pinned the old cert); they must be re-enrolled.
-		mux.HandleFunc("POST /api/renew", func(w http.ResponseWriter, _ *http.Request) {
-			mat, err := selfsigned.Renew(h.State)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-
-			certs.set(mat)
-
-			// Existing tunnels still ride their old TLS session, but
-			// their tokens are now void — close them with a terminal
-			// GoAway so peers stop instead of lingering, and re-enroll.
-			closed := registry.CountTunnels()
-			registry.StopAllTunnels(holt.ReasonTokenRevoked)
-
-			logger.Warn("hub certificate renewed via console; tokens invalidated, tunnels closed",
-				zap.Int("closed_tunnels", closed))
-
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"renewed": true, "closedTunnels": closed})
-		})
-
-		// The console needs the proxy port (and the routing header) to
-		// build the "call this peer" curl command, since it is served
-		// from the admin port, not the proxy one.
-		proxyPort := h.ProxyAddr
-		if _, p, splitErr := net.SplitHostPort(h.ProxyAddr); splitErr == nil {
-			proxyPort = p
-		}
-
-		mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"routeHeader": routeHeader,
-				"proxyPort":   proxyPort,
-				"externalURL": strings.TrimRight(h.ExternalURL, "/"),
-			})
-		})
-
-		mux.Handle("/", webui.Handler(h.UIPath))
-
-		logger.Debug("web console enabled", zap.String("url", "http://"+h.AdminAddr+"/"))
+		h.mountConsole(mux, registry, certs, logger)
 	}
 
 	// Host guard defeats DNS-rebinding against the plaintext console:
@@ -468,6 +461,131 @@ func hostGuard(allowed []string, next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// mountConsole registers the web console, its enroll/renew endpoints,
+// and the /api/config the front-end reads.
+func (h *Hub) mountConsole(mux *http.ServeMux, registry *hub.Registry, certs *certState, logger *zap.Logger) {
+	// The console's "add" button mints a join token; the browser posts
+	// {peer} here and gets back the token + a run command.
+	mux.HandleFunc("POST /api/enroll", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Peer string `json:"peer"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Peer == "" {
+			http.Error(w, "peer is required", http.StatusBadRequest)
+
+			return
+		}
+
+		// Read the current cert PEM so tokens minted after a renew pin
+		// the new certificate.
+		tok, err := mintToken(certs.get(), h.TunnelAddr, body.Peer, h.TokenTTL)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		writeJSON(w, map[string]string{
+			"token":   tok,
+			"command": "holt expose localhost:PORT --token " + tok,
+		})
+	})
+
+	// Danger zone: renew the hub certificate. Regenerates on disk and
+	// hot-swaps the serving cert, so it takes effect immediately. Every
+	// existing join token is invalidated (peers pinned the old cert)
+	// and live tunnels are closed; they must be re-enrolled.
+	mux.HandleFunc("POST /api/renew", func(w http.ResponseWriter, _ *http.Request) {
+		mat, err := selfsigned.Renew(h.State)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		certs.set(mat)
+
+		closed := registry.CountTunnels()
+		registry.StopAllTunnels(holt.ReasonTokenRevoked)
+
+		logger.Warn("hub certificate renewed via console; tokens invalidated, tunnels closed",
+			zap.Int("closed_tunnels", closed))
+
+		writeJSON(w, map[string]any{"renewed": true, "closedTunnels": closed})
+	})
+
+	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, map[string]string{
+			"routeHeader": routeHeader,
+			"proxyPort":   portOf(h.ProxyAddr),
+			"externalURL": strings.TrimRight(h.ExternalURL, "/"),
+			"metricsPort": h.metricsPortForConfig(),
+		})
+	})
+
+	mux.Handle("/", webui.Handler(h.UIPath))
+
+	logger.Debug("web console enabled", zap.String("url", "http://"+h.AdminAddr+"/"))
+}
+
+// metricsPortForConfig is the metrics port advertised to the console,
+// or empty when metrics are off.
+func (h *Hub) metricsPortForConfig() string {
+	if !h.Metrics {
+		return ""
+	}
+
+	return portOf(h.MetricsAddr)
+}
+
+// portOf returns the port of a host:port address, or the whole string
+// if it has no port.
+func portOf(addr string) string {
+	if _, p, err := net.SplitHostPort(addr); err == nil {
+		return p
+	}
+
+	return addr
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// meterProvider builds an OTel SDK meter provider backed by a
+// Prometheus exporter (registered with the default Prometheus registry
+// that promhttp serves).
+func meterProvider() (*sdkmetric.MeterProvider, error) {
+	exporter, err := promexporter.New()
+	if err != nil {
+		return nil, fmt.Errorf("metrics: %w", err)
+	}
+
+	return sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter)), nil
+}
+
+// serveMetrics serves the OTel Prometheus exporter on /metrics.
+func (h *Hub) serveMetrics(logger *zap.Logger) (*http.Server, error) {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: readHeaderTimeout, IdleTimeout: idleTimeout}
+
+	lis, err := listen(h.MetricsAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		if serveErr := srv.Serve(lis); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			logger.Error("metrics serve", zap.Error(serveErr))
+		}
+	}()
+
+	return srv, nil
 }
 
 // serveProxy runs the header-routed reverse proxy.

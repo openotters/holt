@@ -3,7 +3,17 @@ import { useEffect, useRef, useState } from "react";
 
 // StatusMenu is the connection item in the top navbar: a real menu
 // (click to open, stays open, text selectable), not a hover tooltip.
-export function StatusMenu({ error, live, updatedAt }: { error: unknown; live: boolean; updatedAt: number }) {
+export function StatusMenu({
+	error,
+	live,
+	metricsPort,
+	updatedAt,
+}: {
+	error: unknown;
+	live: boolean;
+	metricsPort: string;
+	updatedAt: number;
+}) {
 	const [open, setOpen] = useState(false);
 	const root = useRef<HTMLDivElement>(null);
 
@@ -71,6 +81,21 @@ export function StatusMenu({ error, live, updatedAt }: { error: unknown; live: b
 						<div className={row}>
 							<span className={key}>last update</span>
 							<span>{updatedAt ? new Date(updatedAt).toLocaleTimeString() : "never"}</span>
+						</div>
+						<div className={row}>
+							<span className={key}>metrics</span>
+							{metricsPort ? (
+								<a
+									className="font-medium text-foreground hover:text-muted-foreground"
+									href={`http://${window.location.hostname}:${metricsPort}/metrics`}
+									rel="noreferrer"
+									target="_blank"
+								>
+									/metrics (Prometheus)
+								</a>
+							) : (
+								<span className="text-muted-foreground">off</span>
+							)}
 						</div>
 						{error instanceof Error && (
 							<div className="mt-1 border-t border-dashed pt-2 text-red-500">{error.message}</div>

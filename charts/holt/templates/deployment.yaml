@@ -64,6 +64,10 @@ spec:
             {{- else if .Values.ingress.proxy.enabled }}
             - --external-url=https://{{ required "ingress.proxy.host is required when ingress.proxy.enabled" .Values.ingress.proxy.host }}
             {{- end }}
+            {{- if .Values.metrics.enabled }}
+            - --metrics
+            - --metrics-addr=0.0.0.0:{{ .Values.metrics.port }}
+            {{- end }}
           env:
             # Classic structured logs; the friendly output is for
             # terminals.
@@ -78,6 +82,10 @@ spec:
               containerPort: {{ .Values.service.admin.port }}
             - name: proxy
               containerPort: {{ .Values.service.proxy.port }}
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+            {{- end }}
           readinessProbe:
             tcpSocket:
               port: tunnel

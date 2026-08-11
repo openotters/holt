@@ -35,6 +35,21 @@ hub:
   # host> when the proxy ingress is enabled.
   externalURL: ""
 
+# Prometheus metrics (/metrics): the hub exposes tunnel counters via an
+# OTel Prometheus exporter.
+metrics:
+  enabled: false
+  port: 7003
+  # A Prometheus Operator ServiceMonitor to scrape /metrics. Needs the
+  # ServiceMonitor CRD (kube-prometheus-stack); enable metrics too.
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    # Extra labels for the ServiceMonitor (e.g. release: kube-prometheus-stack
+    # so your Prometheus selects it).
+    labels: {}
+
 service:
   # Tunnel listener: peers dial this from OUTSIDE the cluster, so it
   # usually needs to be reachable publicly (LoadBalancer or an

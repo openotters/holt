@@ -114,7 +114,7 @@ func WithDirectory(dir Directory) RegistryOption {
 // Optional — without it the global provider is used, which is a no-op
 // until the application installs an SDK.
 func WithMeterProvider(mp metric.MeterProvider) RegistryOption {
-	return func(r *Registry) { r.metrics = newMetrics(mp) }
+	return func(r *Registry) { r.metrics = newMetrics(mp, func() int64 { return int64(r.CountTunnels()) }) }
 }
 
 // NewRegistry builds a Registry. By default it keeps presence
@@ -133,7 +133,7 @@ func NewRegistry(logger *zap.Logger, opts ...RegistryOption) *Registry {
 	}
 
 	if r.metrics == nil {
-		r.metrics = newMetrics(nil)
+		r.metrics = newMetrics(nil, func() int64 { return int64(r.CountTunnels()) })
 	}
 
 	return r

@@ -38,5 +38,11 @@ spec:
       port: {{ .Values.service.proxy.port }}
       targetPort: proxy
       protocol: TCP
+    {{- if .Values.metrics.enabled }}
+    - name: metrics
+      port: {{ .Values.metrics.port }}
+      targetPort: metrics
+      protocol: TCP
+    {{- end }}
   selector:
     {{- include "holt.selectorLabels" . | nindent 4 }}
