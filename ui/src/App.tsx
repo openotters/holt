@@ -1,7 +1,7 @@
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Copy, RefreshCw, ShieldAlert, ShieldOff, X } from "lucide-react";
-import { useState } from "react";
+import { Ban, Check, Copy, RefreshCw, ShieldAlert, ShieldOff, Terminal, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Footer } from "@/components/footer";
@@ -19,8 +19,27 @@ import { blockPeer, listBlocked, listTunnels, stopTunnel, unblockPeer } from "@/
 // matching both finite and infinite queries.
 const BLOCKED_KEY = createConnectQueryKey({ cardinality: undefined, schema: listBlocked });
 
+// useHubConfig fetches the proxy port + routing header once, so the
+// "call this peer" command points at the right address (the console is
+// served from the admin port, not the proxy one).
+function useHubConfig() {
+	const [cfg, setCfg] = useState<{ routeHeader: string; proxyPort: string }>({
+		routeHeader: "x-tunnel-peer",
+		proxyPort: "7002",
+	});
+	useEffect(() => {
+		fetch("/api/config")
+			.then((r) => (r.ok ? r.json() : null))
+			.then((c) => c && setCfg(c))
+			.catch(() => {});
+	}, []);
+	return cfg;
+}
+
 export function App() {
 	const queryClient = useQueryClient();
+	const config = useHubConfig();
+	const [callPeer, setCallPeer] = useState<string | null>(null);
 
 	const { data, error, isLoading, dataUpdatedAt } = useQuery(listTunnels, {});
 
@@ -121,6 +140,9 @@ export function App() {
 											</TableCell>
 											<TableCell className="text-right">
 												<div className="inline-flex items-center gap-1.5">
+													<Button size="sm" variant="outline" onClick={() => setCallPeer(t.peer)}>
+														<Terminal className="h-3.5 w-3.5" /> Call
+													</Button>
 													<Button
 														size="sm"
 														variant="outline"
@@ -151,6 +173,73 @@ export function App() {
 			</main>
 
 			<Footer />
+
+			{callPeer && (
+				<CallPeerModal
+					peer={callPeer}
+					routeHeader={config.routeHeader}
+					proxyPort={config.proxyPort}
+					onClose={() => setCallPeer(null)}
+				/>
+			)}
+		</div>
+	);
+}
+
+// CallPeerModal shows the curl command that reaches a peer through the
+// hub proxy. The host is the one you're viewing the console on, which
+// is correct for loopback and single-host deployments; adjust it for
+// anything fronted by a different proxy address.
+function CallPeerModal({
+	peer,
+	routeHeader,
+	proxyPort,
+	onClose,
+}: {
+	peer: string;
+	routeHeader: string;
+	proxyPort: string;
+	onClose: () => void;
+}) {
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, [onClose]);
+
+	const host = window.location.hostname || "127.0.0.1";
+	const curl = `curl -H '${routeHeader}: ${peer}' http://${host}:${proxyPort}/`;
+
+	return (
+		<div
+			className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+			onClick={onClose}
+			onKeyDown={() => {}}
+			role="presentation"
+		>
+			<div
+				className="w-full max-w-lg rounded-lg border bg-background p-5 shadow-lg"
+				onClick={(e) => e.stopPropagation()}
+				onKeyDown={() => {}}
+				role="dialog"
+				aria-modal="true"
+			>
+				<div className="mb-3 flex items-center justify-between">
+					<h2 className="flex items-center gap-2 font-semibold">
+						<Terminal className="h-4 w-4" /> Call{" "}
+						<span className="font-mono text-sm">{peer}</span>
+					</h2>
+					<Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClose}>
+						<X className="h-4 w-4" />
+					</Button>
+				</div>
+				<p className="mb-3 text-muted-foreground text-sm">
+					Requests to the hub proxy are routed to this peer by the{" "}
+					<code className="font-mono text-xs">{routeHeader}</code> header. The peer serves whatever handler
+					it attached with.
+				</p>
+				<CopyField label="Reach the peer through the hub" value={curl} multiline />
+			</div>
 		</div>
 	);
 }

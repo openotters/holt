@@ -326,6 +326,22 @@ func (h *Hub) serveAdmin(
 			_ = json.NewEncoder(w).Encode(map[string]any{"renewed": true, "closedTunnels": closed})
 		})
 
+		// The console needs the proxy port (and the routing header) to
+		// build the "call this peer" curl command, since it is served
+		// from the admin port, not the proxy one.
+		proxyPort := h.ProxyAddr
+		if _, p, splitErr := net.SplitHostPort(h.ProxyAddr); splitErr == nil {
+			proxyPort = p
+		}
+
+		mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"routeHeader": routeHeader,
+				"proxyPort":   proxyPort,
+			})
+		})
+
 		mux.Handle("/", webui.Handler(h.UIPath))
 
 		logger.Debug("web console enabled", zap.String("url", "http://"+h.AdminAddr+"/"))
