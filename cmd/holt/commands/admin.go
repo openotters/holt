@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"text/tabwriter"
 	"time"
 
 	"connectrpc.com/connect"
@@ -13,6 +11,7 @@ import (
 
 	holtv1 "github.com/openotters/holt/api/v1"
 	holtv1connect "github.com/openotters/holt/api/v1/holtv1connect"
+	"github.com/openotters/holt/cmd/holt/internal/style"
 )
 
 // adminClient builds an Admin client against the hub's admin listener,
@@ -39,20 +38,22 @@ func (l *Ls) Run(ctx context.Context, _ *c.Commons) error {
 
 	tunnels := resp.Msg.GetTunnels()
 	if len(tunnels) == 0 {
-		fmt.Println("no peers attached")
+		fmt.Println(style.Note("no peers attached"))
 
 		return nil
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "PEER\tVERSION\tATTACHED")
-
+	rows := make([][]string, 0, len(tunnels))
 	for _, t := range tunnels {
-		attached := time.Unix(t.GetAttachedAtUnix(), 0).Format(time.RFC3339)
-		fmt.Fprintf(w, "%s\t%s\t%s\n", t.GetPeer(), t.GetPeerVersion(), attached)
+		attachedAt := time.Unix(t.GetAttachedAtUnix(), 0)
+		attached := fmt.Sprintf("%s (%s ago)",
+			attachedAt.Format("15:04:05"), time.Since(attachedAt).Round(time.Second))
+		rows = append(rows, []string{t.GetPeer(), t.GetPeerVersion(), attached})
 	}
 
-	return w.Flush()
+	fmt.Println(style.Table([]string{"PEER", "VERSION", "ATTACHED"}, rows))
+
+	return nil
 }
 
 // Kill forces a peer's tunnel closed via the hub's Admin service.
@@ -73,9 +74,9 @@ func (k *Kill) Run(ctx context.Context, _ *c.Commons) error {
 	}
 
 	if resp.Msg.GetStopped() {
-		fmt.Printf("stopped tunnel for %q\n", k.Peer)
+		fmt.Println(style.Success("stopped tunnel for %q", k.Peer))
 	} else {
-		fmt.Printf("no tunnel attached for %q\n", k.Peer)
+		fmt.Println(style.Note("no tunnel attached for %q", k.Peer))
 	}
 
 	return nil

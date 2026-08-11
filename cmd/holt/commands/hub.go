@@ -20,6 +20,7 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
 	"github.com/openotters/holt/cmd/holt/internal/selfsigned"
 	"github.com/openotters/holt/cmd/holt/internal/store"
+	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
 	"github.com/openotters/holt/cmd/holt/internal/webui"
 	"github.com/openotters/holt/hub"
@@ -45,8 +46,8 @@ type Hub struct {
 }
 
 // Run starts the hub and blocks until the context is cancelled.
-func (h *Hub) Run(ctx context.Context, commons *c.Commons) error {
-	logger := commons.MustLogger().Named("hub")
+func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *style.Output) error {
+	logger = logger.Named("hub")
 
 	if h.State == "" {
 		h.State = defaultStateDir()
@@ -66,7 +67,9 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons) error {
 	}
 	defer func() { _ = st.Close() }()
 
-	logger.Info("hub state ready", zap.String("dir", h.State))
+	// Debug, not info: the welcome banner (or the "hub up" JSON line)
+	// already tells the operator where state lives.
+	logger.Debug("hub state ready", zap.String("dir", h.State))
 
 	// Tunnel presence is projected into a SQL Directory on the same
 	// DB (durable, and shareable across a fleet); stale rows from a
@@ -110,7 +113,27 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons) error {
 		fields = append(fields, zap.String("console", "http://"+h.AdminAddr+"/"))
 	}
 
-	logger.Info("hub up", fields...)
+	// The banner replaces the "hub up" log line for humans; production
+	// (--log-format json) keeps the structured line instead.
+	if out.Pretty {
+		rows := []style.BannerRow{
+			{Key: "tunnel", Value: h.TunnelAddr, Hint: "peers attach here (TLS + JWT)"},
+			{Key: "admin", Value: h.AdminAddr, Hint: "holt ls / kill / block"},
+		}
+		if h.UI {
+			rows = append(rows,
+				style.BannerRow{Key: "console", Value: "http://" + h.AdminAddr + "/", Hint: "web console"})
+		}
+
+		rows = append(rows,
+			style.BannerRow{Key: "proxy", Value: h.ProxyAddr, Hint: "reach peers: curl -H 'x-tunnel-peer: <peer>'"},
+			style.BannerRow{Key: "state", Value: tildePath(h.State), Hint: "cert, JWT secret, blocklist"})
+
+		fmt.Print(style.Banner("holt is up", rows,
+			"enroll your first peer:  holt enroll <name>"))
+	} else {
+		logger.Info("hub up", fields...)
+	}
 
 	<-ctx.Done()
 	registry.StopAllTunnels("shutting-down")
@@ -206,7 +229,7 @@ func (h *Hub) serveAdmin(
 
 		mux.Handle("/", webui.Handler(h.UIPath))
 
-		logger.Info("web console enabled", zap.String("url", "http://"+h.AdminAddr+"/"))
+		logger.Debug("web console enabled", zap.String("url", "http://"+h.AdminAddr+"/"))
 	}
 
 	srv := newH2CServer(mux)
@@ -264,7 +287,7 @@ func jwtMiddleware(secret []byte, blocks *blockList, next http.Handler) http.Han
 		}
 
 		if blocks.IsBlocked(peer) {
-			http.Error(w, "forbidden: credential blocked", http.StatusForbidden)
+			http.Error(w, "forbidden: peer is blocked", http.StatusForbidden)
 
 			return
 		}

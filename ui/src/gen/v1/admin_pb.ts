@@ -256,10 +256,12 @@ export const Admin: GenService<{
     output: typeof StopTunnelResponseSchema;
   },
   /**
-   * BlockPeer stops a peer's tunnel AND blocks its credential so it
-   * cannot reconnect — a hard revoke, versus StopTunnel's plain
-   * disconnect. Requires the hub to have a blocker configured;
-   * otherwise returns Unimplemented.
+   * BlockPeer stops a peer's tunnel AND bans its peer id, so it cannot
+   * reconnect even with a valid token — versus StopTunnel's plain
+   * disconnect. The ban is on the identity, not one specific token:
+   * every token whose subject is that id (including ones minted while
+   * blocked) is refused until UnblockPeer. Requires the hub to have a
+   * blocker configured; otherwise returns Unimplemented.
    *
    * @generated from rpc openotters.holt.v1.Admin.BlockPeer
    */
@@ -269,7 +271,9 @@ export const Admin: GenService<{
     output: typeof BlockPeerResponseSchema;
   },
   /**
-   * UnblockPeer lifts a BlockPeer block so the peer may reconnect.
+   * UnblockPeer lifts a BlockPeer ban so the peer may reconnect. Tokens
+   * minted before the block that have not expired become valid again;
+   * blocking never invalidates the tokens themselves.
    *
    * @generated from rpc openotters.holt.v1.Admin.UnblockPeer
    */

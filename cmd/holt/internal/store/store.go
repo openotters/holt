@@ -1,6 +1,6 @@
 // Package store is the hub's durable non-secret state: a single SQLite
 // database under the config directory (~/.holt/holt.db). It holds
-// the credential blocklist and exposes its *sql.DB so the tunnel
+// the peer blocklist and exposes its *sql.DB so the tunnel
 // presence Directory (hub/sqldir) shares the same file. The hub's
 // cert + JWT secret live as files next to it (see the selfsigned
 // package).

@@ -9,6 +9,7 @@ import (
 
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
 	"github.com/openotters/holt/cmd/holt/internal/selfsigned"
+	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
 )
 
@@ -46,9 +47,13 @@ func (e *Enroll) Run(_ context.Context, _ *c.Commons) error {
 		CAPEM:   mat.CertPEM,
 	}.Encode()
 
-	// The peer side is a separate program — the starter-client, or your
-	// own (see cmd/starter-client). Any of them consumes this token.
-	fmt.Printf("\nJoin token for %q — run your peer with it, e.g.:\n\n  starter-client --token %s\n\n", e.Peer, tok)
+	// The token is printed raw on its own line so it stays easy to
+	// copy or pipe; everything around it is decoration.
+	fmt.Printf("\n%s\n\n", style.Success("join token for %q (valid %s)", e.Peer, e.TokenTTL))
+	fmt.Printf("%s\n\n", tok)
+	fmt.Println(style.Note("give it to your peer, for example:"))
+	fmt.Println(style.Note("  holt expose localhost:3000 --token <paste>"))
+	fmt.Println()
 
 	return nil
 }

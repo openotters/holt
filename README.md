@@ -149,12 +149,17 @@ holt enroll <peer>           # mint a join token for a peer
 holt expose <addr> --token <t>  # expose a local HTTP service through the hub
 holt ls                      # list live tunnels
 holt kill <peer>             # disconnect a tunnel (the peer may reconnect)
-holt block <peer>            # disconnect AND revoke the credential
+holt block <peer>            # disconnect AND ban the peer id
 holt unblock <peer>          # lift a block
 ```
 
 Run `holt <cmd> --help` for details. Hub state (certificate, JWT
 secret, blocklist) lives in `~/.holt`.
+
+Output is friendly by default: a welcome banner with the addresses,
+readable logs, tables and checkmarks. For production, switch to the
+classic structured logs with `--log-format json` (or the
+`HOLT_LOG_FORMAT=json` environment variable).
 
 ## Operating the hub
 

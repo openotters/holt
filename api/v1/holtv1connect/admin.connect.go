@@ -49,12 +49,16 @@ const (
 type AdminClient interface {
 	ListTunnels(context.Context, *connect.Request[v1.ListTunnelsRequest]) (*connect.Response[v1.ListTunnelsResponse], error)
 	StopTunnel(context.Context, *connect.Request[v1.StopTunnelRequest]) (*connect.Response[v1.StopTunnelResponse], error)
-	// BlockPeer stops a peer's tunnel AND blocks its credential so it
-	// cannot reconnect — a hard revoke, versus StopTunnel's plain
-	// disconnect. Requires the hub to have a blocker configured;
-	// otherwise returns Unimplemented.
+	// BlockPeer stops a peer's tunnel AND bans its peer id, so it cannot
+	// reconnect even with a valid token — versus StopTunnel's plain
+	// disconnect. The ban is on the identity, not one specific token:
+	// every token whose subject is that id (including ones minted while
+	// blocked) is refused until UnblockPeer. Requires the hub to have a
+	// blocker configured; otherwise returns Unimplemented.
 	BlockPeer(context.Context, *connect.Request[v1.BlockPeerRequest]) (*connect.Response[v1.BlockPeerResponse], error)
-	// UnblockPeer lifts a BlockPeer block so the peer may reconnect.
+	// UnblockPeer lifts a BlockPeer ban so the peer may reconnect. Tokens
+	// minted before the block that have not expired become valid again;
+	// blocking never invalidates the tokens themselves.
 	UnblockPeer(context.Context, *connect.Request[v1.UnblockPeerRequest]) (*connect.Response[v1.UnblockPeerResponse], error)
 	// ListBlocked returns the currently-blocked peers (which have no
 	// live tunnel to appear in ListTunnels). Empty when no blocker is
@@ -144,12 +148,16 @@ func (c *adminClient) ListBlocked(ctx context.Context, req *connect.Request[v1.L
 type AdminHandler interface {
 	ListTunnels(context.Context, *connect.Request[v1.ListTunnelsRequest]) (*connect.Response[v1.ListTunnelsResponse], error)
 	StopTunnel(context.Context, *connect.Request[v1.StopTunnelRequest]) (*connect.Response[v1.StopTunnelResponse], error)
-	// BlockPeer stops a peer's tunnel AND blocks its credential so it
-	// cannot reconnect — a hard revoke, versus StopTunnel's plain
-	// disconnect. Requires the hub to have a blocker configured;
-	// otherwise returns Unimplemented.
+	// BlockPeer stops a peer's tunnel AND bans its peer id, so it cannot
+	// reconnect even with a valid token — versus StopTunnel's plain
+	// disconnect. The ban is on the identity, not one specific token:
+	// every token whose subject is that id (including ones minted while
+	// blocked) is refused until UnblockPeer. Requires the hub to have a
+	// blocker configured; otherwise returns Unimplemented.
 	BlockPeer(context.Context, *connect.Request[v1.BlockPeerRequest]) (*connect.Response[v1.BlockPeerResponse], error)
-	// UnblockPeer lifts a BlockPeer block so the peer may reconnect.
+	// UnblockPeer lifts a BlockPeer ban so the peer may reconnect. Tokens
+	// minted before the block that have not expired become valid again;
+	// blocking never invalidates the tokens themselves.
 	UnblockPeer(context.Context, *connect.Request[v1.UnblockPeerRequest]) (*connect.Response[v1.UnblockPeerResponse], error)
 	// ListBlocked returns the currently-blocked peers (which have no
 	// live tunnel to appear in ListTunnels). Empty when no blocker is

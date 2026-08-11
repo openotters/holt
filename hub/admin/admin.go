@@ -1,7 +1,7 @@
 // Package admin implements the holt hub's Admin gRPC service over a
 // *hub.Registry: list live tunnels, force one closed, and — when a
-// Blocker is supplied — block/unblock a peer's credential. Mount the
-// returned connect handler behind whatever operator auth you use.
+// Blocker is supplied — ban/unban a peer id. Mount the returned
+// connect handler behind whatever operator auth you use.
 package admin
 
 import (
@@ -15,17 +15,18 @@ import (
 	"github.com/openotters/holt/hub"
 )
 
-// BlockedPeer is one entry in the credential denylist.
+// BlockedPeer is one entry in the peer-id denylist.
 type BlockedPeer struct {
 	Peer          string
 	BlockedAtUnix int64
 }
 
-// Blocker is the hub-side credential denylist BlockPeer/UnblockPeer
-// drive, and ListBlocked reads. The holt library has no notion of
-// credentials, so the application supplies this (e.g. a JWT-subject
-// blocklist the auth middleware consults). Optional — without it,
-// BlockPeer/UnblockPeer return Unimplemented and ListBlocked is empty.
+// Blocker is the hub-side peer-id denylist BlockPeer/UnblockPeer
+// drive, and ListBlocked reads. The ban is on the identity, not one
+// token. The holt library has no notion of credentials, so the
+// application supplies this (e.g. a JWT-subject blocklist the auth
+// middleware consults). Optional — without it, BlockPeer/UnblockPeer
+// return Unimplemented and ListBlocked is empty.
 type Blocker interface {
 	Block(peer string)
 	Unblock(peer string)

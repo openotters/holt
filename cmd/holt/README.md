@@ -17,7 +17,7 @@ The hub keeps everything under `~/.holt` (override with `--state`):
 
 - `hub-cert.pem` / `hub-key.pem` / `jwt-secret` — the hub identity, as
   files, reused across restarts so old tokens keep working.
-- `holt.db` — a SQLite database holding the **credential blocklist**
+- `holt.db` — a SQLite database holding the **peer blocklist**
   and the **tunnel-presence directory** (via `hub/sqldir`).
 
 ## Run a hub
@@ -81,9 +81,28 @@ Whatever the peer serves over the tunnel (HTTP, gRPC — see the
 ```bash
 holt ls                 # list live tunnels (Admin gRPC)
 holt kill alice         # disconnect the tunnel — the peer MAY reconnect
-holt block alice        # disconnect AND revoke the credential — the peer CANNOT reconnect
-holt unblock alice      # lift the block
+holt block alice        # disconnect AND ban the peer id — the peer CANNOT reconnect
+holt unblock alice      # lift the ban
 ```
+
+A block bans the peer **id** (the JWT subject), not one specific
+token: while blocked, every token for that id is refused, even a
+freshly enrolled one. Unblocking re-admits the peer — including tokens
+minted before the block that have not expired yet, since blocking
+never invalidates the tokens themselves.
+
+## Output modes
+
+The CLI is friendly by default: a welcome banner when the hub or
+`expose` starts, readable logs, tables and checkmarks. For production
+(systemd, containers, log collectors), switch back to the classic
+structured JSON logs:
+
+```bash
+holt hub --log-format json      # or HOLT_LOG_FORMAT=json
+```
+
+`-D` enables debug-level logging in either mode.
 
 - **kill** sends a terminal GoAway; the running peer stops redialing,
   but the same token still works if it re-runs.

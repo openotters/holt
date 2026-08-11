@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
 	"github.com/openotters/holt/dial"
 )
@@ -33,8 +35,8 @@ type Expose struct {
 
 // Run attaches to the hub and serves the reverse proxy until the
 // context is cancelled (Ctrl-C) or the hub sends a terminal GoAway.
-func (e *Expose) Run(ctx context.Context, commons *c.Commons) error {
-	logger := commons.MustLogger().Named("expose")
+func (e *Expose) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *style.Output) error {
+	logger = logger.Named("expose")
 
 	jt, err := token.Decode(e.Token)
 	if err != nil {
@@ -52,15 +54,30 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons) error {
 	}
 	defer func() { _ = cc.Close() }()
 
-	logger.Info("exposing local service over the tunnel",
-		zap.String("peer", jt.Peer), zap.String("target", targetURL.String()))
+	if out.Pretty {
+		fmt.Print(style.Banner("exposing "+targetURL.String(), []style.BannerRow{
+			{Key: "peer", Value: jt.Peer, Hint: "your identity on the hub"},
+			{Key: "hub", Value: jt.HubAddr, Hint: "attached over TLS, redials automatically"},
+			{Key: "reach", Value: "curl -H 'x-tunnel-peer: " + jt.Peer + "'", Hint: "against the hub proxy address"},
+		}, ""))
+	} else {
+		logger.Info("exposing local service over the tunnel",
+			zap.String("peer", jt.Peer), zap.String("target", targetURL.String()))
+	}
 
-	return dial.Run(ctx, dial.Options{
+	err = dial.Run(ctx, dial.Options{
 		Conn:    cc,
 		Handler: proxy,
 		Version: "holt-expose",
 		Logger:  logger,
 	})
+
+	// Ctrl-C is a normal way to stop exposing, not an error to print.
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
+
+	return err
 }
 
 // localProxy builds a reverse proxy to the local target. A bare

@@ -9,11 +9,12 @@ import (
 	"github.com/openotters/holt/hub/admin"
 )
 
-// blockList is the hub's credential denylist, keyed by JWT subject
-// (peer id) → the unix time it was blocked. It is durable — backed by
-// the SQLite store — with an in-memory cache for the hot IsBlocked
-// path the JWT middleware hits on every attach. Implements
-// admin.Blocker (Block / Unblock / Blocked).
+// blockList is the hub's identity denylist, keyed by JWT subject
+// (peer id) → the unix time it was blocked. Blocking bans the id, not
+// one token: any token with that subject is refused while the entry
+// exists. It is durable — backed by the SQLite store — with an
+// in-memory cache for the hot IsBlocked path the JWT middleware hits
+// on every attach. Implements admin.Blocker (Block/Unblock/Blocked).
 type blockList struct {
 	st *store.Store
 

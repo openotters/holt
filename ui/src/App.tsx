@@ -1,9 +1,10 @@
 import { useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Copy, Radio, ShieldOff, Waypoints, X } from "lucide-react";
+import { Ban, Check, Copy, Radio, ShieldOff, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { Footer } from "@/components/footer";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +18,7 @@ export function App() {
 	const queryClient = useQueryClient();
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: LIST_KEY });
 
-	const { data, error, isLoading } = useQuery(listTunnels, {});
+	const { data, error, isLoading, dataUpdatedAt } = useQuery(listTunnels, {});
 	const tunnels = data?.tunnels ?? [];
 
 	const invalidateBlocked = () => queryClient.invalidateQueries({ queryKey: BLOCKED_KEY });
@@ -43,13 +44,18 @@ export function App() {
 	});
 
 	return (
-		<div className="min-h-screen font-sans antialiased">
+		<div className="flex min-h-screen flex-col font-sans antialiased">
 			<header className="flex h-16 shrink-0 items-center gap-3 border-b border-dashed px-6">
-				<Waypoints className="h-5 w-5 text-primary" />
-				<span className="font-semibold tracking-tight">🌀 holt console</span>
-				<span className="ml-auto inline-flex items-center gap-1.5 text-muted-foreground text-xs">
+				<span className="text-xl leading-none" aria-hidden="true">
+					🌀
+				</span>
+				<span className="font-semibold tracking-tight">holt console</span>
+				<span className="group relative ml-auto inline-flex cursor-default items-center gap-1.5 text-muted-foreground text-xs">
 					<Radio className={`h-3.5 w-3.5 ${error ? "text-red-500" : "text-emerald-500"}`} />
 					{error ? "hub unreachable" : "connected"}
+					<span className="invisible absolute top-full right-0 z-50 mt-2 w-72 rounded-md border bg-popover p-3 text-left font-normal text-popover-foreground shadow-md group-hover:visible">
+						<ConnectionDetails error={error} updatedAt={dataUpdatedAt} />
+					</span>
 				</span>
 			</header>
 
@@ -57,8 +63,8 @@ export function App() {
 				<div>
 					<h1 className="font-semibold text-2xl tracking-tight">Tunnels</h1>
 					<p className="text-muted-foreground text-sm">
-						Live reverse tunnels attached to this hub. Kill disconnects a peer; block also revokes its
-						credential.
+						Live reverse tunnels attached to this hub. Kill disconnects a peer (it may reconnect); block
+						also bans its peer id so no token for it works until unblocked.
 					</p>
 				</div>
 
@@ -136,6 +142,8 @@ export function App() {
 
 				<BlockedCard onUnblock={(peer) => unblock.mutate({ peer })} />
 			</main>
+
+			<Footer />
 		</div>
 	);
 }
@@ -226,6 +234,42 @@ function CopyField({ label, value }: { label: string; value: string }) {
 	);
 }
 
+// ConnectionDetails is the hover card behind the header status dot:
+// where the console talks to, over what, and how fresh the data is.
+function ConnectionDetails({ error, updatedAt }: { error: unknown; updatedAt: number }) {
+	const row = "flex justify-between gap-4";
+	const key = "text-muted-foreground";
+	return (
+		<span className="flex flex-col gap-1.5">
+			<span className={row}>
+				<span className={key}>status</span>
+				<span className={error ? "text-red-500" : "text-emerald-500"}>
+					{error ? "unreachable" : "connected"}
+				</span>
+			</span>
+			<span className={row}>
+				<span className={key}>endpoint</span>
+				<span className="font-mono">{window.location.host}</span>
+			</span>
+			<span className={row}>
+				<span className={key}>service</span>
+				<span className="font-mono">openotters.holt.v1.Admin</span>
+			</span>
+			<span className={row}>
+				<span className={key}>protocol</span>
+				<span>Connect (JSON) over HTTP</span>
+			</span>
+			<span className={row}>
+				<span className={key}>last update</span>
+				<span>{updatedAt ? new Date(updatedAt).toLocaleTimeString() : "never"}</span>
+			</span>
+			{error instanceof Error && (
+				<span className="mt-1 border-t border-dashed pt-1.5 text-red-500">{error.message}</span>
+			)}
+		</span>
+	);
+}
+
 // BlockedCard lists the currently-blocked peers with an unblock action
 // each — blocked peers have no live tunnel, so they never appear in the
 // tunnels table.
@@ -242,6 +286,11 @@ function BlockedCard({ onUnblock }: { onUnblock: (peer: string) => void }) {
 						{blocked.length > 0 ? `${blocked.length}` : ""}
 					</span>
 				</CardTitle>
+				<p className="text-muted-foreground text-sm">
+					The ban is on the peer id, not one token: while blocked, every token for that id is refused, even
+					a freshly enrolled one. Unblocking re-admits the peer, and tokens minted before the block that
+					have not expired become valid again.
+				</p>
 			</CardHeader>
 			<CardContent>
 				{blocked.length === 0 ? (
@@ -267,7 +316,7 @@ function BlockedCard({ onUnblock }: { onUnblock: (peer: string) => void }) {
 									</TableCell>
 									<TableCell className="text-muted-foreground">
 										{b.blockedAtUnix
-											? new Date(Number(b.blockedAtUnix) * 1000).toLocaleTimeString()
+											? new Date(Number(b.blockedAtUnix) * 1000).toLocaleString()
 											: "—"}
 									</TableCell>
 									<TableCell className="text-right">
