@@ -254,8 +254,11 @@ function DangerZone() {
 		try {
 			const res = await fetch("/api/renew", { method: "POST" });
 			if (!res.ok) throw new Error(await res.text());
+			const { closedTunnels = 0 } = (await res.json()) as { closedTunnels?: number };
 			toast.success("Certificate renewed", {
-				description: "Existing join tokens are now invalid — re-enroll your peers.",
+				description:
+					`Closed ${closedTunnels} tunnel${closedTunnels === 1 ? "" : "s"}. ` +
+					"Existing join tokens are now invalid — re-enroll your peers.",
 			});
 		} catch (e) {
 			toast.error("Renew failed", { description: e instanceof Error ? e.message : String(e) });

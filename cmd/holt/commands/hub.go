@@ -18,6 +18,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/netutil"
 
+	"github.com/openotters/holt"
 	holtv1connect "github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
 	"github.com/openotters/holt/cmd/holt/internal/selfsigned"
@@ -311,10 +312,18 @@ func (h *Hub) serveAdmin(
 			}
 
 			certs.set(mat)
-			logger.Warn("hub certificate renewed via console; all existing tokens invalidated")
+
+			// Existing tunnels still ride their old TLS session, but
+			// their tokens are now void — close them with a terminal
+			// GoAway so peers stop instead of lingering, and re-enroll.
+			closed := registry.CountTunnels()
+			registry.StopAllTunnels(holt.ReasonTokenRevoked)
+
+			logger.Warn("hub certificate renewed via console; tokens invalidated, tunnels closed",
+				zap.Int("closed_tunnels", closed))
 
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]bool{"renewed": true})
+			_ = json.NewEncoder(w).Encode(map[string]any{"renewed": true, "closedTunnels": closed})
 		})
 
 		mux.Handle("/", webui.Handler(h.UIPath))
