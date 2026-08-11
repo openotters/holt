@@ -23,9 +23,10 @@ const BLOCKED_KEY = createConnectQueryKey({ cardinality: undefined, schema: list
 // "call this peer" command points at the right address (the console is
 // served from the admin port, not the proxy one).
 function useHubConfig() {
-	const [cfg, setCfg] = useState<{ routeHeader: string; proxyPort: string }>({
+	const [cfg, setCfg] = useState<{ routeHeader: string; proxyPort: string; externalURL: string }>({
 		routeHeader: "x-tunnel-peer",
 		proxyPort: "7002",
+		externalURL: "",
 	});
 	useEffect(() => {
 		fetch("/api/config")
@@ -179,6 +180,7 @@ export function App() {
 					peer={callPeer}
 					routeHeader={config.routeHeader}
 					proxyPort={config.proxyPort}
+					externalURL={config.externalURL}
 					onClose={() => setCallPeer(null)}
 				/>
 			)}
@@ -194,11 +196,13 @@ function CallPeerModal({
 	peer,
 	routeHeader,
 	proxyPort,
+	externalURL,
 	onClose,
 }: {
 	peer: string;
 	routeHeader: string;
 	proxyPort: string;
+	externalURL: string;
 	onClose: () => void;
 }) {
 	useEffect(() => {
@@ -209,6 +213,7 @@ function CallPeerModal({
 
 	const host = window.location.hostname || "127.0.0.1";
 	const curl = `curl -H '${routeHeader}: ${peer}' http://${host}:${proxyPort}/`;
+	const externalCurl = externalURL ? `curl -H '${routeHeader}: ${peer}' ${externalURL}/` : "";
 
 	return (
 		<div
@@ -238,7 +243,16 @@ function CallPeerModal({
 					<code className="font-mono text-xs">{routeHeader}</code> header. The peer serves whatever handler
 					it attached with.
 				</p>
-				<CopyField label="Reach the peer through the hub" value={curl} multiline />
+				{externalCurl && (
+					<div className="mb-3">
+						<CopyField label="Through the public URL" value={externalCurl} multiline />
+					</div>
+				)}
+				<CopyField
+					label={externalCurl ? "From this host (loopback / in-cluster)" : "Reach the peer through the hub"}
+					value={curl}
+					multiline
+				/>
 			</div>
 		</div>
 	);

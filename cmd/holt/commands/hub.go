@@ -63,6 +63,11 @@ type Hub struct {
 	// loopback. These are hardening knobs, not a substitute for that.
 	AllowedHosts []string `help:"Extra Host values the admin/console accept, on top of loopback (defeats DNS rebinding when exposed). Set your public hostname here; use '*' to disable the check." name:"allowed-host"`
 	MaxConns     int      `help:"Cap concurrent tunnel connections (0 = unlimited)." default:"0"`
+
+	// Public base URL the proxy is reachable at (e.g. behind an ingress
+	// or a zero trust tunnel). Shown in the console's "Call" command so
+	// operators get the externally-reachable curl, not just localhost.
+	ExternalURL string `help:"Public base URL the proxy is reachable at, shown in the console's Call command (e.g. https://peers.example.com)." name:"external-url"`
 }
 
 // Run starts the hub and blocks until the context is cancelled.
@@ -339,6 +344,7 @@ func (h *Hub) serveAdmin(
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"routeHeader": routeHeader,
 				"proxyPort":   proxyPort,
+				"externalURL": strings.TrimRight(h.ExternalURL, "/"),
 			})
 		})
 

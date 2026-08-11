@@ -59,6 +59,11 @@ spec:
             {{- if gt (int .Values.hub.maxConns) 0 }}
             - --max-conns={{ .Values.hub.maxConns }}
             {{- end }}
+            {{- if .Values.hub.externalURL }}
+            - --external-url={{ .Values.hub.externalURL }}
+            {{- else if .Values.ingress.proxy.enabled }}
+            - --external-url=https://{{ required "ingress.proxy.host is required when ingress.proxy.enabled" .Values.ingress.proxy.host }}
+            {{- end }}
           env:
             # Classic structured logs; the friendly output is for
             # terminals.

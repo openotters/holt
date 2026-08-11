@@ -30,6 +30,10 @@ hub:
   allowedHosts: []
   # Cap concurrent tunnel connections (0 = unlimited).
   maxConns: 0
+  # Public base URL the proxy is reachable at, shown in the console's
+  # "Call" command. Leave empty to auto-derive https://<proxy ingress
+  # host> when the proxy ingress is enabled.
+  externalURL: ""
 
 service:
   # Tunnel listener: peers dial this from OUTSIDE the cluster, so it
