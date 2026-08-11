@@ -48,6 +48,17 @@ spec:
             - --proxy-addr=0.0.0.0:{{ .Values.service.proxy.port }}
             - --state=/data
             - --token-ttl={{ .Values.hub.tokenTTL }}
+            # In-cluster callers reach the admin service by its name.
+            - --allowed-host={{ include "holt.fullname" . }}
+            {{- if .Values.ingress.admin.enabled }}
+            - --allowed-host={{ required "ingress.admin.host is required when ingress.admin.enabled" .Values.ingress.admin.host }}
+            {{- end }}
+            {{- range .Values.hub.allowedHosts }}
+            - --allowed-host={{ . }}
+            {{- end }}
+            {{- if gt (int .Values.hub.maxConns) 0 }}
+            - --max-conns={{ .Values.hub.maxConns }}
+            {{- end }}
           env:
             # Classic structured logs; the friendly output is for
             # terminals.

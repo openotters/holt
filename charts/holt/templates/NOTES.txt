@@ -28,3 +28,12 @@
 
 The hub state (certificate, JWT secret, blocklist) lives in the
 {{ ternary (printf "PVC %s" (.Values.persistence.existingClaim | default (include "holt.fullname" .))) "pod (persistence is DISABLED: every restart invalidates all join tokens)" .Values.persistence.enabled }}.
+{{- if or .Values.ingress.admin.enabled .Values.ingress.proxy.enabled }}
+
+⚠️  SECURITY: you enabled an ingress. The admin API mints join tokens
+    and can kill/block peers; the proxy reaches every peer's service.
+    Neither has built-in auth. Make sure an authenticating layer (a
+    zero trust proxy such as Cloudflare Access, or an auth ingress)
+    sits in front of it. The DNS-rebinding host guard is on; "*" in
+    hub.allowedHosts disables it.
+{{- end }}

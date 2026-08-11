@@ -15,6 +15,7 @@ import (
 
 	c "github.com/merlindorin/go-shared/pkg/cmd"
 	"go.uber.org/zap"
+	"golang.org/x/net/netutil"
 
 	holtv1connect "github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
@@ -43,6 +44,12 @@ type Hub struct {
 	UI         bool          `help:"Serve the web console (and its enroll endpoint) on the admin listener."`
 	UIPath     string        `help:"Serve the console from this directory instead of the embedded build." type:"path"`
 	TokenTTL   time.Duration `help:"Lifetime of JWTs minted by the console's enroll button." default:"24h"`
+
+	// The admin listener has no built-in auth (mint token, kill, block);
+	// it is meant to sit behind an authenticating proxy or stay on
+	// loopback. These are hardening knobs, not a substitute for that.
+	AllowedHosts []string `help:"Extra Host values the admin/console accept, on top of loopback (defeats DNS rebinding when exposed). Set your public hostname here; use '*' to disable the check." name:"allowed-host"`
+	MaxConns     int      `help:"Cap concurrent tunnel connections (0 = unlimited)." default:"0"`
 }
 
 // Run starts the hub and blocks until the context is cancelled.
@@ -194,13 +201,25 @@ func (h *Hub) serveTunnels(
 
 	srv := &http.Server{
 		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		TLSConfig:         &tls.Config{Certificates: []tls.Certificate{mat.Cert}, MinVersion: tls.VersionTLS13},
+		ReadHeaderTimeout: readHeaderTimeout,
+		// No Read/Write timeout: the Attach stream is long-lived, and a
+		// deadline on the whole request/response would kill live
+		// tunnels. Slow-header and idle connections are bounded below;
+		// a wedged peer is reaped by the inner HTTP/2 PINGs.
+		IdleTimeout: idleTimeout,
+		TLSConfig:   &tls.Config{Certificates: []tls.Certificate{mat.Cert}, MinVersion: tls.VersionTLS13},
 	}
 
 	lis, err := listen(h.TunnelAddr)
 	if err != nil {
 		return nil, err
+	}
+
+	// Optional cap on concurrent tunnel connections. Off by default so
+	// behavior is unchanged; a value bounds resource use under a flood
+	// of attaches (each tunnel holds an HTTP/2 session).
+	if h.MaxConns > 0 {
+		lis = netutil.LimitListener(lis, h.MaxConns)
 	}
 
 	go func() {
@@ -256,7 +275,15 @@ func (h *Hub) serveAdmin(
 		logger.Debug("web console enabled", zap.String("url", "http://"+h.AdminAddr+"/"))
 	}
 
-	srv := newH2CServer(mux)
+	// Host guard defeats DNS-rebinding against the plaintext console:
+	// only loopback, the admin bind host, and any operator-configured
+	// hostnames are accepted. Secure by default, opt out with '*'.
+	adminHost := h.AdminAddr
+	if hh, _, splitErr := net.SplitHostPort(h.AdminAddr); splitErr == nil {
+		adminHost = hh
+	}
+
+	srv := newH2CServer(hostGuard(append([]string{adminHost}, h.AllowedHosts...), mux))
 
 	lis, err := listen(h.AdminAddr)
 	if err != nil {
@@ -270,6 +297,43 @@ func (h *Hub) serveAdmin(
 	}()
 
 	return srv, nil
+}
+
+// hostGuard rejects requests whose Host header is not allow-listed,
+// which is what stops a DNS-rebinding page from driving the plaintext,
+// loopback-served console and its token-minting endpoint. Loopback
+// names are always allowed; a deployment exposed through a proxy adds
+// its public hostname. A single "*" entry disables the check.
+func hostGuard(allowed []string, next http.Handler) http.Handler {
+	allow := map[string]bool{"127.0.0.1": true, "localhost": true, "::1": true}
+	wildcard := false
+
+	for _, h := range allowed {
+		if h == "*" {
+			wildcard = true
+		}
+
+		if h != "" {
+			allow[strings.ToLower(h)] = true
+		}
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !wildcard {
+			host := r.Host
+			if hh, _, err := net.SplitHostPort(host); err == nil {
+				host = hh
+			}
+
+			if !allow[strings.ToLower(host)] {
+				http.Error(w, "forbidden: host not allowed (set --allowed-host)", http.StatusForbidden)
+
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // serveProxy runs the header-routed reverse proxy.
@@ -373,8 +437,22 @@ func newH2CServer(handler http.Handler) *http.Server {
 	protocols.SetHTTP1(true)
 	protocols.SetUnencryptedHTTP2(true)
 
-	return &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second, Protocols: &protocols}
+	// ReadHeaderTimeout bounds slow-header (Slowloris) clients;
+	// IdleTimeout bounds idle keep-alive connections. No Read/Write
+	// timeout: the admin WatchTunnels response and proxied peer
+	// responses stream for arbitrary durations.
+	return &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+		IdleTimeout:       idleTimeout,
+		Protocols:         &protocols,
+	}
 }
+
+const (
+	readHeaderTimeout = 10 * time.Second
+	idleTimeout       = 2 * time.Minute
+)
 
 func listen(addr string) (net.Listener, error) {
 	var lc net.ListenConfig

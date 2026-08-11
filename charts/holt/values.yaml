@@ -22,6 +22,14 @@ hub:
   # Log level (debug, info, warn, error). Logs are always JSON here;
   # this is a server.
   logLevel: info
+  # Extra Host header values the admin/console accept, on top of the
+  # in-cluster names (loopback and the service name). The chart already
+  # adds the admin ingress host automatically, so you only need this
+  # for additional public hostnames. Use ["*"] to disable the DNS
+  # rebinding guard entirely (not recommended).
+  allowedHosts: []
+  # Cap concurrent tunnel connections (0 = unlimited).
+  maxConns: 0
 
 service:
   # Tunnel listener: peers dial this from OUTSIDE the cluster, so it
@@ -44,17 +52,21 @@ service:
     type: ClusterIP
     port: 7002
 
+# Ingresses are DISABLED by default and should stay that way unless an
+# authenticating layer sits in front. The admin API mints join tokens
+# and can kill/block peers, and the proxy reaches every peer's service;
+# neither has built-in auth. The intended exposure is behind a zero
+# trust proxy (e.g. Cloudflare Tunnel + Access) or an authenticating
+# ingress, NOT a bare public ingress. When you do enable the admin
+# ingress, its host is added to hub.allowedHosts automatically so the
+# console keeps working while staying DNS-rebinding safe.
 ingress:
-  # Optional ingress for the ADMIN console. Put auth in front: the
-  # admin API can kill and block peers.
   admin:
     enabled: false
     className: ""
     annotations: {}
     host: ""
     tls: []
-  # Optional ingress for the PROXY (reaching peer services from
-  # outside the cluster).
   proxy:
     enabled: false
     className: ""
