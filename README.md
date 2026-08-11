@@ -58,6 +58,16 @@ As a library:
 go get github.com/openotters/holt
 ```
 
+On Kubernetes (multi-arch images on ghcr, chart as an OCI artifact):
+
+```sh
+helm install holt oci://ghcr.io/openotters/charts/holt
+```
+
+The chart runs the hub with persistent state, a LoadBalancer for the
+tunnel listener and the admin console kept private; see
+[`charts/holt/values.yaml`](charts/holt/values.yaml).
+
 ## Quickstart
 
 Expose a local service through a hub in four commands:

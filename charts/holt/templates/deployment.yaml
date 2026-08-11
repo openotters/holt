@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "holt.fullname" . }}
+  labels:
+    {{- include "holt.labels" . | nindent 4 }}
+spec:
+  # Single replica by design: the hub state is a local SQLite database
+  # and live tunnels are process-local. See values.yaml.
+  replicas: 1
+  strategy:
+    # Two hubs must not share the state volume; recreate avoids the
+    # rolling overlap.
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "holt.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "holt.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "holt.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: hub
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - hub
+            {{- if .Values.hub.ui }}
+            - --ui
+            {{- end }}
+            - --tunnel-addr=0.0.0.0:{{ .Values.service.tunnel.port }}
+            - --admin-addr=0.0.0.0:{{ .Values.service.admin.port }}
+            - --proxy-addr=0.0.0.0:{{ .Values.service.proxy.port }}
+            - --state=/data
+            - --token-ttl={{ .Values.hub.tokenTTL }}
+          env:
+            # Classic structured logs; the friendly output is for
+            # terminals.
+            - name: HOLT_LOG_FORMAT
+              value: json
+            - name: LOG_LEVEL
+              value: {{ .Values.hub.logLevel | quote }}
+          ports:
+            - name: tunnel
+              containerPort: {{ .Values.service.tunnel.port }}
+            - name: admin
+              containerPort: {{ .Values.service.admin.port }}
+            - name: proxy
+              containerPort: {{ .Values.service.proxy.port }}
+          readinessProbe:
+            tcpSocket:
+              port: tunnel
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: tunnel
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: /data
+      volumes:
+        - name: state
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (include "holt.fullname" .) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

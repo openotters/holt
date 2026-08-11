@@ -45,6 +45,55 @@ archives:
       - LICENSE.md
       - README.md
 
+# Docker images, following the tk goreleaser conventions (scratch
+# Dockerfile, ghcr, oci labels) extended to multi-arch: one image per
+# arch plus a manifest, because the tk single-image pattern is amd64
+# only. The Dockerfile only COPYs the prebuilt binary, so cross-arch
+# builds need no emulation.
+dockers:
+  - id: holt-amd64
+    goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile
+    use: buildx
+    image_templates:
+      - 'ghcr.io/openotters/holt:{{ .Tag }}-amd64'
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.name={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.description=Reverse HTTP tunnels for services that can only dial out"
+      - "--label=org.opencontainers.image.source=https://github.com/openotters/holt"
+  - id: holt-arm64
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile
+    use: buildx
+    image_templates:
+      - 'ghcr.io/openotters/holt:{{ .Tag }}-arm64'
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.name={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.description=Reverse HTTP tunnels for services that can only dial out"
+      - "--label=org.opencontainers.image.source=https://github.com/openotters/holt"
+
+docker_manifests:
+  - name_template: 'ghcr.io/openotters/holt:{{ .Tag }}'
+    image_templates:
+      - 'ghcr.io/openotters/holt:{{ .Tag }}-amd64'
+      - 'ghcr.io/openotters/holt:{{ .Tag }}-arm64'
+  - name_template: 'ghcr.io/openotters/holt:latest'
+    image_templates:
+      - 'ghcr.io/openotters/holt:{{ .Tag }}-amd64'
+      - 'ghcr.io/openotters/holt:{{ .Tag }}-arm64'
+
 checksum:
   name_template: "checksums.txt"
 

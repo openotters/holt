@@ -91,13 +91,20 @@ tasks:
       - npm run build
       - rsync -a --delete dist/ ../{{.WEBUI_DIST}}/
 
+  chart:lint:
+    desc: Lint and render the Helm chart
+    cmds:
+      - helm lint charts/holt
+      - helm template holt charts/holt > /dev/null
+
   check:
-    desc: Full local gate, same as CI (lint, race tests, build, ui, release config)
+    desc: Full local gate, same as CI (lint, race tests, build, ui, chart, release config)
     cmds:
       - task: lint
       - task: test:race
       - task: build
       - task: ui:build
+      - task: chart:lint
       # exit code 2 means "valid but uses deprecated properties"; we
       # keep the brews section on purpose (a Formula also works on
       # Linux, homebrew casks are macOS only).

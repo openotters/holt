@@ -1,0 +1,42 @@
+name: Chart
+
+# Lints and renders the Helm chart on every PR that touches it. The
+# chart is published to ghcr as an OCI artifact by the release
+# workflow, so a broken template == a broken release.
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+      - '.github/workflows/chart.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'charts/**'
+      - '.github/workflows/chart.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Lint chart
+        run: helm lint charts/holt
+
+      - name: Render with defaults
+        run: helm template holt charts/holt > /dev/null
+
+      - name: Render with ingress + no persistence
+        run: |
+          helm template holt charts/holt \
+            --set ingress.admin.enabled=true \
+            --set ingress.admin.host=holt.example.com \
+            --set ingress.proxy.enabled=true \
+            --set ingress.proxy.host=peers.example.com \
+            --set persistence.enabled=false > /dev/null

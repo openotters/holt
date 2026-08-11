@@ -1,0 +1,30 @@
+🌀 holt is deploying.
+
+1. Find the tunnel address peers will dial (service {{ include "holt.fullname" . }}-tunnel):
+
+   kubectl -n {{ .Release.Namespace }} get svc {{ include "holt.fullname" . }}-tunnel
+
+2. Enroll your first peer (mints a join token bound to that address):
+
+   kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "holt.fullname" . }} -- \
+     holt enroll web --state /data --hub-addr <tunnel-address>:{{ .Values.service.tunnel.port }}
+
+3. On the peer machine, expose a local service through the hub:
+
+   holt expose localhost:3000 --token <paste>
+
+4. Reach it through the proxy port (private by default):
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "holt.fullname" . }} {{ .Values.service.proxy.port }}
+   curl -H 'x-tunnel-peer: web' http://127.0.0.1:{{ .Values.service.proxy.port }}/
+
+{{- if .Values.hub.ui }}
+
+5. The web console (list, kill, block, enroll):
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "holt.fullname" . }} {{ .Values.service.admin.port }}
+   open http://127.0.0.1:{{ .Values.service.admin.port }}/
+{{- end }}
+
+The hub state (certificate, JWT secret, blocklist) lives in the
+{{ ternary (printf "PVC %s" (.Values.persistence.existingClaim | default (include "holt.fullname" .))) "pod (persistence is DISABLED: every restart invalidates all join tokens)" .Values.persistence.enabled }}.

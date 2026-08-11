@@ -1,0 +1,42 @@
+# Two services because the exposure differs: the tunnel listener is
+# what peers dial from outside (often a LoadBalancer), while admin and
+# proxy stay private by default.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "holt.fullname" . }}-tunnel
+  labels:
+    {{- include "holt.labels" . | nindent 4 }}
+  {{- with .Values.service.tunnel.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.tunnel.type }}
+  ports:
+    - name: tunnel
+      port: {{ .Values.service.tunnel.port }}
+      targetPort: tunnel
+      protocol: TCP
+  selector:
+    {{- include "holt.selectorLabels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "holt.fullname" . }}
+  labels:
+    {{- include "holt.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.admin.type }}
+  ports:
+    - name: admin
+      port: {{ .Values.service.admin.port }}
+      targetPort: admin
+      protocol: TCP
+    - name: proxy
+      port: {{ .Values.service.proxy.port }}
+      targetPort: proxy
+      protocol: TCP
+  selector:
+    {{- include "holt.selectorLabels" . | nindent 4 }}

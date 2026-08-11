@@ -1,0 +1,35 @@
+{{- range $kind := list "admin" "proxy" }}
+{{- $ing := index $.Values.ingress $kind }}
+{{- if $ing.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "holt.fullname" $ }}-{{ $kind }}
+  labels:
+    {{- include "holt.labels" $ | nindent 4 }}
+  {{- with $ing.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $ing.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with $ing.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ required (printf "ingress.%s.host is required when ingress.%s.enabled" $kind $kind) $ing.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "holt.fullname" $ }}
+                port:
+                  name: {{ $kind }}
+{{- end }}
+{{- end }}

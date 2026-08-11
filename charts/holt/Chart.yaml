@@ -1,0 +1,23 @@
+apiVersion: v2
+name: holt
+description: >-
+  Reverse HTTP tunnels for services that can only dial out. Runs the
+  holt hub: a TLS+JWT tunnel listener peers attach to, an admin API
+  with the web console, and a header-routed proxy to reach peers.
+type: application
+# Both versions are overridden at release time with the git tag; see
+# .github/workflows/release.yml.
+version: 0.0.0
+appVersion: "0.0.0"
+home: https://github.com/openotters/holt
+icon: https://raw.githubusercontent.com/openotters/.github/main/profile/otter.png
+sources:
+  - https://github.com/openotters/holt
+maintainers:
+  - name: merlindorin
+    url: https://github.com/merlindorin
+keywords:
+  - tunnel
+  - reverse-tunnel
+  - grpc
+  - nat-traversal

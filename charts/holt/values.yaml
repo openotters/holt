@@ -1,0 +1,106 @@
+# Default values for the holt chart.
+
+image:
+  repository: ghcr.io/openotters/holt
+  # Defaults to the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# The hub is a single replica on purpose: its state (cert, JWT secret,
+# blocklist, presence) lives in a local SQLite database. Fleets with
+# several hubs use the library with a shared PostgreSQL directory, not
+# this chart.
+hub:
+  # Serve the web console on the admin port.
+  ui: true
+  # Lifetime of JWTs minted by the console's enroll button.
+  tokenTTL: 24h
+  # Log level (debug, info, warn, error). Logs are always JSON here;
+  # this is a server.
+  logLevel: info
+
+service:
+  # Tunnel listener: peers dial this from OUTSIDE the cluster, so it
+  # usually needs to be reachable publicly (LoadBalancer or an
+  # ingress able to pass TLS through; the tunnel is TLS end to end
+  # with the hub's own pinned certificate, do NOT terminate it).
+  tunnel:
+    type: LoadBalancer
+    port: 7000
+    # Set when peers reach the hub through a fixed address; used only
+    # for documentation in NOTES.txt.
+    annotations: {}
+  # Admin API + web console: keep it private (port-forward or an
+  # authenticated ingress).
+  admin:
+    type: ClusterIP
+    port: 7001
+  # Header-routed proxy (x-tunnel-peer) to reach peer services.
+  proxy:
+    type: ClusterIP
+    port: 7002
+
+ingress:
+  # Optional ingress for the ADMIN console. Put auth in front: the
+  # admin API can kill and block peers.
+  admin:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: ""
+    tls: []
+  # Optional ingress for the PROXY (reaching peer services from
+  # outside the cluster).
+  proxy:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: ""
+    tls: []
+
+persistence:
+  # The hub state: certificate, JWT secret, blocklist, presence.
+  # Losing it invalidates every join token already handed out.
+  enabled: true
+  size: 1Gi
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  # Use an existing claim instead of creating one.
+  existingClaim: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  # Makes the state volume writable by the non-root user.
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

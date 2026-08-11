@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - '.goreleaser.yaml'
+      - 'Dockerfile'
       - '.github/workflows/release.yml'
       - '.github/workflows/release-check.yml'
       - 'cmd/holt/**'
