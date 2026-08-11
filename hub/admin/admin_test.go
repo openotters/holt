@@ -2,12 +2,15 @@ package admin_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"connectrpc.com/connect"
 	"go.uber.org/zap"
 
 	holtv1 "github.com/openotters/holt/api/v1"
+	"github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/hub"
 	"github.com/openotters/holt/hub/admin"
 )
@@ -121,5 +124,73 @@ func TestAdminService_BlockUnimplementedWithoutBlocker(t *testing.T) {
 	resp, err := svc.ListBlocked(context.Background(), connect.NewRequest(&holtv1.ListBlockedRequest{}))
 	if err != nil || len(resp.Msg.GetPeers()) != 0 {
 		t.Fatalf("ListBlocked without blocker = %+v, %v", resp.Msg.GetPeers(), err)
+	}
+}
+
+// TestWatchTunnels exercises the stream over a real HTTP round-trip:
+// snapshot first, then live attach/detach events.
+func TestWatchTunnels(t *testing.T) {
+	t.Parallel()
+
+	reg := hub.NewRegistry(zap.NewNop())
+	path, handler := holtv1connect.NewAdminHandler(admin.NewService(reg))
+	mux := http.NewServeMux()
+	mux.Handle(path, handler)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// One tunnel up before subscribing: it must arrive as the snapshot.
+	var detachAlice func(string)
+	detachAlice = reg.Attach("alice", "v1", nil, func(r string) { detachAlice(r) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	client := holtv1connect.NewAdminClient(srv.Client(), srv.URL)
+	stream, err := client.WatchTunnels(ctx, connect.NewRequest(&holtv1.WatchTunnelsRequest{}))
+	if err != nil {
+		t.Fatalf("watch: %v", err)
+	}
+
+	next := func() *holtv1.TunnelEvent {
+		t.Helper()
+		if !stream.Receive() {
+			t.Fatalf("stream ended early: %v", stream.Err())
+		}
+
+		return stream.Msg()
+	}
+
+	if ev := next(); ev.GetKind() != holtv1.TunnelEvent_KIND_UNSPECIFIED {
+		t.Fatalf("hello: got %v, want KIND_UNSPECIFIED", ev.GetKind())
+	}
+
+	if ev := next(); ev.GetKind() != holtv1.TunnelEvent_KIND_ATTACHED || ev.GetInfo().GetPeer() != "alice" {
+		t.Fatalf("snapshot: got %v %q", ev.GetKind(), ev.GetInfo().GetPeer())
+	}
+
+	// Live attach.
+	var detachBob func(string)
+	detachBob = reg.Attach("bob", "v2", nil, func(r string) { detachBob(r) })
+	_ = detachBob
+
+	if ev := next(); ev.GetKind() != holtv1.TunnelEvent_KIND_ATTACHED || ev.GetInfo().GetPeer() != "bob" {
+		t.Fatalf("live attach: got %v %q", ev.GetKind(), ev.GetInfo().GetPeer())
+	}
+
+	// Live detach, with the reason forwarded.
+	reg.StopTunnel("alice", "test-reason")
+
+	if ev := next(); ev.GetKind() != holtv1.TunnelEvent_KIND_DETACHED ||
+		ev.GetInfo().GetPeer() != "alice" || ev.GetReason() != "test-reason" {
+		t.Fatalf("live detach: got %v %q reason=%q", ev.GetKind(), ev.GetInfo().GetPeer(), ev.GetReason())
+	}
+
+	// Cancelling the context ends the stream client-side.
+	cancel()
+
+	// Drain until the stream closes.
+	for stream.Receive() {
+		continue
 	}
 }

@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Admin_ListTunnels_FullMethodName = "/openotters.holt.v1.Admin/ListTunnels"
-	Admin_StopTunnel_FullMethodName  = "/openotters.holt.v1.Admin/StopTunnel"
-	Admin_BlockPeer_FullMethodName   = "/openotters.holt.v1.Admin/BlockPeer"
-	Admin_UnblockPeer_FullMethodName = "/openotters.holt.v1.Admin/UnblockPeer"
-	Admin_ListBlocked_FullMethodName = "/openotters.holt.v1.Admin/ListBlocked"
+	Admin_ListTunnels_FullMethodName  = "/openotters.holt.v1.Admin/ListTunnels"
+	Admin_StopTunnel_FullMethodName   = "/openotters.holt.v1.Admin/StopTunnel"
+	Admin_BlockPeer_FullMethodName    = "/openotters.holt.v1.Admin/BlockPeer"
+	Admin_UnblockPeer_FullMethodName  = "/openotters.holt.v1.Admin/UnblockPeer"
+	Admin_ListBlocked_FullMethodName  = "/openotters.holt.v1.Admin/ListBlocked"
+	Admin_WatchTunnels_FullMethodName = "/openotters.holt.v1.Admin/WatchTunnels"
 )
 
 // AdminClient is the client API for Admin service.
@@ -52,6 +53,16 @@ type AdminClient interface {
 	// live tunnel to appear in ListTunnels). Empty when no blocker is
 	// configured.
 	ListBlocked(ctx context.Context, in *ListBlockedRequest, opts ...grpc.CallOption) (*ListBlockedResponse, error)
+	// WatchTunnels streams the live-tunnel set: an empty hello event
+	// first (KIND_UNSPECIFIED, flushes headers so browser clients see
+	// the subscription immediately), then the current tunnels as
+	// ATTACHED events (a snapshot), then attach/detach events as they
+	// happen. An ATTACHED for a peer already seen is a
+	// harmless duplicate (subscribe and snapshot overlap by design so
+	// nothing falls in the gap). The stream ends server-side if the
+	// client falls too far behind; resubscribe and treat the replay as
+	// a fresh snapshot.
+	WatchTunnels(ctx context.Context, in *WatchTunnelsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TunnelEvent], error)
 }
 
 type adminClient struct {
@@ -112,6 +123,25 @@ func (c *adminClient) ListBlocked(ctx context.Context, in *ListBlockedRequest, o
 	return out, nil
 }
 
+func (c *adminClient) WatchTunnels(ctx context.Context, in *WatchTunnelsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TunnelEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Admin_ServiceDesc.Streams[0], Admin_WatchTunnels_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchTunnelsRequest, TunnelEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Admin_WatchTunnelsClient = grpc.ServerStreamingClient[TunnelEvent]
+
 // AdminServer is the server API for Admin service.
 // All implementations must embed UnimplementedAdminServer
 // for forward compatibility.
@@ -138,6 +168,16 @@ type AdminServer interface {
 	// live tunnel to appear in ListTunnels). Empty when no blocker is
 	// configured.
 	ListBlocked(context.Context, *ListBlockedRequest) (*ListBlockedResponse, error)
+	// WatchTunnels streams the live-tunnel set: an empty hello event
+	// first (KIND_UNSPECIFIED, flushes headers so browser clients see
+	// the subscription immediately), then the current tunnels as
+	// ATTACHED events (a snapshot), then attach/detach events as they
+	// happen. An ATTACHED for a peer already seen is a
+	// harmless duplicate (subscribe and snapshot overlap by design so
+	// nothing falls in the gap). The stream ends server-side if the
+	// client falls too far behind; resubscribe and treat the replay as
+	// a fresh snapshot.
+	WatchTunnels(*WatchTunnelsRequest, grpc.ServerStreamingServer[TunnelEvent]) error
 	mustEmbedUnimplementedAdminServer()
 }
 
@@ -162,6 +202,9 @@ func (UnimplementedAdminServer) UnblockPeer(context.Context, *UnblockPeerRequest
 }
 func (UnimplementedAdminServer) ListBlocked(context.Context, *ListBlockedRequest) (*ListBlockedResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListBlocked not implemented")
+}
+func (UnimplementedAdminServer) WatchTunnels(*WatchTunnelsRequest, grpc.ServerStreamingServer[TunnelEvent]) error {
+	return status.Error(codes.Unimplemented, "method WatchTunnels not implemented")
 }
 func (UnimplementedAdminServer) mustEmbedUnimplementedAdminServer() {}
 func (UnimplementedAdminServer) testEmbeddedByValue()               {}
@@ -274,6 +317,17 @@ func _Admin_ListBlocked_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Admin_WatchTunnels_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchTunnelsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AdminServer).WatchTunnels(m, &grpc.GenericServerStream[WatchTunnelsRequest, TunnelEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Admin_WatchTunnelsServer = grpc.ServerStreamingServer[TunnelEvent]
+
 // Admin_ServiceDesc is the grpc.ServiceDesc for Admin service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -302,6 +356,12 @@ var Admin_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Admin_ListBlocked_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchTunnels",
+			Handler:       _Admin_WatchTunnels_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "v1/admin.proto",
 }

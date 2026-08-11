@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@connectrpc/connect-query";
+import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ban, Check, Copy, ShieldOff, X } from "lucide-react";
 import { useState } from "react";
@@ -7,13 +7,18 @@ import { toast } from "sonner";
 import { Footer } from "@/components/footer";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusMenu } from "@/components/status-menu";
+import { useTunnelStream } from "@/lib/use-tunnel-stream";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { blockPeer, listBlocked, listTunnels, stopTunnel, unblockPeer } from "@/gen/v1/admin-Admin_connectquery";
 
-const LIST_KEY = ["openotters.holt.v1.Admin", "ListTunnels"];
-const BLOCKED_KEY = ["openotters.holt.v1.Admin", "ListBlocked"];
+// Proper connect-query keys: the v2 key shape is ["connect-query",
+// {...}], so hand-written ["Service", "Method"] arrays match nothing
+// and invalidations silently no-op. cardinality undefined = filter
+// matching both finite and infinite queries.
+const LIST_KEY = createConnectQueryKey({ cardinality: undefined, schema: listTunnels });
+const BLOCKED_KEY = createConnectQueryKey({ cardinality: undefined, schema: listBlocked });
 
 export function App() {
 	const queryClient = useQueryClient();
@@ -23,6 +28,10 @@ export function App() {
 	const tunnels = data?.tunnels ?? [];
 
 	const invalidateBlocked = () => queryClient.invalidateQueries({ queryKey: BLOCKED_KEY });
+
+	// Live updates: every WatchTunnels event refreshes the list, so
+	// attaches/detaches appear instantly instead of on the next poll.
+	const live = useTunnelStream(invalidate);
 
 	const kill = useMutation(stopTunnel, {
 		onSuccess: () => invalidate(),
@@ -51,7 +60,7 @@ export function App() {
 					🌀
 				</span>
 				<span className="font-semibold tracking-tight">holt console</span>
-				<StatusMenu error={error} updatedAt={dataUpdatedAt} />
+				<StatusMenu error={error} live={live} updatedAt={dataUpdatedAt} />
 			</header>
 
 			<main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">

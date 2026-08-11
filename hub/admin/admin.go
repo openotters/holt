@@ -145,3 +145,68 @@ func (s *Service) ListBlocked(
 
 	return connect.NewResponse(resp), nil
 }
+
+// WatchTunnels streams the live-tunnel set: a snapshot of the current
+// tunnels as ATTACHED events, then live attach/detach transitions. The
+// subscription is opened before the snapshot is read, so nothing falls
+// in the gap; the overlap can produce a duplicate ATTACHED, which
+// clients must treat as idempotent. Returns when the client goes away
+// or the registry drops this watcher for being too slow (the client
+// resubscribes and gets a fresh snapshot).
+func (s *Service) WatchTunnels(
+	ctx context.Context, _ *connect.Request[holtv1.WatchTunnelsRequest],
+	stream *connect.ServerStream[holtv1.TunnelEvent],
+) error {
+	events := s.registry.Watch(ctx)
+
+	// Hello marker (KIND_UNSPECIFIED): flushes the response headers so
+	// browser clients resolve their fetch immediately and can show the
+	// subscription as live even when no tunnel exists yet.
+	if err := stream.Send(&holtv1.TunnelEvent{}); err != nil {
+		return err
+	}
+
+	for _, t := range s.registry.ListTunnels() {
+		if err := stream.Send(&holtv1.TunnelEvent{
+			Kind: holtv1.TunnelEvent_KIND_ATTACHED,
+			Info: &holtv1.TunnelInfo{
+				Peer:           t.Peer,
+				PeerVersion:    t.PeerVersion,
+				AttachedAtUnix: t.AttachedAt.Unix(),
+			},
+		}); err != nil {
+			return err
+		}
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case ev, ok := <-events:
+			if !ok {
+				// Dropped for slowness (or registry shutdown); ending the
+				// stream tells the client to resubscribe.
+				return nil
+			}
+
+			out := &holtv1.TunnelEvent{
+				Kind:   holtv1.TunnelEvent_KIND_DETACHED,
+				Info:   &holtv1.TunnelInfo{Peer: ev.Peer},
+				Reason: ev.Reason,
+			}
+			if ev.Kind == hub.EventAttached {
+				out.Kind = holtv1.TunnelEvent_KIND_ATTACHED
+				out.Reason = ""
+				if t, live := s.registry.Tunnel(ev.Peer); live {
+					out.Info.PeerVersion = t.PeerVersion
+					out.Info.AttachedAtUnix = t.AttachedAt.Unix()
+				}
+			}
+
+			if err := stream.Send(out); err != nil {
+				return err
+			}
+		}
+	}
+}

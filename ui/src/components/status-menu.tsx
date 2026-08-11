@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 // StatusMenu is the connection item in the top navbar: a real menu
 // (click to open, stays open, text selectable), not a hover tooltip.
-export function StatusMenu({ error, updatedAt }: { error: unknown; updatedAt: number }) {
+export function StatusMenu({ error, live, updatedAt }: { error: unknown; live: boolean; updatedAt: number }) {
 	const [open, setOpen] = useState(false);
 	const root = useRef<HTMLDivElement>(null);
 
@@ -61,6 +61,12 @@ export function StatusMenu({ error, updatedAt }: { error: unknown; updatedAt: nu
 						<div className={row}>
 							<span className={key}>protocol</span>
 							<span>Connect (JSON) over HTTP</span>
+						</div>
+						<div className={row}>
+							<span className={key}>updates</span>
+							<span className={live ? "text-emerald-500" : ""}>
+								{live ? "live (server stream)" : "polling (30s fallback)"}
+							</span>
 						</div>
 						<div className={row}>
 							<span className={key}>last update</span>

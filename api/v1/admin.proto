@@ -26,6 +26,16 @@ service Admin {
   // live tunnel to appear in ListTunnels). Empty when no blocker is
   // configured.
   rpc ListBlocked(ListBlockedRequest) returns (ListBlockedResponse);
+  // WatchTunnels streams the live-tunnel set: an empty hello event
+  // first (KIND_UNSPECIFIED, flushes headers so browser clients see
+  // the subscription immediately), then the current tunnels as
+  // ATTACHED events (a snapshot), then attach/detach events as they
+  // happen. An ATTACHED for a peer already seen is a
+  // harmless duplicate (subscribe and snapshot overlap by design so
+  // nothing falls in the gap). The stream ends server-side if the
+  // client falls too far behind; resubscribe and treat the replay as
+  // a fresh snapshot.
+  rpc WatchTunnels(WatchTunnelsRequest) returns (stream TunnelEvent);
 }
 
 message TunnelInfo {
@@ -72,4 +82,17 @@ message ListBlockedRequest {}
 
 message ListBlockedResponse {
   repeated BlockedPeer peers = 1;
+}
+
+message WatchTunnelsRequest {}
+
+message TunnelEvent {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_ATTACHED    = 1;
+    KIND_DETACHED    = 2;
+  }
+  Kind       kind   = 1;
+  TunnelInfo info   = 2; // fully set on ATTACHED; only peer on DETACHED
+  string     reason = 3; // detach reason, empty on ATTACHED
 }

@@ -2,15 +2,15 @@
 // @generated from file v1/admin.proto (package openotters.holt.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file v1/admin.proto.
  */
 export const file_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("Cg52MS9hZG1pbi5wcm90bxISb3Blbm90dGVycy5ob2x0LnYxIkoKClR1bm5lbEluZm8SDAoEcGVlchgBIAEoCRIUCgxwZWVyX3ZlcnNpb24YAiABKAkSGAoQYXR0YWNoZWRfYXRfdW5peBgDIAEoAyIUChJMaXN0VHVubmVsc1JlcXVlc3QiRgoTTGlzdFR1bm5lbHNSZXNwb25zZRIvCgd0dW5uZWxzGAEgAygLMh4ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEluZm8iMQoRU3RvcFR1bm5lbFJlcXVlc3QSDAoEcGVlchgBIAEoCRIOCgZyZWFzb24YAiABKAkiJQoSU3RvcFR1bm5lbFJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIAoQQmxvY2tQZWVyUmVxdWVzdBIMCgRwZWVyGAEgASgJIiQKEUJsb2NrUGVlclJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIgoSVW5ibG9ja1BlZXJSZXF1ZXN0EgwKBHBlZXIYASABKAkiFQoTVW5ibG9ja1BlZXJSZXNwb25zZSI0CgtCbG9ja2VkUGVlchIMCgRwZWVyGAEgASgJEhcKD2Jsb2NrZWRfYXRfdW5peBgCIAEoAyIUChJMaXN0QmxvY2tlZFJlcXVlc3QiRQoTTGlzdEJsb2NrZWRSZXNwb25zZRIuCgVwZWVycxgBIAMoCzIfLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja2VkUGVlcjLeAwoFQWRtaW4SXgoLTGlzdFR1bm5lbHMSJi5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdFR1bm5lbHNSZXF1ZXN0Gicub3Blbm90dGVycy5ob2x0LnYxLkxpc3RUdW5uZWxzUmVzcG9uc2USWwoKU3RvcFR1bm5lbBIlLm9wZW5vdHRlcnMuaG9sdC52MS5TdG9wVHVubmVsUmVxdWVzdBomLm9wZW5vdHRlcnMuaG9sdC52MS5TdG9wVHVubmVsUmVzcG9uc2USWAoJQmxvY2tQZWVyEiQub3Blbm90dGVycy5ob2x0LnYxLkJsb2NrUGVlclJlcXVlc3QaJS5vcGVub3R0ZXJzLmhvbHQudjEuQmxvY2tQZWVyUmVzcG9uc2USXgoLVW5ibG9ja1BlZXISJi5vcGVub3R0ZXJzLmhvbHQudjEuVW5ibG9ja1BlZXJSZXF1ZXN0Gicub3Blbm90dGVycy5ob2x0LnYxLlVuYmxvY2tQZWVyUmVzcG9uc2USXgoLTGlzdEJsb2NrZWQSJi5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdEJsb2NrZWRSZXF1ZXN0Gicub3Blbm90dGVycy5ob2x0LnYxLkxpc3RCbG9ja2VkUmVzcG9uc2VCKlooZ2l0aHViLmNvbS9vcGVub3R0ZXJzL2hvbHQvYXBpL3YxO2hvbHR2MWIGcHJvdG8z");
+  fileDesc("Cg52MS9hZG1pbi5wcm90bxISb3Blbm90dGVycy5ob2x0LnYxIkoKClR1bm5lbEluZm8SDAoEcGVlchgBIAEoCRIUCgxwZWVyX3ZlcnNpb24YAiABKAkSGAoQYXR0YWNoZWRfYXRfdW5peBgDIAEoAyIUChJMaXN0VHVubmVsc1JlcXVlc3QiRgoTTGlzdFR1bm5lbHNSZXNwb25zZRIvCgd0dW5uZWxzGAEgAygLMh4ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEluZm8iMQoRU3RvcFR1bm5lbFJlcXVlc3QSDAoEcGVlchgBIAEoCRIOCgZyZWFzb24YAiABKAkiJQoSU3RvcFR1bm5lbFJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIAoQQmxvY2tQZWVyUmVxdWVzdBIMCgRwZWVyGAEgASgJIiQKEUJsb2NrUGVlclJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIgoSVW5ibG9ja1BlZXJSZXF1ZXN0EgwKBHBlZXIYASABKAkiFQoTVW5ibG9ja1BlZXJSZXNwb25zZSI0CgtCbG9ja2VkUGVlchIMCgRwZWVyGAEgASgJEhcKD2Jsb2NrZWRfYXRfdW5peBgCIAEoAyIUChJMaXN0QmxvY2tlZFJlcXVlc3QiRQoTTGlzdEJsb2NrZWRSZXNwb25zZRIuCgVwZWVycxgBIAMoCzIfLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja2VkUGVlciIVChNXYXRjaFR1bm5lbHNSZXF1ZXN0IsMBCgtUdW5uZWxFdmVudBIyCgRraW5kGAEgASgOMiQub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50LktpbmQSLAoEaW5mbxgCIAEoCzIeLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxJbmZvEg4KBnJlYXNvbhgDIAEoCSJCCgRLaW5kEhQKEEtJTkRfVU5TUEVDSUZJRUQQABIRCg1LSU5EX0FUVEFDSEVEEAESEQoNS0lORF9ERVRBQ0hFRBACMroECgVBZG1pbhJeCgtMaXN0VHVubmVscxImLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0VHVubmVsc1JlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdFR1bm5lbHNSZXNwb25zZRJbCgpTdG9wVHVubmVsEiUub3Blbm90dGVycy5ob2x0LnYxLlN0b3BUdW5uZWxSZXF1ZXN0GiYub3Blbm90dGVycy5ob2x0LnYxLlN0b3BUdW5uZWxSZXNwb25zZRJYCglCbG9ja1BlZXISJC5vcGVub3R0ZXJzLmhvbHQudjEuQmxvY2tQZWVyUmVxdWVzdBolLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja1BlZXJSZXNwb25zZRJeCgtVbmJsb2NrUGVlchImLm9wZW5vdHRlcnMuaG9sdC52MS5VbmJsb2NrUGVlclJlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuVW5ibG9ja1BlZXJSZXNwb25zZRJeCgtMaXN0QmxvY2tlZBImLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0QmxvY2tlZFJlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdEJsb2NrZWRSZXNwb25zZRJaCgxXYXRjaFR1bm5lbHMSJy5vcGVub3R0ZXJzLmhvbHQudjEuV2F0Y2hUdW5uZWxzUmVxdWVzdBofLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxFdmVudDABQipaKGdpdGh1Yi5jb20vb3Blbm90dGVycy9ob2x0L2FwaS92MTtob2x0djFiBnByb3RvMw");
 
 /**
  * @generated from message openotters.holt.v1.TunnelInfo
@@ -231,6 +231,76 @@ export const ListBlockedResponseSchema: GenMessage<ListBlockedResponse> = /*@__P
   messageDesc(file_v1_admin, 11);
 
 /**
+ * @generated from message openotters.holt.v1.WatchTunnelsRequest
+ */
+export type WatchTunnelsRequest = Message<"openotters.holt.v1.WatchTunnelsRequest"> & {
+};
+
+/**
+ * Describes the message openotters.holt.v1.WatchTunnelsRequest.
+ * Use `create(WatchTunnelsRequestSchema)` to create a new message.
+ */
+export const WatchTunnelsRequestSchema: GenMessage<WatchTunnelsRequest> = /*@__PURE__*/
+  messageDesc(file_v1_admin, 12);
+
+/**
+ * @generated from message openotters.holt.v1.TunnelEvent
+ */
+export type TunnelEvent = Message<"openotters.holt.v1.TunnelEvent"> & {
+  /**
+   * @generated from field: openotters.holt.v1.TunnelEvent.Kind kind = 1;
+   */
+  kind: TunnelEvent_Kind;
+
+  /**
+   * fully set on ATTACHED; only peer on DETACHED
+   *
+   * @generated from field: openotters.holt.v1.TunnelInfo info = 2;
+   */
+  info?: TunnelInfo | undefined;
+
+  /**
+   * detach reason, empty on ATTACHED
+   *
+   * @generated from field: string reason = 3;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message openotters.holt.v1.TunnelEvent.
+ * Use `create(TunnelEventSchema)` to create a new message.
+ */
+export const TunnelEventSchema: GenMessage<TunnelEvent> = /*@__PURE__*/
+  messageDesc(file_v1_admin, 13);
+
+/**
+ * @generated from enum openotters.holt.v1.TunnelEvent.Kind
+ */
+export enum TunnelEvent_Kind {
+  /**
+   * @generated from enum value: KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: KIND_ATTACHED = 1;
+   */
+  ATTACHED = 1,
+
+  /**
+   * @generated from enum value: KIND_DETACHED = 2;
+   */
+  DETACHED = 2,
+}
+
+/**
+ * Describes the enum openotters.holt.v1.TunnelEvent.Kind.
+ */
+export const TunnelEvent_KindSchema: GenEnum<TunnelEvent_Kind> = /*@__PURE__*/
+  enumDesc(file_v1_admin, 13, 0);
+
+/**
  * Admin is the hub's management surface: enumerate live tunnels and
  * force one closed. It reflects the hub Registry over the wire so a
  * CLI (or grpcurl) can operate a hub remotely. Mount it behind
@@ -293,6 +363,24 @@ export const Admin: GenService<{
     methodKind: "unary";
     input: typeof ListBlockedRequestSchema;
     output: typeof ListBlockedResponseSchema;
+  },
+  /**
+   * WatchTunnels streams the live-tunnel set: an empty hello event
+   * first (KIND_UNSPECIFIED, flushes headers so browser clients see
+   * the subscription immediately), then the current tunnels as
+   * ATTACHED events (a snapshot), then attach/detach events as they
+   * happen. An ATTACHED for a peer already seen is a
+   * harmless duplicate (subscribe and snapshot overlap by design so
+   * nothing falls in the gap). The stream ends server-side if the
+   * client falls too far behind; resubscribe and treat the replay as
+   * a fresh snapshot.
+   *
+   * @generated from rpc openotters.holt.v1.Admin.WatchTunnels
+   */
+  watchTunnels: {
+    methodKind: "server_streaming";
+    input: typeof WatchTunnelsRequestSchema;
+    output: typeof TunnelEventSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_v1_admin, 0);

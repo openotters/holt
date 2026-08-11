@@ -43,6 +43,8 @@ const (
 	AdminUnblockPeerProcedure = "/openotters.holt.v1.Admin/UnblockPeer"
 	// AdminListBlockedProcedure is the fully-qualified name of the Admin's ListBlocked RPC.
 	AdminListBlockedProcedure = "/openotters.holt.v1.Admin/ListBlocked"
+	// AdminWatchTunnelsProcedure is the fully-qualified name of the Admin's WatchTunnels RPC.
+	AdminWatchTunnelsProcedure = "/openotters.holt.v1.Admin/WatchTunnels"
 )
 
 // AdminClient is a client for the openotters.holt.v1.Admin service.
@@ -64,6 +66,16 @@ type AdminClient interface {
 	// live tunnel to appear in ListTunnels). Empty when no blocker is
 	// configured.
 	ListBlocked(context.Context, *connect.Request[v1.ListBlockedRequest]) (*connect.Response[v1.ListBlockedResponse], error)
+	// WatchTunnels streams the live-tunnel set: an empty hello event
+	// first (KIND_UNSPECIFIED, flushes headers so browser clients see
+	// the subscription immediately), then the current tunnels as
+	// ATTACHED events (a snapshot), then attach/detach events as they
+	// happen. An ATTACHED for a peer already seen is a
+	// harmless duplicate (subscribe and snapshot overlap by design so
+	// nothing falls in the gap). The stream ends server-side if the
+	// client falls too far behind; resubscribe and treat the replay as
+	// a fresh snapshot.
+	WatchTunnels(context.Context, *connect.Request[v1.WatchTunnelsRequest]) (*connect.ServerStreamForClient[v1.TunnelEvent], error)
 }
 
 // NewAdminClient constructs a client for the openotters.holt.v1.Admin service. By default, it uses
@@ -107,16 +119,23 @@ func NewAdminClient(httpClient connect.HTTPClient, baseURL string, opts ...conne
 			connect.WithSchema(adminMethods.ByName("ListBlocked")),
 			connect.WithClientOptions(opts...),
 		),
+		watchTunnels: connect.NewClient[v1.WatchTunnelsRequest, v1.TunnelEvent](
+			httpClient,
+			baseURL+AdminWatchTunnelsProcedure,
+			connect.WithSchema(adminMethods.ByName("WatchTunnels")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // adminClient implements AdminClient.
 type adminClient struct {
-	listTunnels *connect.Client[v1.ListTunnelsRequest, v1.ListTunnelsResponse]
-	stopTunnel  *connect.Client[v1.StopTunnelRequest, v1.StopTunnelResponse]
-	blockPeer   *connect.Client[v1.BlockPeerRequest, v1.BlockPeerResponse]
-	unblockPeer *connect.Client[v1.UnblockPeerRequest, v1.UnblockPeerResponse]
-	listBlocked *connect.Client[v1.ListBlockedRequest, v1.ListBlockedResponse]
+	listTunnels  *connect.Client[v1.ListTunnelsRequest, v1.ListTunnelsResponse]
+	stopTunnel   *connect.Client[v1.StopTunnelRequest, v1.StopTunnelResponse]
+	blockPeer    *connect.Client[v1.BlockPeerRequest, v1.BlockPeerResponse]
+	unblockPeer  *connect.Client[v1.UnblockPeerRequest, v1.UnblockPeerResponse]
+	listBlocked  *connect.Client[v1.ListBlockedRequest, v1.ListBlockedResponse]
+	watchTunnels *connect.Client[v1.WatchTunnelsRequest, v1.TunnelEvent]
 }
 
 // ListTunnels calls openotters.holt.v1.Admin.ListTunnels.
@@ -144,6 +163,11 @@ func (c *adminClient) ListBlocked(ctx context.Context, req *connect.Request[v1.L
 	return c.listBlocked.CallUnary(ctx, req)
 }
 
+// WatchTunnels calls openotters.holt.v1.Admin.WatchTunnels.
+func (c *adminClient) WatchTunnels(ctx context.Context, req *connect.Request[v1.WatchTunnelsRequest]) (*connect.ServerStreamForClient[v1.TunnelEvent], error) {
+	return c.watchTunnels.CallServerStream(ctx, req)
+}
+
 // AdminHandler is an implementation of the openotters.holt.v1.Admin service.
 type AdminHandler interface {
 	ListTunnels(context.Context, *connect.Request[v1.ListTunnelsRequest]) (*connect.Response[v1.ListTunnelsResponse], error)
@@ -163,6 +187,16 @@ type AdminHandler interface {
 	// live tunnel to appear in ListTunnels). Empty when no blocker is
 	// configured.
 	ListBlocked(context.Context, *connect.Request[v1.ListBlockedRequest]) (*connect.Response[v1.ListBlockedResponse], error)
+	// WatchTunnels streams the live-tunnel set: an empty hello event
+	// first (KIND_UNSPECIFIED, flushes headers so browser clients see
+	// the subscription immediately), then the current tunnels as
+	// ATTACHED events (a snapshot), then attach/detach events as they
+	// happen. An ATTACHED for a peer already seen is a
+	// harmless duplicate (subscribe and snapshot overlap by design so
+	// nothing falls in the gap). The stream ends server-side if the
+	// client falls too far behind; resubscribe and treat the replay as
+	// a fresh snapshot.
+	WatchTunnels(context.Context, *connect.Request[v1.WatchTunnelsRequest], *connect.ServerStream[v1.TunnelEvent]) error
 }
 
 // NewAdminHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -202,6 +236,12 @@ func NewAdminHandler(svc AdminHandler, opts ...connect.HandlerOption) (string, h
 		connect.WithSchema(adminMethods.ByName("ListBlocked")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminWatchTunnelsHandler := connect.NewServerStreamHandler(
+		AdminWatchTunnelsProcedure,
+		svc.WatchTunnels,
+		connect.WithSchema(adminMethods.ByName("WatchTunnels")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/openotters.holt.v1.Admin/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AdminListTunnelsProcedure:
@@ -214,6 +254,8 @@ func NewAdminHandler(svc AdminHandler, opts ...connect.HandlerOption) (string, h
 			adminUnblockPeerHandler.ServeHTTP(w, r)
 		case AdminListBlockedProcedure:
 			adminListBlockedHandler.ServeHTTP(w, r)
+		case AdminWatchTunnelsProcedure:
+			adminWatchTunnelsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -241,4 +283,8 @@ func (UnimplementedAdminHandler) UnblockPeer(context.Context, *connect.Request[v
 
 func (UnimplementedAdminHandler) ListBlocked(context.Context, *connect.Request[v1.ListBlockedRequest]) (*connect.Response[v1.ListBlockedResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("openotters.holt.v1.Admin.ListBlocked is not implemented"))
+}
+
+func (UnimplementedAdminHandler) WatchTunnels(context.Context, *connect.Request[v1.WatchTunnelsRequest], *connect.ServerStream[v1.TunnelEvent]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("openotters.holt.v1.Admin.WatchTunnels is not implemented"))
 }

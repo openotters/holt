@@ -21,6 +21,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type TunnelEvent_Kind int32
+
+const (
+	TunnelEvent_KIND_UNSPECIFIED TunnelEvent_Kind = 0
+	TunnelEvent_KIND_ATTACHED    TunnelEvent_Kind = 1
+	TunnelEvent_KIND_DETACHED    TunnelEvent_Kind = 2
+)
+
+// Enum value maps for TunnelEvent_Kind.
+var (
+	TunnelEvent_Kind_name = map[int32]string{
+		0: "KIND_UNSPECIFIED",
+		1: "KIND_ATTACHED",
+		2: "KIND_DETACHED",
+	}
+	TunnelEvent_Kind_value = map[string]int32{
+		"KIND_UNSPECIFIED": 0,
+		"KIND_ATTACHED":    1,
+		"KIND_DETACHED":    2,
+	}
+)
+
+func (x TunnelEvent_Kind) Enum() *TunnelEvent_Kind {
+	p := new(TunnelEvent_Kind)
+	*p = x
+	return p
+}
+
+func (x TunnelEvent_Kind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TunnelEvent_Kind) Descriptor() protoreflect.EnumDescriptor {
+	return file_v1_admin_proto_enumTypes[0].Descriptor()
+}
+
+func (TunnelEvent_Kind) Type() protoreflect.EnumType {
+	return &file_v1_admin_proto_enumTypes[0]
+}
+
+func (x TunnelEvent_Kind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TunnelEvent_Kind.Descriptor instead.
+func (TunnelEvent_Kind) EnumDescriptor() ([]byte, []int) {
+	return file_v1_admin_proto_rawDescGZIP(), []int{13, 0}
+}
+
 type TunnelInfo struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Peer           string                 `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
@@ -557,6 +606,102 @@ func (x *ListBlockedResponse) GetPeers() []*BlockedPeer {
 	return nil
 }
 
+type WatchTunnelsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchTunnelsRequest) Reset() {
+	*x = WatchTunnelsRequest{}
+	mi := &file_v1_admin_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchTunnelsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchTunnelsRequest) ProtoMessage() {}
+
+func (x *WatchTunnelsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_admin_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchTunnelsRequest.ProtoReflect.Descriptor instead.
+func (*WatchTunnelsRequest) Descriptor() ([]byte, []int) {
+	return file_v1_admin_proto_rawDescGZIP(), []int{12}
+}
+
+type TunnelEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          TunnelEvent_Kind       `protobuf:"varint,1,opt,name=kind,proto3,enum=openotters.holt.v1.TunnelEvent_Kind" json:"kind,omitempty"`
+	Info          *TunnelInfo            `protobuf:"bytes,2,opt,name=info,proto3" json:"info,omitempty"`     // fully set on ATTACHED; only peer on DETACHED
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"` // detach reason, empty on ATTACHED
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TunnelEvent) Reset() {
+	*x = TunnelEvent{}
+	mi := &file_v1_admin_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TunnelEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TunnelEvent) ProtoMessage() {}
+
+func (x *TunnelEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_admin_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TunnelEvent.ProtoReflect.Descriptor instead.
+func (*TunnelEvent) Descriptor() ([]byte, []int) {
+	return file_v1_admin_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *TunnelEvent) GetKind() TunnelEvent_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return TunnelEvent_KIND_UNSPECIFIED
+}
+
+func (x *TunnelEvent) GetInfo() *TunnelInfo {
+	if x != nil {
+		return x.Info
+	}
+	return nil
+}
+
+func (x *TunnelEvent) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 var File_v1_admin_proto protoreflect.FileDescriptor
 
 const file_v1_admin_proto_rawDesc = "" +
@@ -587,14 +732,24 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\x0fblocked_at_unix\x18\x02 \x01(\x03R\rblockedAtUnix\"\x14\n" +
 	"\x12ListBlockedRequest\"L\n" +
 	"\x13ListBlockedResponse\x125\n" +
-	"\x05peers\x18\x01 \x03(\v2\x1f.openotters.holt.v1.BlockedPeerR\x05peers2\xde\x03\n" +
+	"\x05peers\x18\x01 \x03(\v2\x1f.openotters.holt.v1.BlockedPeerR\x05peers\"\x15\n" +
+	"\x13WatchTunnelsRequest\"\xd7\x01\n" +
+	"\vTunnelEvent\x128\n" +
+	"\x04kind\x18\x01 \x01(\x0e2$.openotters.holt.v1.TunnelEvent.KindR\x04kind\x122\n" +
+	"\x04info\x18\x02 \x01(\v2\x1e.openotters.holt.v1.TunnelInfoR\x04info\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"B\n" +
+	"\x04Kind\x12\x14\n" +
+	"\x10KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rKIND_ATTACHED\x10\x01\x12\x11\n" +
+	"\rKIND_DETACHED\x10\x022\xba\x04\n" +
 	"\x05Admin\x12^\n" +
 	"\vListTunnels\x12&.openotters.holt.v1.ListTunnelsRequest\x1a'.openotters.holt.v1.ListTunnelsResponse\x12[\n" +
 	"\n" +
 	"StopTunnel\x12%.openotters.holt.v1.StopTunnelRequest\x1a&.openotters.holt.v1.StopTunnelResponse\x12X\n" +
 	"\tBlockPeer\x12$.openotters.holt.v1.BlockPeerRequest\x1a%.openotters.holt.v1.BlockPeerResponse\x12^\n" +
 	"\vUnblockPeer\x12&.openotters.holt.v1.UnblockPeerRequest\x1a'.openotters.holt.v1.UnblockPeerResponse\x12^\n" +
-	"\vListBlocked\x12&.openotters.holt.v1.ListBlockedRequest\x1a'.openotters.holt.v1.ListBlockedResponseB*Z(github.com/openotters/holt/api/v1;holtv1b\x06proto3"
+	"\vListBlocked\x12&.openotters.holt.v1.ListBlockedRequest\x1a'.openotters.holt.v1.ListBlockedResponse\x12Z\n" +
+	"\fWatchTunnels\x12'.openotters.holt.v1.WatchTunnelsRequest\x1a\x1f.openotters.holt.v1.TunnelEvent0\x01B*Z(github.com/openotters/holt/api/v1;holtv1b\x06proto3"
 
 var (
 	file_v1_admin_proto_rawDescOnce sync.Once
@@ -608,39 +763,47 @@ func file_v1_admin_proto_rawDescGZIP() []byte {
 	return file_v1_admin_proto_rawDescData
 }
 
-var file_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_v1_admin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_v1_admin_proto_goTypes = []any{
-	(*TunnelInfo)(nil),          // 0: openotters.holt.v1.TunnelInfo
-	(*ListTunnelsRequest)(nil),  // 1: openotters.holt.v1.ListTunnelsRequest
-	(*ListTunnelsResponse)(nil), // 2: openotters.holt.v1.ListTunnelsResponse
-	(*StopTunnelRequest)(nil),   // 3: openotters.holt.v1.StopTunnelRequest
-	(*StopTunnelResponse)(nil),  // 4: openotters.holt.v1.StopTunnelResponse
-	(*BlockPeerRequest)(nil),    // 5: openotters.holt.v1.BlockPeerRequest
-	(*BlockPeerResponse)(nil),   // 6: openotters.holt.v1.BlockPeerResponse
-	(*UnblockPeerRequest)(nil),  // 7: openotters.holt.v1.UnblockPeerRequest
-	(*UnblockPeerResponse)(nil), // 8: openotters.holt.v1.UnblockPeerResponse
-	(*BlockedPeer)(nil),         // 9: openotters.holt.v1.BlockedPeer
-	(*ListBlockedRequest)(nil),  // 10: openotters.holt.v1.ListBlockedRequest
-	(*ListBlockedResponse)(nil), // 11: openotters.holt.v1.ListBlockedResponse
+	(TunnelEvent_Kind)(0),       // 0: openotters.holt.v1.TunnelEvent.Kind
+	(*TunnelInfo)(nil),          // 1: openotters.holt.v1.TunnelInfo
+	(*ListTunnelsRequest)(nil),  // 2: openotters.holt.v1.ListTunnelsRequest
+	(*ListTunnelsResponse)(nil), // 3: openotters.holt.v1.ListTunnelsResponse
+	(*StopTunnelRequest)(nil),   // 4: openotters.holt.v1.StopTunnelRequest
+	(*StopTunnelResponse)(nil),  // 5: openotters.holt.v1.StopTunnelResponse
+	(*BlockPeerRequest)(nil),    // 6: openotters.holt.v1.BlockPeerRequest
+	(*BlockPeerResponse)(nil),   // 7: openotters.holt.v1.BlockPeerResponse
+	(*UnblockPeerRequest)(nil),  // 8: openotters.holt.v1.UnblockPeerRequest
+	(*UnblockPeerResponse)(nil), // 9: openotters.holt.v1.UnblockPeerResponse
+	(*BlockedPeer)(nil),         // 10: openotters.holt.v1.BlockedPeer
+	(*ListBlockedRequest)(nil),  // 11: openotters.holt.v1.ListBlockedRequest
+	(*ListBlockedResponse)(nil), // 12: openotters.holt.v1.ListBlockedResponse
+	(*WatchTunnelsRequest)(nil), // 13: openotters.holt.v1.WatchTunnelsRequest
+	(*TunnelEvent)(nil),         // 14: openotters.holt.v1.TunnelEvent
 }
 var file_v1_admin_proto_depIdxs = []int32{
-	0,  // 0: openotters.holt.v1.ListTunnelsResponse.tunnels:type_name -> openotters.holt.v1.TunnelInfo
-	9,  // 1: openotters.holt.v1.ListBlockedResponse.peers:type_name -> openotters.holt.v1.BlockedPeer
-	1,  // 2: openotters.holt.v1.Admin.ListTunnels:input_type -> openotters.holt.v1.ListTunnelsRequest
-	3,  // 3: openotters.holt.v1.Admin.StopTunnel:input_type -> openotters.holt.v1.StopTunnelRequest
-	5,  // 4: openotters.holt.v1.Admin.BlockPeer:input_type -> openotters.holt.v1.BlockPeerRequest
-	7,  // 5: openotters.holt.v1.Admin.UnblockPeer:input_type -> openotters.holt.v1.UnblockPeerRequest
-	10, // 6: openotters.holt.v1.Admin.ListBlocked:input_type -> openotters.holt.v1.ListBlockedRequest
-	2,  // 7: openotters.holt.v1.Admin.ListTunnels:output_type -> openotters.holt.v1.ListTunnelsResponse
-	4,  // 8: openotters.holt.v1.Admin.StopTunnel:output_type -> openotters.holt.v1.StopTunnelResponse
-	6,  // 9: openotters.holt.v1.Admin.BlockPeer:output_type -> openotters.holt.v1.BlockPeerResponse
-	8,  // 10: openotters.holt.v1.Admin.UnblockPeer:output_type -> openotters.holt.v1.UnblockPeerResponse
-	11, // 11: openotters.holt.v1.Admin.ListBlocked:output_type -> openotters.holt.v1.ListBlockedResponse
-	7,  // [7:12] is the sub-list for method output_type
-	2,  // [2:7] is the sub-list for method input_type
-	2,  // [2:2] is the sub-list for extension type_name
-	2,  // [2:2] is the sub-list for extension extendee
-	0,  // [0:2] is the sub-list for field type_name
+	1,  // 0: openotters.holt.v1.ListTunnelsResponse.tunnels:type_name -> openotters.holt.v1.TunnelInfo
+	10, // 1: openotters.holt.v1.ListBlockedResponse.peers:type_name -> openotters.holt.v1.BlockedPeer
+	0,  // 2: openotters.holt.v1.TunnelEvent.kind:type_name -> openotters.holt.v1.TunnelEvent.Kind
+	1,  // 3: openotters.holt.v1.TunnelEvent.info:type_name -> openotters.holt.v1.TunnelInfo
+	2,  // 4: openotters.holt.v1.Admin.ListTunnels:input_type -> openotters.holt.v1.ListTunnelsRequest
+	4,  // 5: openotters.holt.v1.Admin.StopTunnel:input_type -> openotters.holt.v1.StopTunnelRequest
+	6,  // 6: openotters.holt.v1.Admin.BlockPeer:input_type -> openotters.holt.v1.BlockPeerRequest
+	8,  // 7: openotters.holt.v1.Admin.UnblockPeer:input_type -> openotters.holt.v1.UnblockPeerRequest
+	11, // 8: openotters.holt.v1.Admin.ListBlocked:input_type -> openotters.holt.v1.ListBlockedRequest
+	13, // 9: openotters.holt.v1.Admin.WatchTunnels:input_type -> openotters.holt.v1.WatchTunnelsRequest
+	3,  // 10: openotters.holt.v1.Admin.ListTunnels:output_type -> openotters.holt.v1.ListTunnelsResponse
+	5,  // 11: openotters.holt.v1.Admin.StopTunnel:output_type -> openotters.holt.v1.StopTunnelResponse
+	7,  // 12: openotters.holt.v1.Admin.BlockPeer:output_type -> openotters.holt.v1.BlockPeerResponse
+	9,  // 13: openotters.holt.v1.Admin.UnblockPeer:output_type -> openotters.holt.v1.UnblockPeerResponse
+	12, // 14: openotters.holt.v1.Admin.ListBlocked:output_type -> openotters.holt.v1.ListBlockedResponse
+	14, // 15: openotters.holt.v1.Admin.WatchTunnels:output_type -> openotters.holt.v1.TunnelEvent
+	10, // [10:16] is the sub-list for method output_type
+	4,  // [4:10] is the sub-list for method input_type
+	4,  // [4:4] is the sub-list for extension type_name
+	4,  // [4:4] is the sub-list for extension extendee
+	0,  // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_v1_admin_proto_init() }
@@ -653,13 +816,14 @@ func file_v1_admin_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_admin_proto_rawDesc), len(file_v1_admin_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   12,
+			NumEnums:      1,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_v1_admin_proto_goTypes,
 		DependencyIndexes: file_v1_admin_proto_depIdxs,
+		EnumInfos:         file_v1_admin_proto_enumTypes,
 		MessageInfos:      file_v1_admin_proto_msgTypes,
 	}.Build()
 	File_v1_admin_proto = out.File
