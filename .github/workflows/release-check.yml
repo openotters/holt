@@ -1,0 +1,61 @@
+name: Release check
+
+# Runs `goreleaser check` on every PR and push that touches the
+# release config or the things it builds. Catches YAML errors, missing
+# fields, and cross-references (brews -> tap, archives -> builds)
+# before a tag push makes them a real problem.
+on:
+  pull_request:
+    paths:
+      - '.goreleaser.yaml'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-check.yml'
+      - 'cmd/holt/**'
+      - 'ui/package.json'
+      - 'ui/package-lock.json'
+      - 'go.mod'
+      - 'go.sum'
+  push:
+    branches:
+      - main
+    paths:
+      - '.goreleaser.yaml'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/release-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          install-only: true
+
+      - name: Validate goreleaser config
+        # goreleaser check exits 2 when the config is valid but uses
+        # deprecated properties. We keep the deprecated brews section
+        # on purpose: the tap serves a Formula, which also works on
+        # Linux, while homebrew_casks is macOS only.
+        run: |
+          set +e
+          goreleaser check
+          rc=$?
+          set -e
+          if [ "$rc" -eq 2 ]; then
+            echo "config valid; deprecated brews section is kept on purpose"
+            exit 0
+          fi
+          exit "$rc"

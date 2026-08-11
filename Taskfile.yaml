@@ -1,0 +1,109 @@
+version: '3'
+
+includes:
+    claude: .tk/claude/Taskfile.yaml
+    default: .tk/default/Taskfile.yaml
+    git: .tk/git/Taskfile.yaml
+    golangci: .tk/golangci/Taskfile.yaml
+    goreleaser: .tk/goreleaser/Taskfile.yaml
+    install: .tk/install/Taskfile.yaml
+    license: .tk/license/Taskfile.yaml
+    trufflehog: .tk/trufflehog/Taskfile.yaml
+
+
+dotenv:
+  - .env
+  - PROJECT
+  - .env.default
+
+vars:
+  BIN: holt
+  MAIN: ./cmd/holt
+  WEBUI_DIST: cmd/holt/internal/webui/dist
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the holt binary into ./bin
+    cmds:
+      - go build -trimpath -ldflags "-s -w -X main.version={{.VERSION}}" -o bin/{{.BIN}} {{.MAIN}}
+
+  dev:
+    desc: Run a hub from source with the web console (ctrl-c to stop)
+    cmds:
+      - go run {{.MAIN}} hub --ui
+
+  test:
+    desc: Run all Go tests
+    cmds:
+      - go test ./...
+
+  test:race:
+    desc: Run all Go tests with the race detector
+    cmds:
+      - go test -race ./...
+
+  cover:
+    desc: Run tests with coverage and open the report
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -func=coverage.out | tail -1
+
+  lint:
+    desc: Lint Go sources (shortcut for golangci:lint)
+    cmds:
+      - task: golangci:lint
+
+  fix:
+    desc: Autofix lint findings (shortcut for golangci:fix)
+    cmds:
+      - task: golangci:fix
+
+  gen:
+    desc: Regenerate Go and TypeScript protobuf stubs from api/
+    cmds:
+      - buf generate
+      - cd ui && npm run gen
+
+  ui:install:
+    desc: Install web console dependencies
+    dir: ui
+    cmds:
+      - npm ci
+
+  ui:dev:
+    desc: Run the web console dev server (proxies to a local hub)
+    dir: ui
+    cmds:
+      - npm run dev
+
+  ui:build:
+    desc: Build the web console and refresh the embedded copy
+    dir: ui
+    cmds:
+      - npm run build
+      - rsync -a --delete dist/ ../{{.WEBUI_DIST}}/
+
+  check:
+    desc: Full local gate, same as CI (lint, race tests, build, ui, release config)
+    cmds:
+      - task: lint
+      - task: test:race
+      - task: build
+      - task: ui:build
+      # exit code 2 means "valid but uses deprecated properties"; we
+      # keep the brews section on purpose (a Formula also works on
+      # Linux, homebrew casks are macOS only).
+      - go tool goreleaser check || [ $? -eq 2 ]
+
+  snapshot:
+    desc: Build release artifacts locally without publishing
+    cmds:
+      - go tool goreleaser release --snapshot --clean

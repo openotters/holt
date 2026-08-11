@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package openotters.holt.v1;
+
+option go_package = "github.com/openotters/holt/api/v1;holtv1";
+
+// Tunnel is a reverse-tunnel attachment surface: a peer (a process
+// that can only dial OUT — an agent runtime, a device, a worker)
+// calls Attach over an authenticated connection to the hub; after
+// the Hello/Welcome handshake, every data frame in each direction
+// carries one chunk of a raw byte stream. The hub runs an HTTP/2
+// client session over that byte stream; the peer serves any
+// http.Handler on the other end. Presence of the tunnel doubles as
+// the peer's liveness signal.
+//
+// The peer's identity comes exclusively from the hub's own
+// authentication layer (whatever wraps this service — JWT claims,
+// mTLS identity, …); the handshake deliberately carries none. A
+// second in-band source of truth could only ever agree or be an
+// attack.
+
+service Tunnel {
+  // Attach opens the reverse tunnel. The peer is the stream client
+  // and MUST send Hello as its first frame; the hub replies Welcome
+  // (or closes the stream). From then on only data and go_away
+  // frames are legal. A second Attach for the same peer replaces the
+  // first — the older tunnel is closed with GoAway("superseded") so
+  // a crashed-and-redialed peer never waits out a keepalive timeout.
+  rpc Attach(stream TunnelFrame) returns (stream TunnelFrame);
+}
+
+message TunnelFrame {
+  oneof kind {
+    Hello   hello   = 1; // peer → hub; must be the first frame
+    Welcome welcome = 2; // hub → peer; must be the first reply
+    bytes   data    = 3; // raw tunnel bytes, at most 32 KiB per frame
+    GoAway  go_away = 4; // graceful detach, either direction
+  }
+}
+
+message Hello {
+  uint32 protocol_version = 1; // tunnel framing version; currently 1
+  string peer_version     = 2; // peer build version, observability only
+}
+
+message Welcome {
+  uint32 protocol_version = 1; // version the hub selected (≤ offered)
+}
+
+message GoAway {
+  // "superseded"     a newer Attach for the same peer replaced this
+  //                  tunnel; terminal — another instance owns the
+  //                  peer now (redialing would steal it back)
+  // "token-revoked"  the peer's credential was revoked; terminal —
+  //                  do not redial with the same credential
+  // "shutting-down"  hub is draining; redial with backoff
+  // "peer-stopping"  deliberate stop; do not redial
+  //
+  // Applications may define further reasons; unknown reasons are
+  // non-terminal (the peer redials with backoff).
+  string reason = 1;
+}

@@ -1,0 +1,18 @@
+version: v2
+modules:
+  - path: api
+lint:
+  use:
+    - STANDARD
+  except:
+    # Mirrors the openotters house style; the symmetric bidi stream
+    # legitimately uses one frame type both ways.
+    - PACKAGE_VERSION_SUFFIX
+    - SERVICE_SUFFIX
+    - PACKAGE_DIRECTORY_MATCH
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    - RPC_REQUEST_RESPONSE_UNIQUE
+breaking:
+  use:
+    - FILE

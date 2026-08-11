@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package openotters.holt.v1;
+
+option go_package = "github.com/openotters/holt/api/v1;holtv1";
+
+// Admin is the hub's management surface: enumerate live tunnels and
+// force one closed. It reflects the hub Registry over the wire so a
+// CLI (or grpcurl) can operate a hub remotely. Mount it behind
+// whatever operator auth the deployment uses.
+service Admin {
+  rpc ListTunnels(ListTunnelsRequest) returns (ListTunnelsResponse);
+  rpc StopTunnel(StopTunnelRequest) returns (StopTunnelResponse);
+  // BlockPeer stops a peer's tunnel AND blocks its credential so it
+  // cannot reconnect — a hard revoke, versus StopTunnel's plain
+  // disconnect. Requires the hub to have a blocker configured;
+  // otherwise returns Unimplemented.
+  rpc BlockPeer(BlockPeerRequest) returns (BlockPeerResponse);
+  // UnblockPeer lifts a BlockPeer block so the peer may reconnect.
+  rpc UnblockPeer(UnblockPeerRequest) returns (UnblockPeerResponse);
+  // ListBlocked returns the currently-blocked peers (which have no
+  // live tunnel to appear in ListTunnels). Empty when no blocker is
+  // configured.
+  rpc ListBlocked(ListBlockedRequest) returns (ListBlockedResponse);
+}
+
+message TunnelInfo {
+  string peer             = 1;
+  string peer_version     = 2;
+  int64  attached_at_unix = 3;
+}
+
+message ListTunnelsRequest {}
+
+message ListTunnelsResponse {
+  repeated TunnelInfo tunnels = 1;
+}
+
+message StopTunnelRequest {
+  string peer   = 1;
+  string reason = 2; // GoAway reason sent to the peer; default "stopped-by-operator"
+}
+
+message StopTunnelResponse {
+  bool stopped = 1; // false when no tunnel was attached for that peer
+}
+
+message BlockPeerRequest {
+  string peer = 1;
+}
+
+message BlockPeerResponse {
+  bool stopped = 1; // whether a live tunnel was also closed
+}
+
+message UnblockPeerRequest {
+  string peer = 1;
+}
+
+message UnblockPeerResponse {}
+
+message BlockedPeer {
+  string peer            = 1;
+  int64  blocked_at_unix = 2;
+}
+
+message ListBlockedRequest {}
+
+message ListBlockedResponse {
+  repeated BlockedPeer peers = 1;
+}

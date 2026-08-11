@@ -1,0 +1,92 @@
+version: 2
+
+project_name: holt
+
+before:
+  hooks:
+    - go mod tidy
+    # The web console is embedded into holt via go:embed
+    # (cmd/holt/internal/webui/dist). The committed copy keeps
+    # `go install` working, but every release rebuilds the bundle from
+    # source under ui/ so the binary always ships the UI code of the
+    # tagged commit.
+    #
+    # `before.hooks` entries are strings split by shellwords, so each
+    # multi-step command goes through `sh -c "..."` to keep `cd` and
+    # `&&` working as expected.
+    - sh -c "cd ui && npm ci"
+    - sh -c "cd ui && npm run build"
+    - sh -c "rsync -a --delete ui/dist/ cmd/holt/internal/webui/dist/"
+
+builds:
+  - id: holt
+    main: ./cmd/holt
+    binary: holt
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.buildSource=goreleaser
+
+archives:
+  - id: all
+    ids: [holt]
+    name_template: >-
+      holt_{{ .Os }}_{{ .Arch }}
+    formats: [tar.gz]
+    files:
+      - LICENSE.md
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+brews:
+  - name: holt
+    repository:
+      owner: openotters
+      name: homebrew-tap
+      # A token with write access on the tap. Set via env in CI or
+      # locally (a gh auth token works for a manual release).
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/openotters/holt
+    description: "Reverse HTTP tunnel over a single gRPC stream, with a hub CLI and web console"
+    license: MIT
+    install: |
+      bin.install "holt"
+    test: |
+      assert_match "holt", shell_output("#{bin}/holt --version")
+    caveats: |
+      🌀  Quick start:
+
+        holt hub --ui                 # run a hub (web console on 127.0.0.1:7001)
+        holt enroll web               # mint a join token for a peer
+        holt expose localhost:3000 --token <paste>   # expose a local service
+
+      Reach the peer through the hub:
+
+        curl -H 'x-tunnel-peer: web' http://127.0.0.1:7002/
+
+      Hub state (cert, JWT secret, blocklist) lives in ~/.holt
+
+release:
+  github:
+    owner: openotters
+    name: holt
+  prerelease: auto

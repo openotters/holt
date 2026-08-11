@@ -1,0 +1,48 @@
+name: UI
+
+# Lightweight check that the embedded web console (ui/) builds cleanly
+# on every PR that touches it. The console is shipped baked into the
+# holt binary via go:embed, so a UI build break == a release break.
+#
+# Intentionally separate from test.yml so the Go test matrix is not
+# slowed by `npm ci` on every push.
+on:
+  pull_request:
+    paths:
+      - 'ui/**'
+      - '.github/workflows/ui.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'ui/**'
+      - '.github/workflows/ui.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # ui/dist is what the release pipeline rsyncs into
+      # cmd/holt/internal/webui/dist before building the binary.
+      - name: Verify build shape
+        run: test -f dist/index.html
