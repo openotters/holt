@@ -7,6 +7,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -33,10 +34,25 @@ type Blocker interface {
 	Blocked() []BlockedPeer
 }
 
+// HubInfo is the static hub metadata Info reports alongside the live
+// counts. The library has no notion of these (build, listener
+// addresses), so the application supplies them.
+type HubInfo struct {
+	Version       string
+	Commit        string
+	AdvertiseAddr string
+	ProxyAddr     string
+	RouteHeader   string
+	MetricsAddr   string // empty when metrics are off
+	ExternalURL   string
+	TokenTTL      time.Duration
+}
+
 // Service implements holtv1connect.AdminHandler against a Registry.
 type Service struct {
 	registry *hub.Registry
 	blocker  Blocker
+	info     HubInfo
 }
 
 // Option configures a Service.
@@ -46,6 +62,11 @@ type Option func(*Service)
 // credential denylist.
 func WithBlocker(b Blocker) Option {
 	return func(s *Service) { s.blocker = b }
+}
+
+// WithInfo supplies the static metadata Info reports.
+func WithInfo(i HubInfo) Option {
+	return func(s *Service) { s.info = i }
 }
 
 // NewService wires the Admin service to a Registry.
@@ -209,4 +230,28 @@ func (s *Service) WatchTunnels(
 			}
 		}
 	}
+}
+
+// Info reports a snapshot of the hub: the static metadata supplied via
+// WithInfo, plus the live tunnel and blocked counts.
+func (s *Service) Info(
+	_ context.Context, _ *connect.Request[holtv1.InfoRequest],
+) (*connect.Response[holtv1.InfoResponse], error) {
+	var blocked int64
+	if s.blocker != nil {
+		blocked = int64(len(s.blocker.Blocked()))
+	}
+
+	return connect.NewResponse(&holtv1.InfoResponse{
+		Version:         s.info.Version,
+		Commit:          s.info.Commit,
+		Tunnels:         int64(s.registry.CountTunnels()),
+		Blocked:         blocked,
+		AdvertiseAddr:   s.info.AdvertiseAddr,
+		ProxyAddr:       s.info.ProxyAddr,
+		RouteHeader:     s.info.RouteHeader,
+		MetricsAddr:     s.info.MetricsAddr,
+		ExternalUrl:     s.info.ExternalURL,
+		TokenTtlSeconds: int64(s.info.TokenTTL / time.Second),
+	}), nil
 }

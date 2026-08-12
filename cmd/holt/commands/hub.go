@@ -154,7 +154,9 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 
 	metrics := newHubMetrics(commons.Version.Version(), commons.Version.Commit())
 
-	servers, err := h.startServers(registry, blocks, certs, metrics, logger)
+	info := h.adminInfo(commons)
+
+	servers, err := h.startServers(registry, blocks, certs, metrics, info, logger)
 	if err != nil {
 		return err
 	}
@@ -251,14 +253,15 @@ const gracePeriod = 5 * time.Second
 // startServers boots the tunnel, admin, proxy, and (optional) metrics
 // listeners and returns them for shutdown.
 func (h *Hub) startServers(
-	registry *hub.Registry, blocks *blockList, certs *certState, metrics *hubMetrics, logger *zap.Logger,
+	registry *hub.Registry, blocks *blockList, certs *certState,
+	metrics *hubMetrics, info admin.HubInfo, logger *zap.Logger,
 ) ([]*http.Server, error) {
 	tunnelSrv, err := h.serveTunnels(registry, certs, blocks, metrics, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	adminSrv, err := h.serveAdmin(registry, blocks, certs, logger)
+	adminSrv, err := h.serveAdmin(registry, blocks, certs, info, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -402,12 +405,12 @@ func (h *Hub) serveTunnels(
 // serveAdmin runs the Admin gRPC service (list / stop / block) and,
 // with --ui, the web console plus its enroll endpoint.
 func (h *Hub) serveAdmin(
-	registry *hub.Registry, blocks *blockList, certs *certState, logger *zap.Logger,
+	registry *hub.Registry, blocks *blockList, certs *certState, info admin.HubInfo, logger *zap.Logger,
 ) (*http.Server, error) {
 	mux := http.NewServeMux()
 
 	adminPath, adminHandler := holtv1connect.NewAdminHandler(
-		admin.NewService(registry, admin.WithBlocker(blocks)),
+		admin.NewService(registry, admin.WithBlocker(blocks), admin.WithInfo(info)),
 	)
 	mux.Handle(adminPath, adminHandler)
 
@@ -495,6 +498,25 @@ func hostGuard(allowed []string, next http.Handler) http.Handler {
 	})
 }
 
+// adminInfo builds the static hub metadata the Admin Info RPC reports.
+func (h *Hub) adminInfo(commons *c.Commons) admin.HubInfo {
+	metricsAddr := ""
+	if h.Metrics {
+		metricsAddr = h.MetricsAddr
+	}
+
+	return admin.HubInfo{
+		Version:       commons.Version.Version(),
+		Commit:        commons.Version.Commit(),
+		AdvertiseAddr: h.advertiseAddr(),
+		ProxyAddr:     h.ProxyAddr,
+		RouteHeader:   routeHeader,
+		MetricsAddr:   metricsAddr,
+		ExternalURL:   strings.TrimRight(h.ExternalURL, "/"),
+		TokenTTL:      h.TokenTTL,
+	}
+}
+
 // advertiseAddr is the tunnel address stamped into tokens: the operator
 // override if set, otherwise the bind address.
 func (h *Hub) advertiseAddr() string {
@@ -511,7 +533,8 @@ func (h *Hub) advertiseAddr() string {
 func (h *Hub) mountEnroll(mux *http.ServeMux, certs *certState) {
 	mux.HandleFunc("POST /api/enroll", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Peer string `json:"peer"`
+			Peer    string `json:"peer"`
+			HubAddr string `json:"hub_addr"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Peer == "" {
 			http.Error(w, "peer is required", http.StatusBadRequest)
@@ -519,10 +542,16 @@ func (h *Hub) mountEnroll(mux *http.ServeMux, certs *certState) {
 			return
 		}
 
-		// Read the current cert PEM so tokens minted after a renew pin
-		// the new certificate, and the advertise address so peers dial
-		// the reachable endpoint, not the bind address.
-		tok, err := mintToken(certs.get(), h.advertiseAddr(), body.Peer, h.TokenTTL)
+		// The advertise address stamped into the token: the caller's
+		// override if given, otherwise the hub's configured one. Reads
+		// the current cert PEM so tokens minted after a renew pin the
+		// new certificate.
+		hubAddr := body.HubAddr
+		if hubAddr == "" {
+			hubAddr = h.advertiseAddr()
+		}
+
+		tok, err := mintToken(certs.get(), hubAddr, body.Peer, h.TokenTTL)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 

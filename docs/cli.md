@@ -17,6 +17,7 @@ holt hub                        # run the hub (tunnel, admin, proxy listeners)
 holt hub --ui                   # same, plus the web console on the admin port
 holt enroll <peer>              # mint a join token for a peer
 holt expose <addr> --token <t>  # expose a local HTTP service through the hub
+holt info                       # snapshot of the hub (build, counts, addresses)
 holt ls                         # list live tunnels
 holt kill <peer>                # disconnect a tunnel (the peer may reconnect)
 holt block <peer>               # disconnect AND ban the peer id
@@ -98,6 +99,27 @@ curl -H 'x-tunnel-peer: alice' http://localhost:7002/
 Whatever the peer serves over the tunnel (HTTP, or gRPC, see the
 `grpc-tunnel` example) is reachable this way.
 
+## Inspect the hub
+
+`holt info` prints a snapshot of a running hub, the CLI view of the
+console's status card:
+
+```sh
+holt info
+# 🌀 holt 0.8.0 (532632e)
+#   endpoint   http://127.0.0.1:7001
+#   tunnels    3                          live
+#   blocked    1                          banned peer ids
+#   advertise  192.168.8.193:7000         address stamped into tokens
+#   proxy      127.0.0.1:7002             reach peers via the x-tunnel-peer header
+#   metrics    127.0.0.1:7003/metrics     prometheus
+#   token ttl  24h0m0s                    lifetime of minted tokens
+```
+
+It takes the same `--admin-url` / `--profile` / `--header` flags as the
+other management commands, so `holt info --profile prod` inspects a
+remote hub.
+
 ## Manage tunnels
 
 ```sh
@@ -142,6 +164,7 @@ profiles:
 
   prod:
     admin_url: https://holt.example.com
+    hub_addr: 192.168.8.193:7000   # advertised in tokens enroll mints
     headers:
       # Any headers work. This example is a Cloudflare Access service
       # token; the secret is read from an env var, not stored here.
@@ -156,12 +179,17 @@ HOLT_PROFILE=local holt kill x   # or via env
 holt ls --admin-url http://127.0.0.1:7001   # explicit flag wins over the profile
 ```
 
-Header values expand `${ENV}` references, so secrets stay in the
-environment and out of the file. Precedence is flag > env
-(`HOLT_ADMIN_URL`, and `${…}` in headers) > profile > built-in default.
-The proxy fronting the hub is your business; holt just sends the headers
-you give it. `enroll` accepts the same flags and profiles, so
-`holt enroll web` against a `prod` profile mints a token remotely.
+Every value follows one precedence: **flag > env (`HOLT_*`) > profile >
+built-in default**, so `--admin-url` beats `HOLT_ADMIN_URL` beats the
+profile's `admin_url`, and likewise for `--header`, `--hub-addr`, and
+`--profile` itself. Header values expand `${ENV}` references, so secrets
+stay in the environment and out of the file. The proxy fronting the hub
+is your business; holt just sends the headers you give it.
+
+`enroll` reads the same profile: `holt enroll web --profile prod` mints
+remotely, and the advertised tunnel address resolves `--hub-addr` >
+`HOLT_HUB_ADDR` > the profile's `hub_addr` > (remote) the hub's own
+`--advertise-addr` > (local) `127.0.0.1:7000`.
 
 ## Output modes
 

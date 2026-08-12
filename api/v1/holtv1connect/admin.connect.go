@@ -45,6 +45,8 @@ const (
 	AdminListBlockedProcedure = "/openotters.holt.v1.Admin/ListBlocked"
 	// AdminWatchTunnelsProcedure is the fully-qualified name of the Admin's WatchTunnels RPC.
 	AdminWatchTunnelsProcedure = "/openotters.holt.v1.Admin/WatchTunnels"
+	// AdminInfoProcedure is the fully-qualified name of the Admin's Info RPC.
+	AdminInfoProcedure = "/openotters.holt.v1.Admin/Info"
 )
 
 // AdminClient is a client for the openotters.holt.v1.Admin service.
@@ -76,6 +78,10 @@ type AdminClient interface {
 	// client falls too far behind; resubscribe and treat the replay as
 	// a fresh snapshot.
 	WatchTunnels(context.Context, *connect.Request[v1.WatchTunnelsRequest]) (*connect.ServerStreamForClient[v1.TunnelEvent], error)
+	// Info reports a snapshot of the hub: build version, live counts, and
+	// the addresses an operator needs (advertise, proxy, metrics). It is
+	// what `holt info` prints.
+	Info(context.Context, *connect.Request[v1.InfoRequest]) (*connect.Response[v1.InfoResponse], error)
 }
 
 // NewAdminClient constructs a client for the openotters.holt.v1.Admin service. By default, it uses
@@ -125,6 +131,12 @@ func NewAdminClient(httpClient connect.HTTPClient, baseURL string, opts ...conne
 			connect.WithSchema(adminMethods.ByName("WatchTunnels")),
 			connect.WithClientOptions(opts...),
 		),
+		info: connect.NewClient[v1.InfoRequest, v1.InfoResponse](
+			httpClient,
+			baseURL+AdminInfoProcedure,
+			connect.WithSchema(adminMethods.ByName("Info")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -136,6 +148,7 @@ type adminClient struct {
 	unblockPeer  *connect.Client[v1.UnblockPeerRequest, v1.UnblockPeerResponse]
 	listBlocked  *connect.Client[v1.ListBlockedRequest, v1.ListBlockedResponse]
 	watchTunnels *connect.Client[v1.WatchTunnelsRequest, v1.TunnelEvent]
+	info         *connect.Client[v1.InfoRequest, v1.InfoResponse]
 }
 
 // ListTunnels calls openotters.holt.v1.Admin.ListTunnels.
@@ -168,6 +181,11 @@ func (c *adminClient) WatchTunnels(ctx context.Context, req *connect.Request[v1.
 	return c.watchTunnels.CallServerStream(ctx, req)
 }
 
+// Info calls openotters.holt.v1.Admin.Info.
+func (c *adminClient) Info(ctx context.Context, req *connect.Request[v1.InfoRequest]) (*connect.Response[v1.InfoResponse], error) {
+	return c.info.CallUnary(ctx, req)
+}
+
 // AdminHandler is an implementation of the openotters.holt.v1.Admin service.
 type AdminHandler interface {
 	ListTunnels(context.Context, *connect.Request[v1.ListTunnelsRequest]) (*connect.Response[v1.ListTunnelsResponse], error)
@@ -197,6 +215,10 @@ type AdminHandler interface {
 	// client falls too far behind; resubscribe and treat the replay as
 	// a fresh snapshot.
 	WatchTunnels(context.Context, *connect.Request[v1.WatchTunnelsRequest], *connect.ServerStream[v1.TunnelEvent]) error
+	// Info reports a snapshot of the hub: build version, live counts, and
+	// the addresses an operator needs (advertise, proxy, metrics). It is
+	// what `holt info` prints.
+	Info(context.Context, *connect.Request[v1.InfoRequest]) (*connect.Response[v1.InfoResponse], error)
 }
 
 // NewAdminHandler builds an HTTP handler from the service implementation. It returns the path on
@@ -242,6 +264,12 @@ func NewAdminHandler(svc AdminHandler, opts ...connect.HandlerOption) (string, h
 		connect.WithSchema(adminMethods.ByName("WatchTunnels")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminInfoHandler := connect.NewUnaryHandler(
+		AdminInfoProcedure,
+		svc.Info,
+		connect.WithSchema(adminMethods.ByName("Info")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/openotters.holt.v1.Admin/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AdminListTunnelsProcedure:
@@ -256,6 +284,8 @@ func NewAdminHandler(svc AdminHandler, opts ...connect.HandlerOption) (string, h
 			adminListBlockedHandler.ServeHTTP(w, r)
 		case AdminWatchTunnelsProcedure:
 			adminWatchTunnelsHandler.ServeHTTP(w, r)
+		case AdminInfoProcedure:
+			adminInfoHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -287,4 +317,8 @@ func (UnimplementedAdminHandler) ListBlocked(context.Context, *connect.Request[v
 
 func (UnimplementedAdminHandler) WatchTunnels(context.Context, *connect.Request[v1.WatchTunnelsRequest], *connect.ServerStream[v1.TunnelEvent]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("openotters.holt.v1.Admin.WatchTunnels is not implemented"))
+}
+
+func (UnimplementedAdminHandler) Info(context.Context, *connect.Request[v1.InfoRequest]) (*connect.Response[v1.InfoResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("openotters.holt.v1.Admin.Info is not implemented"))
 }

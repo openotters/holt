@@ -21,10 +21,12 @@ type Config struct {
 	Profiles       map[string]Profile `yaml:"profiles"`
 }
 
-// Profile is one hub connection: its admin URL and extra headers.
+// Profile is one hub connection: its admin URL, extra headers, and the
+// tunnel address enroll advertises in tokens.
 type Profile struct {
 	AdminURL string            `yaml:"admin_url"`
 	Headers  map[string]string `yaml:"headers"`
+	HubAddr  string            `yaml:"hub_addr"`
 }
 
 // DefaultPath is ~/.holt/config.yaml.

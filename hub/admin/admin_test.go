@@ -194,3 +194,32 @@ func TestWatchTunnels(t *testing.T) {
 		continue
 	}
 }
+
+func TestInfo(t *testing.T) {
+	t.Parallel()
+
+	reg := hub.NewRegistry(zap.NewNop())
+	var detach func(string)
+	detach = reg.Attach("alice", "v1", nil, func(r string) { detach(r) })
+
+	svc := admin.NewService(reg, admin.WithInfo(admin.HubInfo{
+		Version:       "1.2.3",
+		AdvertiseAddr: "10.0.0.5:7000",
+		ProxyAddr:     "127.0.0.1:7002",
+		RouteHeader:   "x-tunnel-peer",
+	}))
+
+	resp, err := svc.Info(context.Background(), connect.NewRequest(&holtv1.InfoRequest{}))
+	if err != nil {
+		t.Fatalf("info: %v", err)
+	}
+
+	msg := resp.Msg
+	if msg.GetVersion() != "1.2.3" || msg.GetAdvertiseAddr() != "10.0.0.5:7000" {
+		t.Fatalf("static fields not reported: %+v", msg)
+	}
+
+	if msg.GetTunnels() != 1 {
+		t.Fatalf("tunnels = %d, want 1", msg.GetTunnels())
+	}
+}

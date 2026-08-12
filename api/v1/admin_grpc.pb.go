@@ -25,6 +25,7 @@ const (
 	Admin_UnblockPeer_FullMethodName  = "/openotters.holt.v1.Admin/UnblockPeer"
 	Admin_ListBlocked_FullMethodName  = "/openotters.holt.v1.Admin/ListBlocked"
 	Admin_WatchTunnels_FullMethodName = "/openotters.holt.v1.Admin/WatchTunnels"
+	Admin_Info_FullMethodName         = "/openotters.holt.v1.Admin/Info"
 )
 
 // AdminClient is the client API for Admin service.
@@ -63,6 +64,10 @@ type AdminClient interface {
 	// client falls too far behind; resubscribe and treat the replay as
 	// a fresh snapshot.
 	WatchTunnels(ctx context.Context, in *WatchTunnelsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[TunnelEvent], error)
+	// Info reports a snapshot of the hub: build version, live counts, and
+	// the addresses an operator needs (advertise, proxy, metrics). It is
+	// what `holt info` prints.
+	Info(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*InfoResponse, error)
 }
 
 type adminClient struct {
@@ -142,6 +147,16 @@ func (c *adminClient) WatchTunnels(ctx context.Context, in *WatchTunnelsRequest,
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Admin_WatchTunnelsClient = grpc.ServerStreamingClient[TunnelEvent]
 
+func (c *adminClient) Info(ctx context.Context, in *InfoRequest, opts ...grpc.CallOption) (*InfoResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InfoResponse)
+	err := c.cc.Invoke(ctx, Admin_Info_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServer is the server API for Admin service.
 // All implementations must embed UnimplementedAdminServer
 // for forward compatibility.
@@ -178,6 +193,10 @@ type AdminServer interface {
 	// client falls too far behind; resubscribe and treat the replay as
 	// a fresh snapshot.
 	WatchTunnels(*WatchTunnelsRequest, grpc.ServerStreamingServer[TunnelEvent]) error
+	// Info reports a snapshot of the hub: build version, live counts, and
+	// the addresses an operator needs (advertise, proxy, metrics). It is
+	// what `holt info` prints.
+	Info(context.Context, *InfoRequest) (*InfoResponse, error)
 	mustEmbedUnimplementedAdminServer()
 }
 
@@ -205,6 +224,9 @@ func (UnimplementedAdminServer) ListBlocked(context.Context, *ListBlockedRequest
 }
 func (UnimplementedAdminServer) WatchTunnels(*WatchTunnelsRequest, grpc.ServerStreamingServer[TunnelEvent]) error {
 	return status.Error(codes.Unimplemented, "method WatchTunnels not implemented")
+}
+func (UnimplementedAdminServer) Info(context.Context, *InfoRequest) (*InfoResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Info not implemented")
 }
 func (UnimplementedAdminServer) mustEmbedUnimplementedAdminServer() {}
 func (UnimplementedAdminServer) testEmbeddedByValue()               {}
@@ -328,6 +350,24 @@ func _Admin_WatchTunnels_Handler(srv interface{}, stream grpc.ServerStream) erro
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Admin_WatchTunnelsServer = grpc.ServerStreamingServer[TunnelEvent]
 
+func _Admin_Info_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServer).Info(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Admin_Info_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServer).Info(ctx, req.(*InfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Admin_ServiceDesc is the grpc.ServiceDesc for Admin service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -354,6 +394,10 @@ var Admin_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListBlocked",
 			Handler:    _Admin_ListBlocked_Handler,
+		},
+		{
+			MethodName: "Info",
+			Handler:    _Admin_Info_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

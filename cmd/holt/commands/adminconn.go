@@ -3,23 +3,52 @@ package commands
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	holtv1connect "github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/cmd/holt/internal/config"
 )
 
+// Every configurable value follows the same precedence:
+//
+//	flag > env (HOLT_*) > profile (~/.holt/config.yaml) > built-in default
+//
+// kong merges each flag with its HOLT_* env into the struct field (the
+// flag winning), so resolution here only layers the profile and the
+// default on top with coalesce().
+
 // adminConn is the shared connection surface of the admin commands
-// (ls / kill / block / unblock): where the hub's admin API is and how
-// to authenticate to whatever sits in front of it. Embed it in a
-// command to get the flags and the client() helper.
+// (info / ls / kill / block / unblock, and enroll): where the hub's
+// admin API is and how to authenticate to whatever sits in front of it.
+// Embed it in a command to get the flags and the client() helper.
 type adminConn struct {
-	AdminAddr string   `help:"Hub admin address (host:port, plaintext)." default:"127.0.0.1:7001"`
-	AdminURL  string   `help:"Full admin URL, e.g. https://holt.example.com (overrides --admin-addr)." name:"admin-url"`
-	Header    []string `help:"Extra request header 'Name: Value' (repeatable); overrides the profile's." name:"header"`
+	AdminAddr string   `help:"Hub admin address (host:port, plaintext; default 127.0.0.1:7001)." env:"HOLT_ADMIN_ADDR"`
+	AdminURL  string   `help:"Full admin URL, e.g. https://holt.example.com (overrides --admin-addr)." name:"admin-url" env:"HOLT_ADMIN_URL"`
+	Header    []string `help:"Extra request header 'Name: Value' (repeatable); overrides the profile's." name:"header" env:"HOLT_HEADER"`
 	Profile   string   `help:"Config profile to use (default: the file's default_profile)." env:"HOLT_PROFILE"`
 	Config    string   `help:"Config file path (default: ~/.holt/config.yaml)." env:"HOLT_CONFIG" type:"path"`
+}
+
+// coalesce returns the first non-empty value, the shared primitive of
+// the flag > env > profile > default precedence (the flag+env part is
+// already folded into the first argument by kong).
+func coalesce(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+
+	return ""
+}
+
+// httpAddr turns a host:port into an http:// URL, or "" when empty.
+func httpAddr(addr string) string {
+	if addr == "" {
+		return ""
+	}
+
+	return "http://" + addr
 }
 
 // client resolves the endpoint and headers and returns an Admin client.
@@ -43,30 +72,21 @@ type endpoint struct {
 	remote  bool
 }
 
-// endpoint applies precedence flag > env > profile > default for the
-// URL, and merges the --header flags over the profile's headers.
+// endpoint resolves the admin URL and headers. --admin-url wins, then
+// --admin-addr (as http://), then the profile's admin_url; any of those
+// means a remote hub was named, otherwise it falls back to the loopback
+// default (and stays "local" for enroll).
 func (a adminConn) endpoint() (endpoint, error) {
-	cfg, err := config.Load(a.Config)
+	prof, err := a.profile()
 	if err != nil {
 		return endpoint{}, err
 	}
 
-	prof := cfg.Pick(a.Profile)
-
-	// An explicitly configured URL (flag, env, or profile) means a
-	// remote hub; absent that, fall back to the loopback admin address.
-	url := prof.AdminURL
-	if env := os.Getenv("HOLT_ADMIN_URL"); env != "" {
-		url = env
-	}
-
-	if a.AdminURL != "" {
-		url = a.AdminURL
-	}
-
+	url := coalesce(a.AdminURL, httpAddr(a.AdminAddr), prof.AdminURL)
 	remote := url != ""
+
 	if url == "" {
-		url = "http://" + a.AdminAddr
+		url = "http://127.0.0.1:7001"
 	}
 
 	headers := prof.ResolvedHeaders()
@@ -86,6 +106,17 @@ func (a adminConn) endpoint() (endpoint, error) {
 // for the bespoke /api/enroll endpoint (not a Connect RPC).
 func (e endpoint) httpClient() *http.Client {
 	return &http.Client{Transport: headerTransport{headers: e.headers, base: http.DefaultTransport}}
+}
+
+// profile loads and selects the configured profile (empty when there is
+// no config or no match).
+func (a adminConn) profile() (config.Profile, error) {
+	cfg, err := config.Load(a.Config)
+	if err != nil {
+		return config.Profile{}, err
+	}
+
+	return cfg.Pick(a.Profile), nil
 }
 
 // splitHeader parses "Name: Value" into its parts.

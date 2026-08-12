@@ -26,8 +26,10 @@ import (
 type Enroll struct {
 	Peer string `arg:"" help:"Identity to mint the token for."`
 
-	// Local mode (no admin endpoint): read state and advertise this.
-	HubAddr  string        `help:"Tunnel address to advertise (local mode; the hub supplies it remotely)." default:"127.0.0.1:7000"`
+	// Tunnel address advertised in the token. Resolves flag > env >
+	// profile hub_addr; local mode falls back to 127.0.0.1:7000, remote
+	// mode falls back to the hub's --advertise-addr.
+	HubAddr  string        `help:"Tunnel address to advertise (default: profile hub_addr, then 127.0.0.1:7000; the hub's advertise-addr when remote)." env:"HOLT_HUB_ADDR"`
 	State    string        `help:"Hub state directory (cert + JWT secret)." type:"path"`
 	TokenTTL time.Duration `help:"Lifetime of the minted JWT (local mode)." default:"24h"`
 
@@ -42,20 +44,35 @@ func (e *Enroll) Run(ctx context.Context, _ *c.Commons) error {
 		return err
 	}
 
-	if ep.remote {
-		return e.enrollRemote(ctx, ep)
+	prof, err := e.profile()
+	if err != nil {
+		return err
 	}
 
-	return e.enrollLocal()
+	// Advertised address, same precedence as everything else: flag/env
+	// (folded by kong) then profile. Empty means "let the mode decide"
+	// (loopback default local, hub's advertise-addr remote).
+	hubAddr := coalesce(e.HubAddr, prof.HubAddr)
+
+	if ep.remote {
+		return e.enrollRemote(ctx, ep, hubAddr)
+	}
+
+	return e.enrollLocal(hubAddr)
 }
 
-// enrollRemote asks the hub to mint the token, so its advertise address
-// (not a guessed --hub-addr) lands in the token.
-func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint) error {
+// enrollRemote asks the hub to mint the token. Without a hubAddr the
+// hub stamps its own advertise address; with one, it uses the override.
+func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint, hubAddr string) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	payload, _ := json.Marshal(map[string]string{"peer": e.Peer})
+	body := map[string]string{"peer": e.Peer}
+	if hubAddr != "" {
+		body["hub_addr"] = hubAddr
+	}
+
+	payload, _ := json.Marshal(body)
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost,
 		strings.TrimRight(ep.url, "/")+"/api/enroll", bytes.NewReader(payload))
@@ -90,9 +107,13 @@ func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint) error {
 }
 
 // enrollLocal signs a token from the on-disk hub identity.
-func (e *Enroll) enrollLocal() error {
+func (e *Enroll) enrollLocal(hubAddr string) error {
 	if e.State == "" {
 		e.State = defaultStateDir()
+	}
+
+	if hubAddr == "" {
+		hubAddr = "127.0.0.1:7000"
 	}
 
 	mat, err := selfsigned.Load(e.State)
@@ -107,7 +128,7 @@ func (e *Enroll) enrollLocal() error {
 
 	tok := token.JoinToken{
 		Peer:    e.Peer,
-		HubAddr: e.HubAddr,
+		HubAddr: hubAddr,
 		JWT:     jwtStr,
 		CAPEM:   mat.CertPEM,
 	}.Encode()

@@ -43,3 +43,12 @@ export const unblockPeer = Admin.method.unblockPeer;
  * @generated from rpc openotters.holt.v1.Admin.ListBlocked
  */
 export const listBlocked = Admin.method.listBlocked;
+
+/**
+ * Info reports a snapshot of the hub: build version, live counts, and
+ * the addresses an operator needs (advertise, proxy, metrics). It is
+ * what `holt info` prints.
+ *
+ * @generated from rpc openotters.holt.v1.Admin.Info
+ */
+export const info = Admin.method.info;

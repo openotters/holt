@@ -51,6 +51,7 @@ func main() {
 		Enroll:  &commands.Enroll{},
 		Renew:   &commands.Renew{},
 		Expose:  &commands.Expose{},
+		Info:    &commands.Info{},
 		Ls:      &commands.Ls{},
 		Kill:    &commands.Kill{},
 		Block:   &commands.Block{},
@@ -101,6 +102,7 @@ type CMD struct {
 	Enroll  *commands.Enroll  `cmd:"" help:"Mint a join token (JWT + pinned hub cert) for a peer."`
 	Renew   *commands.Renew   `cmd:"" help:"Regenerate the hub's TLS certificate (invalidates all existing join tokens)."`
 	Expose  *commands.Expose  `cmd:"" help:"Expose a local HTTP service through the hub (ngrok style)."`
+	Info    *commands.Info    `cmd:"" help:"Show a snapshot of the hub (build, counts, addresses, metrics)."`
 	Ls      *commands.Ls      `cmd:"" aliases:"list" help:"List live tunnels via the hub's Admin service."`
 	Kill    *commands.Kill    `cmd:"" help:"Force a peer's tunnel closed (it may reconnect)."`
 	Block   *commands.Block   `cmd:"" help:"Ban a peer id and close its tunnel; every token for that id is refused until unblock."`

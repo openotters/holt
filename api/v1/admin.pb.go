@@ -702,6 +702,158 @@ func (x *TunnelEvent) GetReason() string {
 	return ""
 }
 
+type InfoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InfoRequest) Reset() {
+	*x = InfoRequest{}
+	mi := &file_v1_admin_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InfoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InfoRequest) ProtoMessage() {}
+
+func (x *InfoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_admin_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InfoRequest.ProtoReflect.Descriptor instead.
+func (*InfoRequest) Descriptor() ([]byte, []int) {
+	return file_v1_admin_proto_rawDescGZIP(), []int{14}
+}
+
+type InfoResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Version         string                 `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	Commit          string                 `protobuf:"bytes,2,opt,name=commit,proto3" json:"commit,omitempty"`
+	Tunnels         int64                  `protobuf:"varint,3,opt,name=tunnels,proto3" json:"tunnels,omitempty"`                                           // live tunnels on this hub
+	Blocked         int64                  `protobuf:"varint,4,opt,name=blocked,proto3" json:"blocked,omitempty"`                                           // banned peer ids
+	AdvertiseAddr   string                 `protobuf:"bytes,5,opt,name=advertise_addr,json=advertiseAddr,proto3" json:"advertise_addr,omitempty"`           // tunnel address stamped into tokens
+	ProxyAddr       string                 `protobuf:"bytes,6,opt,name=proxy_addr,json=proxyAddr,proto3" json:"proxy_addr,omitempty"`                       // header-routed proxy
+	RouteHeader     string                 `protobuf:"bytes,7,opt,name=route_header,json=routeHeader,proto3" json:"route_header,omitempty"`                 // header naming the target peer
+	MetricsAddr     string                 `protobuf:"bytes,8,opt,name=metrics_addr,json=metricsAddr,proto3" json:"metrics_addr,omitempty"`                 // empty when metrics are off
+	ExternalUrl     string                 `protobuf:"bytes,9,opt,name=external_url,json=externalUrl,proto3" json:"external_url,omitempty"`                 // public proxy URL, if set
+	TokenTtlSeconds int64                  `protobuf:"varint,10,opt,name=token_ttl_seconds,json=tokenTtlSeconds,proto3" json:"token_ttl_seconds,omitempty"` // lifetime of minted tokens
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *InfoResponse) Reset() {
+	*x = InfoResponse{}
+	mi := &file_v1_admin_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InfoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InfoResponse) ProtoMessage() {}
+
+func (x *InfoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_admin_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InfoResponse.ProtoReflect.Descriptor instead.
+func (*InfoResponse) Descriptor() ([]byte, []int) {
+	return file_v1_admin_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *InfoResponse) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *InfoResponse) GetCommit() string {
+	if x != nil {
+		return x.Commit
+	}
+	return ""
+}
+
+func (x *InfoResponse) GetTunnels() int64 {
+	if x != nil {
+		return x.Tunnels
+	}
+	return 0
+}
+
+func (x *InfoResponse) GetBlocked() int64 {
+	if x != nil {
+		return x.Blocked
+	}
+	return 0
+}
+
+func (x *InfoResponse) GetAdvertiseAddr() string {
+	if x != nil {
+		return x.AdvertiseAddr
+	}
+	return ""
+}
+
+func (x *InfoResponse) GetProxyAddr() string {
+	if x != nil {
+		return x.ProxyAddr
+	}
+	return ""
+}
+
+func (x *InfoResponse) GetRouteHeader() string {
+	if x != nil {
+		return x.RouteHeader
+	}
+	return ""
+}
+
+func (x *InfoResponse) GetMetricsAddr() string {
+	if x != nil {
+		return x.MetricsAddr
+	}
+	return ""
+}
+
+func (x *InfoResponse) GetExternalUrl() string {
+	if x != nil {
+		return x.ExternalUrl
+	}
+	return ""
+}
+
+func (x *InfoResponse) GetTokenTtlSeconds() int64 {
+	if x != nil {
+		return x.TokenTtlSeconds
+	}
+	return 0
+}
+
 var File_v1_admin_proto protoreflect.FileDescriptor
 
 const file_v1_admin_proto_rawDesc = "" +
@@ -741,7 +893,21 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\x04Kind\x12\x14\n" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rKIND_ATTACHED\x10\x01\x12\x11\n" +
-	"\rKIND_DETACHED\x10\x022\xba\x04\n" +
+	"\rKIND_DETACHED\x10\x02\"\r\n" +
+	"\vInfoRequest\"\xcf\x02\n" +
+	"\fInfoResponse\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
+	"\x06commit\x18\x02 \x01(\tR\x06commit\x12\x18\n" +
+	"\atunnels\x18\x03 \x01(\x03R\atunnels\x12\x18\n" +
+	"\ablocked\x18\x04 \x01(\x03R\ablocked\x12%\n" +
+	"\x0eadvertise_addr\x18\x05 \x01(\tR\radvertiseAddr\x12\x1d\n" +
+	"\n" +
+	"proxy_addr\x18\x06 \x01(\tR\tproxyAddr\x12!\n" +
+	"\froute_header\x18\a \x01(\tR\vrouteHeader\x12!\n" +
+	"\fmetrics_addr\x18\b \x01(\tR\vmetricsAddr\x12!\n" +
+	"\fexternal_url\x18\t \x01(\tR\vexternalUrl\x12*\n" +
+	"\x11token_ttl_seconds\x18\n" +
+	" \x01(\x03R\x0ftokenTtlSeconds2\x85\x05\n" +
 	"\x05Admin\x12^\n" +
 	"\vListTunnels\x12&.openotters.holt.v1.ListTunnelsRequest\x1a'.openotters.holt.v1.ListTunnelsResponse\x12[\n" +
 	"\n" +
@@ -749,7 +915,8 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\tBlockPeer\x12$.openotters.holt.v1.BlockPeerRequest\x1a%.openotters.holt.v1.BlockPeerResponse\x12^\n" +
 	"\vUnblockPeer\x12&.openotters.holt.v1.UnblockPeerRequest\x1a'.openotters.holt.v1.UnblockPeerResponse\x12^\n" +
 	"\vListBlocked\x12&.openotters.holt.v1.ListBlockedRequest\x1a'.openotters.holt.v1.ListBlockedResponse\x12Z\n" +
-	"\fWatchTunnels\x12'.openotters.holt.v1.WatchTunnelsRequest\x1a\x1f.openotters.holt.v1.TunnelEvent0\x01B*Z(github.com/openotters/holt/api/v1;holtv1b\x06proto3"
+	"\fWatchTunnels\x12'.openotters.holt.v1.WatchTunnelsRequest\x1a\x1f.openotters.holt.v1.TunnelEvent0\x01\x12I\n" +
+	"\x04Info\x12\x1f.openotters.holt.v1.InfoRequest\x1a .openotters.holt.v1.InfoResponseB*Z(github.com/openotters/holt/api/v1;holtv1b\x06proto3"
 
 var (
 	file_v1_admin_proto_rawDescOnce sync.Once
@@ -764,7 +931,7 @@ func file_v1_admin_proto_rawDescGZIP() []byte {
 }
 
 var file_v1_admin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_v1_admin_proto_goTypes = []any{
 	(TunnelEvent_Kind)(0),       // 0: openotters.holt.v1.TunnelEvent.Kind
 	(*TunnelInfo)(nil),          // 1: openotters.holt.v1.TunnelInfo
@@ -781,6 +948,8 @@ var file_v1_admin_proto_goTypes = []any{
 	(*ListBlockedResponse)(nil), // 12: openotters.holt.v1.ListBlockedResponse
 	(*WatchTunnelsRequest)(nil), // 13: openotters.holt.v1.WatchTunnelsRequest
 	(*TunnelEvent)(nil),         // 14: openotters.holt.v1.TunnelEvent
+	(*InfoRequest)(nil),         // 15: openotters.holt.v1.InfoRequest
+	(*InfoResponse)(nil),        // 16: openotters.holt.v1.InfoResponse
 }
 var file_v1_admin_proto_depIdxs = []int32{
 	1,  // 0: openotters.holt.v1.ListTunnelsResponse.tunnels:type_name -> openotters.holt.v1.TunnelInfo
@@ -793,14 +962,16 @@ var file_v1_admin_proto_depIdxs = []int32{
 	8,  // 7: openotters.holt.v1.Admin.UnblockPeer:input_type -> openotters.holt.v1.UnblockPeerRequest
 	11, // 8: openotters.holt.v1.Admin.ListBlocked:input_type -> openotters.holt.v1.ListBlockedRequest
 	13, // 9: openotters.holt.v1.Admin.WatchTunnels:input_type -> openotters.holt.v1.WatchTunnelsRequest
-	3,  // 10: openotters.holt.v1.Admin.ListTunnels:output_type -> openotters.holt.v1.ListTunnelsResponse
-	5,  // 11: openotters.holt.v1.Admin.StopTunnel:output_type -> openotters.holt.v1.StopTunnelResponse
-	7,  // 12: openotters.holt.v1.Admin.BlockPeer:output_type -> openotters.holt.v1.BlockPeerResponse
-	9,  // 13: openotters.holt.v1.Admin.UnblockPeer:output_type -> openotters.holt.v1.UnblockPeerResponse
-	12, // 14: openotters.holt.v1.Admin.ListBlocked:output_type -> openotters.holt.v1.ListBlockedResponse
-	14, // 15: openotters.holt.v1.Admin.WatchTunnels:output_type -> openotters.holt.v1.TunnelEvent
-	10, // [10:16] is the sub-list for method output_type
-	4,  // [4:10] is the sub-list for method input_type
+	15, // 10: openotters.holt.v1.Admin.Info:input_type -> openotters.holt.v1.InfoRequest
+	3,  // 11: openotters.holt.v1.Admin.ListTunnels:output_type -> openotters.holt.v1.ListTunnelsResponse
+	5,  // 12: openotters.holt.v1.Admin.StopTunnel:output_type -> openotters.holt.v1.StopTunnelResponse
+	7,  // 13: openotters.holt.v1.Admin.BlockPeer:output_type -> openotters.holt.v1.BlockPeerResponse
+	9,  // 14: openotters.holt.v1.Admin.UnblockPeer:output_type -> openotters.holt.v1.UnblockPeerResponse
+	12, // 15: openotters.holt.v1.Admin.ListBlocked:output_type -> openotters.holt.v1.ListBlockedResponse
+	14, // 16: openotters.holt.v1.Admin.WatchTunnels:output_type -> openotters.holt.v1.TunnelEvent
+	16, // 17: openotters.holt.v1.Admin.Info:output_type -> openotters.holt.v1.InfoResponse
+	11, // [11:18] is the sub-list for method output_type
+	4,  // [4:11] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -817,7 +988,7 @@ func file_v1_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_admin_proto_rawDesc), len(file_v1_admin_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   14,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

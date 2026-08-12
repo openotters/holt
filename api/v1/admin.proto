@@ -36,6 +36,10 @@ service Admin {
   // client falls too far behind; resubscribe and treat the replay as
   // a fresh snapshot.
   rpc WatchTunnels(WatchTunnelsRequest) returns (stream TunnelEvent);
+  // Info reports a snapshot of the hub: build version, live counts, and
+  // the addresses an operator needs (advertise, proxy, metrics). It is
+  // what `holt info` prints.
+  rpc Info(InfoRequest) returns (InfoResponse);
 }
 
 message TunnelInfo {
@@ -95,4 +99,19 @@ message TunnelEvent {
   Kind       kind   = 1;
   TunnelInfo info   = 2; // fully set on ATTACHED; only peer on DETACHED
   string     reason = 3; // detach reason, empty on ATTACHED
+}
+
+message InfoRequest {}
+
+message InfoResponse {
+  string version           = 1;
+  string commit            = 2;
+  int64  tunnels           = 3;  // live tunnels on this hub
+  int64  blocked           = 4;  // banned peer ids
+  string advertise_addr    = 5;  // tunnel address stamped into tokens
+  string proxy_addr        = 6;  // header-routed proxy
+  string route_header      = 7;  // header naming the target peer
+  string metrics_addr      = 8;  // empty when metrics are off
+  string external_url      = 9;  // public proxy URL, if set
+  int64  token_ttl_seconds = 10; // lifetime of minted tokens
 }

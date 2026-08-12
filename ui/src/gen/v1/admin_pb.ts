@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file v1/admin.proto.
  */
 export const file_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("Cg52MS9hZG1pbi5wcm90bxISb3Blbm90dGVycy5ob2x0LnYxIkoKClR1bm5lbEluZm8SDAoEcGVlchgBIAEoCRIUCgxwZWVyX3ZlcnNpb24YAiABKAkSGAoQYXR0YWNoZWRfYXRfdW5peBgDIAEoAyIUChJMaXN0VHVubmVsc1JlcXVlc3QiRgoTTGlzdFR1bm5lbHNSZXNwb25zZRIvCgd0dW5uZWxzGAEgAygLMh4ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEluZm8iMQoRU3RvcFR1bm5lbFJlcXVlc3QSDAoEcGVlchgBIAEoCRIOCgZyZWFzb24YAiABKAkiJQoSU3RvcFR1bm5lbFJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIAoQQmxvY2tQZWVyUmVxdWVzdBIMCgRwZWVyGAEgASgJIiQKEUJsb2NrUGVlclJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIgoSVW5ibG9ja1BlZXJSZXF1ZXN0EgwKBHBlZXIYASABKAkiFQoTVW5ibG9ja1BlZXJSZXNwb25zZSI0CgtCbG9ja2VkUGVlchIMCgRwZWVyGAEgASgJEhcKD2Jsb2NrZWRfYXRfdW5peBgCIAEoAyIUChJMaXN0QmxvY2tlZFJlcXVlc3QiRQoTTGlzdEJsb2NrZWRSZXNwb25zZRIuCgVwZWVycxgBIAMoCzIfLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja2VkUGVlciIVChNXYXRjaFR1bm5lbHNSZXF1ZXN0IsMBCgtUdW5uZWxFdmVudBIyCgRraW5kGAEgASgOMiQub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50LktpbmQSLAoEaW5mbxgCIAEoCzIeLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxJbmZvEg4KBnJlYXNvbhgDIAEoCSJCCgRLaW5kEhQKEEtJTkRfVU5TUEVDSUZJRUQQABIRCg1LSU5EX0FUVEFDSEVEEAESEQoNS0lORF9ERVRBQ0hFRBACMroECgVBZG1pbhJeCgtMaXN0VHVubmVscxImLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0VHVubmVsc1JlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdFR1bm5lbHNSZXNwb25zZRJbCgpTdG9wVHVubmVsEiUub3Blbm90dGVycy5ob2x0LnYxLlN0b3BUdW5uZWxSZXF1ZXN0GiYub3Blbm90dGVycy5ob2x0LnYxLlN0b3BUdW5uZWxSZXNwb25zZRJYCglCbG9ja1BlZXISJC5vcGVub3R0ZXJzLmhvbHQudjEuQmxvY2tQZWVyUmVxdWVzdBolLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja1BlZXJSZXNwb25zZRJeCgtVbmJsb2NrUGVlchImLm9wZW5vdHRlcnMuaG9sdC52MS5VbmJsb2NrUGVlclJlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuVW5ibG9ja1BlZXJSZXNwb25zZRJeCgtMaXN0QmxvY2tlZBImLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0QmxvY2tlZFJlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdEJsb2NrZWRSZXNwb25zZRJaCgxXYXRjaFR1bm5lbHMSJy5vcGVub3R0ZXJzLmhvbHQudjEuV2F0Y2hUdW5uZWxzUmVxdWVzdBofLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxFdmVudDABQipaKGdpdGh1Yi5jb20vb3Blbm90dGVycy9ob2x0L2FwaS92MTtob2x0djFiBnByb3RvMw");
+  fileDesc("Cg52MS9hZG1pbi5wcm90bxISb3Blbm90dGVycy5ob2x0LnYxIkoKClR1bm5lbEluZm8SDAoEcGVlchgBIAEoCRIUCgxwZWVyX3ZlcnNpb24YAiABKAkSGAoQYXR0YWNoZWRfYXRfdW5peBgDIAEoAyIUChJMaXN0VHVubmVsc1JlcXVlc3QiRgoTTGlzdFR1bm5lbHNSZXNwb25zZRIvCgd0dW5uZWxzGAEgAygLMh4ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEluZm8iMQoRU3RvcFR1bm5lbFJlcXVlc3QSDAoEcGVlchgBIAEoCRIOCgZyZWFzb24YAiABKAkiJQoSU3RvcFR1bm5lbFJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIAoQQmxvY2tQZWVyUmVxdWVzdBIMCgRwZWVyGAEgASgJIiQKEUJsb2NrUGVlclJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIgoSVW5ibG9ja1BlZXJSZXF1ZXN0EgwKBHBlZXIYASABKAkiFQoTVW5ibG9ja1BlZXJSZXNwb25zZSI0CgtCbG9ja2VkUGVlchIMCgRwZWVyGAEgASgJEhcKD2Jsb2NrZWRfYXRfdW5peBgCIAEoAyIUChJMaXN0QmxvY2tlZFJlcXVlc3QiRQoTTGlzdEJsb2NrZWRSZXNwb25zZRIuCgVwZWVycxgBIAMoCzIfLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja2VkUGVlciIVChNXYXRjaFR1bm5lbHNSZXF1ZXN0IsMBCgtUdW5uZWxFdmVudBIyCgRraW5kGAEgASgOMiQub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50LktpbmQSLAoEaW5mbxgCIAEoCzIeLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxJbmZvEg4KBnJlYXNvbhgDIAEoCSJCCgRLaW5kEhQKEEtJTkRfVU5TUEVDSUZJRUQQABIRCg1LSU5EX0FUVEFDSEVEEAESEQoNS0lORF9ERVRBQ0hFRBACIg0KC0luZm9SZXF1ZXN0ItoBCgxJbmZvUmVzcG9uc2USDwoHdmVyc2lvbhgBIAEoCRIOCgZjb21taXQYAiABKAkSDwoHdHVubmVscxgDIAEoAxIPCgdibG9ja2VkGAQgASgDEhYKDmFkdmVydGlzZV9hZGRyGAUgASgJEhIKCnByb3h5X2FkZHIYBiABKAkSFAoMcm91dGVfaGVhZGVyGAcgASgJEhQKDG1ldHJpY3NfYWRkchgIIAEoCRIUCgxleHRlcm5hbF91cmwYCSABKAkSGQoRdG9rZW5fdHRsX3NlY29uZHMYCiABKAMyhQUKBUFkbWluEl4KC0xpc3RUdW5uZWxzEiYub3Blbm90dGVycy5ob2x0LnYxLkxpc3RUdW5uZWxzUmVxdWVzdBonLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0VHVubmVsc1Jlc3BvbnNlElsKClN0b3BUdW5uZWwSJS5vcGVub3R0ZXJzLmhvbHQudjEuU3RvcFR1bm5lbFJlcXVlc3QaJi5vcGVub3R0ZXJzLmhvbHQudjEuU3RvcFR1bm5lbFJlc3BvbnNlElgKCUJsb2NrUGVlchIkLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja1BlZXJSZXF1ZXN0GiUub3Blbm90dGVycy5ob2x0LnYxLkJsb2NrUGVlclJlc3BvbnNlEl4KC1VuYmxvY2tQZWVyEiYub3Blbm90dGVycy5ob2x0LnYxLlVuYmxvY2tQZWVyUmVxdWVzdBonLm9wZW5vdHRlcnMuaG9sdC52MS5VbmJsb2NrUGVlclJlc3BvbnNlEl4KC0xpc3RCbG9ja2VkEiYub3Blbm90dGVycy5ob2x0LnYxLkxpc3RCbG9ja2VkUmVxdWVzdBonLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0QmxvY2tlZFJlc3BvbnNlEloKDFdhdGNoVHVubmVscxInLm9wZW5vdHRlcnMuaG9sdC52MS5XYXRjaFR1bm5lbHNSZXF1ZXN0Gh8ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50MAESSQoESW5mbxIfLm9wZW5vdHRlcnMuaG9sdC52MS5JbmZvUmVxdWVzdBogLm9wZW5vdHRlcnMuaG9sdC52MS5JbmZvUmVzcG9uc2VCKlooZ2l0aHViLmNvbS9vcGVub3R0ZXJzL2hvbHQvYXBpL3YxO2hvbHR2MWIGcHJvdG8z");
 
 /**
  * @generated from message openotters.holt.v1.TunnelInfo
@@ -301,6 +301,97 @@ export const TunnelEvent_KindSchema: GenEnum<TunnelEvent_Kind> = /*@__PURE__*/
   enumDesc(file_v1_admin, 13, 0);
 
 /**
+ * @generated from message openotters.holt.v1.InfoRequest
+ */
+export type InfoRequest = Message<"openotters.holt.v1.InfoRequest"> & {
+};
+
+/**
+ * Describes the message openotters.holt.v1.InfoRequest.
+ * Use `create(InfoRequestSchema)` to create a new message.
+ */
+export const InfoRequestSchema: GenMessage<InfoRequest> = /*@__PURE__*/
+  messageDesc(file_v1_admin, 14);
+
+/**
+ * @generated from message openotters.holt.v1.InfoResponse
+ */
+export type InfoResponse = Message<"openotters.holt.v1.InfoResponse"> & {
+  /**
+   * @generated from field: string version = 1;
+   */
+  version: string;
+
+  /**
+   * @generated from field: string commit = 2;
+   */
+  commit: string;
+
+  /**
+   * live tunnels on this hub
+   *
+   * @generated from field: int64 tunnels = 3;
+   */
+  tunnels: bigint;
+
+  /**
+   * banned peer ids
+   *
+   * @generated from field: int64 blocked = 4;
+   */
+  blocked: bigint;
+
+  /**
+   * tunnel address stamped into tokens
+   *
+   * @generated from field: string advertise_addr = 5;
+   */
+  advertiseAddr: string;
+
+  /**
+   * header-routed proxy
+   *
+   * @generated from field: string proxy_addr = 6;
+   */
+  proxyAddr: string;
+
+  /**
+   * header naming the target peer
+   *
+   * @generated from field: string route_header = 7;
+   */
+  routeHeader: string;
+
+  /**
+   * empty when metrics are off
+   *
+   * @generated from field: string metrics_addr = 8;
+   */
+  metricsAddr: string;
+
+  /**
+   * public proxy URL, if set
+   *
+   * @generated from field: string external_url = 9;
+   */
+  externalUrl: string;
+
+  /**
+   * lifetime of minted tokens
+   *
+   * @generated from field: int64 token_ttl_seconds = 10;
+   */
+  tokenTtlSeconds: bigint;
+};
+
+/**
+ * Describes the message openotters.holt.v1.InfoResponse.
+ * Use `create(InfoResponseSchema)` to create a new message.
+ */
+export const InfoResponseSchema: GenMessage<InfoResponse> = /*@__PURE__*/
+  messageDesc(file_v1_admin, 15);
+
+/**
  * Admin is the hub's management surface: enumerate live tunnels and
  * force one closed. It reflects the hub Registry over the wire so a
  * CLI (or grpcurl) can operate a hub remotely. Mount it behind
@@ -381,6 +472,18 @@ export const Admin: GenService<{
     methodKind: "server_streaming";
     input: typeof WatchTunnelsRequestSchema;
     output: typeof TunnelEventSchema;
+  },
+  /**
+   * Info reports a snapshot of the hub: build version, live counts, and
+   * the addresses an operator needs (advertise, proxy, metrics). It is
+   * what `holt info` prints.
+   *
+   * @generated from rpc openotters.holt.v1.Admin.Info
+   */
+  info: {
+    methodKind: "unary";
+    input: typeof InfoRequestSchema;
+    output: typeof InfoResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_v1_admin, 0);
