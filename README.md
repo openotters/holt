@@ -198,6 +198,31 @@ holt renew                   # regenerate the hub cert (invalidates all tokens)
 Run `holt <cmd> --help` for details. Hub state (certificate, JWT
 secret, blocklist) lives in `~/.holt`.
 
+The management commands (`ls`/`kill`/`block`/`unblock`) default to the
+admin listener on `127.0.0.1:7001`. To drive a remote hub behind an
+authenticating proxy, use `--admin-url` and `--header`, or save named
+profiles in `~/.holt/config.yaml`:
+
+```sh
+holt ls --admin-url https://holt.example.com \
+  --header 'CF-Access-Client-Id: <id>' --header 'CF-Access-Client-Secret: <secret>'
+```
+
+```yaml
+# ~/.holt/config.yaml
+default_profile: prod
+profiles:
+  prod:
+    admin_url: https://holt.example.com
+    headers:                       # any headers; Cloudflare Access shown here
+      CF-Access-Client-Id: 0a1b2c3d.access
+      CF-Access-Client-Secret: ${HOLT_PROD_CF_SECRET}   # ${ENV} keeps secrets out of the file
+```
+
+Then `holt ls` uses the default profile; `--profile`, `HOLT_PROFILE`,
+and an explicit `--admin-url` override it. See
+[`cmd/holt`](cmd/holt/README.md) for the full precedence rules.
+
 Output is friendly by default: a welcome banner with the addresses,
 readable logs, tables and checkmarks. For production, switch to the
 classic structured logs with `--log-format json` (or the
