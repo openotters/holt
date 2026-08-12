@@ -56,7 +56,16 @@ The token bundles the peer's JWT and the hub's tunnel URL. Peers
 authenticate with the JWT, and the URL's scheme picks the transport: an
 `https://` URL is encrypted by a TLS edge in front of the hub (an
 ingress, LoadBalancer, or Cloudflare), while `http://` dials plaintext
-h2c for local use.
+h2c for local use. The hub itself never manages a certificate.
+
+Behind a TLS edge, advertise the public URL so peers dial it over TLS:
+
+```sh
+holt hub --advertise-addr https://holt.example.com &   # hub is h2c; your edge terminates TLS
+holt enroll web                                        # token now carries the https URL
+```
+
+See [Security](docs/security.md) for exposing a hub safely.
 
 ## Documentation
 

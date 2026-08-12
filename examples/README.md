@@ -13,10 +13,10 @@ more peers wired together so you can watch a reverse tunnel work.
 | [`join-token`](join-token) | Mutual TLS with **no cert files**: the server prints a copy-paste join token (CA + client cert + key) you hand to the client's `--token` flag. |
 | [`grpc-tunnel`](grpc-tunnel) | Peers serve a real **gRPC** service (health + reflection) over the tunnel; the hub reverse-proxies so you call it with `grpcurl`, routed per-peer by header. |
 
-To write a peer for the **`holt` CLI** specifically (JWT + pinned
-self-signed cert from a join token), copy [`cmd/starter-client`](../cmd/starter-client)
-— it lives next to the CLI because it's coupled to that token format,
-not to the library.
+To write a peer for the **`holt` CLI** specifically (JWT + tunnel URL
+from a join token), copy [`cmd/starter-client`](../cmd/starter-client),
+it lives next to the CLI because it's coupled to that token format, not
+to the library.
 
 Run any of them with `go run ./examples/<name>`.
 

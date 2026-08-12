@@ -17,7 +17,7 @@ Reverse HTTP tunnels for services that can only dial out. Start with the
 
 ## Operate
 
-- **[Security](security.md)**: Expose the admin and proxy listeners safely, and advertise the address peers can dial.
+- **[Security](security.md)**: Expose the hub's listeners safely, and advertise the URL peers can dial.
 - **[Kubernetes](kubernetes.md)**: Deploy the hub with the Helm chart.
 - **[Observability](observability.md)**: Prometheus metrics and OpenTelemetry instrumentation.
 
