@@ -18,8 +18,8 @@ import (
 // every token for that id, including freshly enrolled ones, is refused
 // until `holt unblock`. The block is durable (SQLite).
 type Block struct {
-	Peer      string `arg:"" help:"Peer id to ban (the JWT subject)."`
-	AdminAddr string `help:"Hub admin address." default:"127.0.0.1:7001"`
+	Peer string `arg:"" help:"Peer id to ban (the JWT subject)."`
+	adminConn
 }
 
 // Run blocks the peer via the Admin service.
@@ -27,10 +27,15 @@ func (b *Block) Run(ctx context.Context, _ *c.Commons) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	resp, err := adminClient(b.AdminAddr).BlockPeer(reqCtx,
+	client, err := b.client()
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.BlockPeer(reqCtx,
 		connect.NewRequest(&holtv1.BlockPeerRequest{Peer: b.Peer}))
 	if err != nil {
-		return fmt.Errorf("reaching hub at %s: %w", b.AdminAddr, err)
+		return fmt.Errorf("reaching hub: %w", err)
 	}
 
 	if resp.Msg.GetStopped() {
@@ -49,8 +54,8 @@ func (b *Block) Run(ctx context.Context, _ *c.Commons) error {
 // re-admits any token minted before the block that has not expired
 // yet; blocking never invalidates the tokens themselves.
 type Unblock struct {
-	Peer      string `arg:"" help:"Peer id whose ban to lift."`
-	AdminAddr string `help:"Hub admin address." default:"127.0.0.1:7001"`
+	Peer string `arg:"" help:"Peer id whose ban to lift."`
+	adminConn
 }
 
 // Run unblocks the peer via the Admin service.
@@ -58,9 +63,14 @@ func (u *Unblock) Run(ctx context.Context, _ *c.Commons) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	if _, err := adminClient(u.AdminAddr).UnblockPeer(reqCtx,
-		connect.NewRequest(&holtv1.UnblockPeerRequest{Peer: u.Peer})); err != nil {
-		return fmt.Errorf("reaching hub at %s: %w", u.AdminAddr, err)
+	client, err := u.client()
+	if err != nil {
+		return err
+	}
+
+	if _, unblockErr := client.UnblockPeer(reqCtx,
+		connect.NewRequest(&holtv1.UnblockPeerRequest{Peer: u.Peer})); unblockErr != nil {
+		return fmt.Errorf("reaching hub: %w", unblockErr)
 	}
 
 	fmt.Println(style.Success("unblocked %q", u.Peer))

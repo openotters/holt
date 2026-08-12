@@ -91,6 +91,51 @@ freshly enrolled one. Unblocking re-admits the peer — including tokens
 minted before the block that have not expired yet, since blocking
 never invalidates the tokens themselves.
 
+## Remote hubs and profiles
+
+The management commands (`ls` / `kill` / `block` / `unblock`) default to
+the hub's admin listener on `127.0.0.1:7001`. To reach a remote hub,
+point them at its URL and, if it sits behind an authenticating proxy,
+add the headers that proxy expects:
+
+```bash
+holt ls --admin-url https://holt.example.com \
+  --header 'CF-Access-Client-Id: <id>' \
+  --header 'CF-Access-Client-Secret: <secret>'
+```
+
+Repeating that gets old, so connections can live in profiles at
+`~/.holt/config.yaml` (override with `--config` / `HOLT_CONFIG`):
+
+```yaml
+default_profile: prod
+
+profiles:
+  local:
+    admin_url: http://127.0.0.1:7001
+
+  prod:
+    admin_url: https://holt.example.com
+    headers:
+      # Any headers work. This example is a Cloudflare Access service
+      # token; the secret is read from an env var, not stored here.
+      CF-Access-Client-Id: 0a1b2c3d.access
+      CF-Access-Client-Secret: ${HOLT_PROD_CF_SECRET}
+```
+
+```bash
+holt ls                          # uses default_profile (prod)
+holt ls --profile local          # switch profile
+HOLT_PROFILE=local holt kill x   # or via env
+holt ls --admin-url http://127.0.0.1:7001   # explicit flag wins over the profile
+```
+
+Header values expand `${ENV}` references, so secrets stay in the
+environment and out of the file. Precedence is flag > env
+(`HOLT_ADMIN_URL`, and `${…}` in headers) > profile > built-in default.
+The proxy fronting the hub is your business; holt just sends the
+headers you give it.
+
 ## Output modes
 
 The CLI is friendly by default: a welcome banner when the hub or
