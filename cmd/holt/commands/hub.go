@@ -401,6 +401,13 @@ func (h *Hub) serveAdmin(
 	)
 	mux.Handle(adminPath, adminHandler)
 
+	// Liveness/readiness endpoint on the plaintext admin listener, so
+	// probes never poke the TLS tunnel port (which would log an aborted
+	// handshake). Exempt from the host guard below.
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
 	if h.UI {
 		h.mountConsole(mux, registry, certs, logger)
 	}
@@ -449,6 +456,14 @@ func hostGuard(allowed []string, next http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Health checks carry the pod IP as Host and return no data, so
+		// they are exempt from the allow-list.
+		if r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+
+			return
+		}
+
 		if !wildcard {
 			host := r.Host
 			if hh, _, err := net.SplitHostPort(host); err == nil {

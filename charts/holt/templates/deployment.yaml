@@ -86,16 +86,29 @@ spec:
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
             {{- end }}
+          # Probes hit the plaintext /healthz on the admin port, not the
+          # TLS tunnel port (a TCP poke of the TLS listener logs an
+          # aborted handshake). Override the whole block via values.
           readinessProbe:
-            tcpSocket:
-              port: tunnel
+            {{- if .Values.readinessProbe }}
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+            {{- else }}
+            httpGet:
+              path: /healthz
+              port: admin
             initialDelaySeconds: 2
             periodSeconds: 5
+            {{- end }}
           livenessProbe:
-            tcpSocket:
-              port: tunnel
+            {{- if .Values.livenessProbe }}
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+            {{- else }}
+            httpGet:
+              path: /healthz
+              port: admin
             initialDelaySeconds: 5
             periodSeconds: 15
+            {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:

@@ -111,6 +111,11 @@ resources:
   limits:
     memory: 256Mi
 
+# Liveness/readiness probes. Default to an HTTP GET of /healthz on the
+# admin port. Set a full probe spec here to override either one.
+livenessProbe: {}
+readinessProbe: {}
+
 podAnnotations: {}
 podLabels: {}
 nodeSelector: {}
