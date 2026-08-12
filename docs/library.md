@@ -4,7 +4,7 @@
 
 *Embed the hub and dial halves in your own Go program.*
 
-The `holt` CLI is one opinionated packaging (JWT auth, pinned TLS,
+The `holt` CLI is one opinionated packaging (JWT auth, h2c transport,
 SQLite state). The library lets you bring your own auth and transport.
 See [How it works](architecture.md) for the moving parts.
 

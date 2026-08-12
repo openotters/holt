@@ -4,9 +4,10 @@
 // tunnel, and listens on nothing.
 //
 // Everything a peer needs is here and nothing else: decode the token,
-// dial the hub (TLS pinned + JWT), and dial.Run your handler. The join
-// token is decoded inline (a tiny base64+JSON struct) so this file has
-// no dependency on the holt CLI's internals — copy it and go.
+// dial the hub (JWT auth; the tunnel URL's scheme picks the transport),
+// and dial.Run your handler. The join token is decoded inline (a tiny
+// base64+JSON struct) so this file has no dependency on the holt CLI's
+// internals — copy it and go.
 //
 //	# on the hub machine:
 //	holt hub &
@@ -22,7 +23,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -30,6 +30,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -37,19 +38,18 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/openotters/holt/dial"
 )
 
-// joinToken mirrors what `holt enroll` prints: the hub address, the
-// peer's JWT, and the hub's certificate to pin. Kept inline so this
-// starter has no internal imports.
+// joinToken mirrors what `holt enroll` prints: the hub's tunnel URL and
+// the peer's JWT. Kept inline so this starter has no internal imports.
 type joinToken struct {
-	Peer       string `json:"peer"`
-	TunnelAddr string `json:"tunnel_addr"`
-	JWT        string `json:"jwt"`
-	CAPEM      []byte `json:"ca_pem"`
+	Peer      string `json:"peer"`
+	TunnelURL string `json:"tunnel_url"`
+	JWT       string `json:"jwt"`
 }
 
 func main() {
@@ -74,25 +74,24 @@ func run(rawToken string) error {
 	logger, _ := zap.NewDevelopment()
 	defer func() { _ = logger.Sync() }()
 
-	// ── 1. Pin the hub's certificate (encrypt + authenticate the hub). ──
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(jt.CAPEM) {
-		return fmt.Errorf("token carries an invalid hub certificate")
+	// ── 1. Resolve the tunnel URL. https dials standard TLS (verified
+	//      with the system roots, so it works through a TLS edge like
+	//      Cloudflare or an ingress); http dials plaintext h2c. Transport
+	//      encryption is the deployment's job — the token has no cert. ──
+	addr, serverName, useTLS, err := target(jt.TunnelURL)
+	if err != nil {
+		return err
 	}
 
-	serverName := jt.TunnelAddr
-	if host, _, splitErr := net.SplitHostPort(jt.TunnelAddr); splitErr == nil {
-		serverName = host
+	var creds credentials.TransportCredentials
+	if useTLS {
+		creds = credentials.NewTLS(&tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12})
+	} else {
+		creds = insecure.NewCredentials()
 	}
-
-	creds := credentials.NewTLS(&tls.Config{
-		RootCAs:    pool,
-		ServerName: serverName,
-		MinVersion: tls.VersionTLS13,
-	})
 
 	// ── 2. Dial the hub, presenting the JWT on every call. ──────────────
-	cc, err := grpc.NewClient(jt.TunnelAddr,
+	cc, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithUnaryInterceptor(bearer(jt.JWT)),
 		grpc.WithStreamInterceptor(bearerStream(jt.JWT)))
@@ -134,6 +133,43 @@ func decodeToken(s string) (joinToken, error) {
 	}
 
 	return jt, nil
+}
+
+// target resolves the tunnel URL into a gRPC dial address, the TLS
+// server name to verify, and whether to use TLS. https -> TLS (system
+// roots); http -> plaintext h2c.
+func target(raw string) (string, string, bool, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", "", false, fmt.Errorf("invalid tunnel_url %q: %w", raw, err)
+	}
+
+	var useTLS bool
+
+	switch u.Scheme {
+	case "https":
+		useTLS = true
+	case "http":
+		useTLS = false
+	default:
+		return "", "", false, fmt.Errorf("tunnel_url scheme must be http or https, got %q", u.Scheme)
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		return "", "", false, fmt.Errorf("tunnel_url has no host: %q", raw)
+	}
+
+	port := u.Port()
+	if port == "" {
+		if useTLS {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+
+	return net.JoinHostPort(host, port), host, useTLS, nil
 }
 
 func bearer(jwt string) grpc.UnaryClientInterceptor {

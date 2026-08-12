@@ -489,7 +489,7 @@ function EnrollCard() {
 				)}
 
 				<p className="text-muted-foreground text-xs">
-					The token carries a short-lived JWT and the hub's certificate to pin. Run the expose command on
+					The token carries a short-lived JWT and the hub's tunnel URL to dial. Run the expose command on
 					the machine you want to reach.
 				</p>
 			</CardContent>
@@ -532,29 +532,29 @@ function CopyField({ label, value, multiline = false }: { label: string; value: 
 	);
 }
 
-// DangerZone holds destructive, hub-wide actions. Renewing the
-// certificate invalidates every join token (peers pinned the old cert),
-// so it is gated behind an inline two-step confirmation rather than a
-// one-click button.
+// DangerZone holds destructive, hub-wide actions. Rotating the signing
+// secret invalidates every join token (each was signed with the old
+// secret), so it is gated behind an inline two-step confirmation rather
+// than a one-click button.
 function DangerZone() {
 	const [confirming, setConfirming] = useState(false);
-	const [renewing, setRenewing] = useState(false);
+	const [rotating, setRotating] = useState(false);
 
-	const renew = async () => {
-		setRenewing(true);
+	const rotate = async () => {
+		setRotating(true);
 		try {
-			const res = await fetch("/api/renew", { method: "POST" });
+			const res = await fetch("/api/rotate-secret", { method: "POST" });
 			if (!res.ok) throw new Error(await res.text());
 			const { closedTunnels = 0 } = (await res.json()) as { closedTunnels?: number };
-			toast.success("Certificate renewed", {
+			toast.success("Signing secret rotated", {
 				description:
 					`Closed ${closedTunnels} tunnel${closedTunnels === 1 ? "" : "s"}. ` +
 					"Existing join tokens are now invalid, re-enroll your peers.",
 			});
 		} catch (e) {
-			toast.error("Renew failed", { description: e instanceof Error ? e.message : String(e) });
+			toast.error("Rotate failed", { description: e instanceof Error ? e.message : String(e) });
 		} finally {
-			setRenewing(false);
+			setRotating(false);
 			setConfirming(false);
 		}
 	};
@@ -569,19 +569,19 @@ function DangerZone() {
 			<CardContent>
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div>
-						<div className="font-medium text-sm">Renew hub certificate</div>
+						<div className="font-medium text-sm">Rotate signing secret</div>
 						<p className="text-muted-foreground text-sm">
-							Generates a fresh certificate and serves it immediately. Every existing join token pins the
-							old certificate and stops working, so peers must be re-enrolled.
+							Generates a fresh JWT signing secret and uses it immediately. Every existing join token was
+							signed with the old secret and stops working, so peers must be re-enrolled.
 						</p>
 					</div>
 					{confirming ? (
 						<div className="flex shrink-0 items-center gap-2">
-							<Button size="sm" variant="destructive" disabled={renewing} onClick={renew}>
-								<RefreshCw className={`h-3.5 w-3.5 ${renewing ? "animate-spin" : ""}`} />
-								{renewing ? "Renewing…" : "Confirm renew"}
+							<Button size="sm" variant="destructive" disabled={rotating} onClick={rotate}>
+								<RefreshCw className={`h-3.5 w-3.5 ${rotating ? "animate-spin" : ""}`} />
+								{rotating ? "Rotating…" : "Confirm rotate"}
 							</Button>
-							<Button size="sm" variant="secondary" disabled={renewing} onClick={() => setConfirming(false)}>
+							<Button size="sm" variant="secondary" disabled={rotating} onClick={() => setConfirming(false)}>
 								Cancel
 							</Button>
 						</div>
@@ -592,7 +592,7 @@ function DangerZone() {
 							variant="outline"
 							onClick={() => setConfirming(true)}
 						>
-							<RefreshCw className="h-3.5 w-3.5" /> Renew certificate
+							<RefreshCw className="h-3.5 w-3.5" /> Rotate secret
 						</Button>
 					)}
 				</div>

@@ -26,7 +26,7 @@
    open http://127.0.0.1:{{ .Values.service.admin.port }}/
 {{- end }}
 
-The hub state (certificate, JWT secret, blocklist) lives in the
+The hub state (JWT secret, blocklist) lives in the
 {{ ternary (printf "PVC %s" (.Values.persistence.existingClaim | default (include "holt.fullname" .))) "pod (persistence is DISABLED: every restart invalidates all join tokens)" .Values.persistence.enabled }}.
 {{- if or .Values.ingress.admin.enabled .Values.ingress.proxy.enabled }}
 

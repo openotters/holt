@@ -5,10 +5,13 @@
 *Run a hub, enroll peers, expose services, and manage tunnels with the holt command.*
 
 The operator CLI for a reverse-tunnel hub: run the hub, enroll peers,
-and manage live tunnels. Peers authenticate with a **JWT**; the tunnel
-transport is encrypted with the hub's **self-signed certificate**, which
-the client **pins** (it travels in the join token). Reach a peer's
-tunneled service through the hub by naming it in a header.
+and manage live tunnels. Peers authenticate with a **JWT**. The tunnel
+listener is plaintext **h2c**, so transport encryption is the
+deployment's job (a TLS edge, ingress, or mesh in front of the hub);
+the join token carries the tunnel **URL** and its scheme picks the
+transport (`https` dials TLS verified with the system roots, `http`
+dials plaintext). Reach a peer's tunneled service through the hub by
+naming it in a header.
 
 ## Cheat sheet
 
@@ -22,7 +25,7 @@ holt ls                         # list live tunnels
 holt kill <peer>                # disconnect a tunnel (the peer may reconnect)
 holt block <peer>               # disconnect AND ban the peer id
 holt unblock <peer>             # lift a block
-holt renew                      # regenerate the hub cert (invalidates all tokens)
+holt rotate-secret              # rotate the JWT secret (invalidates all tokens)
 ```
 
 Run `holt <cmd> --help` for details.
@@ -31,8 +34,8 @@ Run `holt <cmd> --help` for details.
 
 The hub keeps everything under `~/.holt` (override with `--state`):
 
-- `hub-cert.pem` / `hub-key.pem` / `jwt-secret`: the hub identity, as
-  files, reused across restarts so old tokens keep working.
+- `jwt-secret`: the hub's JWT signing secret, a file reused across
+  restarts so already-issued tokens keep working.
 - `holt.db`: a SQLite database holding the **peer blocklist** and the
   **tunnel-presence directory** (via `hub/sqldir`).
 
@@ -45,39 +48,45 @@ holt hub
 
 | Listener | Default | Purpose |
 |---|---|---|
-| `--tunnel-addr` | `127.0.0.1:7000` | TLS + JWT; peers attach here |
+| `--tunnel-addr` | `127.0.0.1:7000` | JWT auth (plaintext h2c); peers attach here |
 | `--admin-addr`  | `127.0.0.1:7001` | the Admin service (list / stop / block / enroll), serves the console with `--ui` |
 | `--proxy-addr`  | `127.0.0.1:7002` | reach a peer's service via the `x-tunnel-peer` header |
 
-The bind address is not always the address peers can dial (behind a
-LoadBalancer or NAT). Set `--advertise-addr` to the reachable tunnel
-address; the hub stamps that into every token it mints, instead of the
-bind address.
+All three listeners are plaintext h2c: put your own TLS in front (a TLS
+edge, ingress, LoadBalancer, or mesh) for anything beyond loopback. See
+[Security](security.md).
+
+The bind address is not always the URL peers can dial (behind a
+LoadBalancer, NAT, or TLS edge). Set `--advertise-addr` to the reachable
+tunnel **URL** (e.g. `https://holt.example.com`); the hub stamps that
+into every token it mints, instead of `http://` + the bind address. The
+scheme matters: `https` tells peers to dial over TLS, `http` plaintext.
 
 ## Enroll a peer
 
 `enroll` produces a join token. Two modes:
 
-**Local** (on the hub machine, offline): it reads the cert + JWT secret
-from the state folder and signs the token itself. Pass the tunnel
-address to advertise:
+**Local** (on the hub machine, offline): it reads the JWT secret from the
+state folder and signs the token itself. Pass the tunnel URL to
+advertise:
 
 ```sh
-holt enroll alice --tunnel-addr 192.168.1.10:7000
+holt enroll alice --tunnel-url https://holt.example.com
 ```
 
 **Remote** (against a running hub): give it an admin endpoint (see
 [remote hubs](#remote-hubs-and-profiles)) and the hub mints the token,
-stamping its own `--advertise-addr`, so you do not pass `--tunnel-addr`:
+stamping its own `--advertise-addr`, so you do not pass `--tunnel-url`:
 
 ```sh
 holt enroll alice --admin-url https://holt.example.com
 holt enroll alice --profile prod            # same, via a profile
 ```
 
-The token bundles the peer's JWT, the hub's address, and the hub's
-certificate to pin, so the client encrypts the tunnel **and** verifies
-the hub, while the JWT authenticates the client.
+The token bundles the peer's JWT and the hub's tunnel URL. The JWT
+authenticates the client; encryption comes from whatever fronts the hub
+(a TLS edge, ingress, or mesh), which the `https` URL tells the peer to
+dial over, verified with the system roots.
 
 Two ready-made peers consume the token:
 
@@ -117,7 +126,7 @@ holt info
 #   endpoint   http://127.0.0.1:7001
 #   tunnels    3                          live
 #   blocked    1                          banned peer ids
-#   advertise  192.168.8.193:7000         address stamped into tokens
+#   advertise  https://holt.example.com   URL stamped into tokens
 #   proxy      127.0.0.1:7002             reach peers via the x-tunnel-peer header
 #   metrics    127.0.0.1:7003/metrics     prometheus
 #   token ttl  24h0m0s                    lifetime of minted tokens
@@ -171,7 +180,7 @@ profiles:
 
   prod:
     admin_url: https://holt.example.com
-    tunnel_addr: 192.168.8.193:7000   # advertised in tokens enroll mints
+    tunnel_url: https://holt.example.com   # advertised in tokens enroll mints
     headers:
       # Any headers work. This example is a Cloudflare Access service
       # token; the secret is read from an env var, not stored here.
@@ -188,15 +197,15 @@ holt ls --admin-url http://127.0.0.1:7001   # explicit flag wins over the profil
 
 Every value follows one precedence: **flag > env (`HOLT_*`) > profile >
 built-in default**, so `--admin-url` beats `HOLT_ADMIN_URL` beats the
-profile's `admin_url`, and likewise for `--header`, `--tunnel-addr`, and
+profile's `admin_url`, and likewise for `--header`, `--tunnel-url`, and
 `--profile` itself. Header values expand `${ENV}` references, so secrets
 stay in the environment and out of the file. The proxy fronting the hub
 is your business; holt just sends the headers you give it.
 
 `enroll` reads the same profile: `holt enroll web --profile prod` mints
-remotely, and the advertised tunnel address resolves `--tunnel-addr` >
-`HOLT_TUNNEL_ADDR` > the profile's `tunnel_addr` > (remote) the hub's own
-`--advertise-addr` > (local) `127.0.0.1:7000`.
+remotely, and the advertised tunnel URL resolves `--tunnel-url` >
+`HOLT_TUNNEL_URL` > the profile's `tunnel_url` > (remote) the hub's own
+`--advertise-addr` > (local) `http://127.0.0.1:7000`.
 
 ## Output modes
 
@@ -213,29 +222,32 @@ holt hub --log-format json      # or HOLT_LOG_FORMAT=json
 gracefully (peers get a `GoAway`, listeners finish in-flight requests); a
 second one forces the process to exit now.
 
-## Renew the certificate
+## Rotate the signing secret
 
-The hub's self-signed certificate is pinned by peers through their join
-token. Renewing it generates a fresh one and **invalidates every token
-already handed out**, so peers must be re-enrolled.
+Peers authenticate with a JWT signed by the hub's secret. Rotating that
+secret generates a fresh one and **invalidates every token already
+handed out** (each was signed with the old secret), so peers must be
+re-enrolled. This is the way to revoke every outstanding token at once.
 
 ```sh
-holt renew                 # asks for confirmation first
-holt renew --yes           # skip the prompt (automation)
+holt rotate-secret         # asks for confirmation first
+holt rotate-secret --yes   # skip the prompt (automation)
 ```
 
-From the CLI you renew the files, then restart the hub to serve the new
-cert. The web console's **Danger zone** does both at once: it renews and
-hot-swaps the serving certificate immediately (no restart) and closes
-live tunnels, then you re-enroll your peers.
+From the CLI you rotate the file, then restart the hub to load it. The
+web console's **Danger zone** does both at once: it rotates and
+hot-swaps the live secret immediately (no restart) and closes live
+tunnels, then you re-enroll your peers.
 
 ## Security notes
 
-The admin and proxy listeners are **unauthenticated**: keep them on
-loopback (the default) or front them with your own auth. Join tokens are
-**bearer credentials**; deliver them over a secure channel and keep
-`--token-ttl` short. See [Security](security.md) for exposing a hub
-safely.
+All three listeners (tunnel, admin, proxy) are plaintext h2c and the
+admin and proxy ones are **unauthenticated**: keep them on loopback (the
+default) or front them with your own TLS and auth. The tunnel checks the
+JWT but does not encrypt by itself, so for remote peers put TLS in front
+and advertise an `https://` URL. Join tokens are **bearer credentials**;
+deliver them over a secure channel and keep `--token-ttl` short. See
+[Security](security.md) for exposing a hub safely.
 
 ---
 

@@ -18,9 +18,10 @@
   to copy).
 - an **Install holt on a peer** card: a tile per method (Homebrew,
   Go/binary, Docker, Kubernetes) that opens the command in a modal.
-- a **Danger zone** to renew the hub certificate. It hot-swaps the live
-  cert and closes existing tunnels, so peers must re-enroll (the same
-  effect as `holt renew`, without a restart).
+- a **Danger zone** to rotate the hub's signing secret. It regenerates
+  the JWT secret, which invalidates every issued token and closes
+  existing tunnels, so peers must re-enroll (the same effect as
+  `holt rotate-secret`).
 - a connection status menu with the endpoint, protocol, and a link to
   the Prometheus `/metrics` endpoint when `--metrics` is on.
 

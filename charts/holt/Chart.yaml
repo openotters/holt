@@ -2,7 +2,7 @@ apiVersion: v2
 name: holt
 description: >-
   Reverse HTTP tunnels for services that can only dial out. Runs the
-  holt hub: a TLS+JWT tunnel listener peers attach to, an admin API
+  holt hub: a JWT tunnel listener peers attach to, an admin API
   with the web console, and a header-routed proxy to reach peers.
 type: application
 # Both versions are overridden at release time with the git tag; see

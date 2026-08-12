@@ -3,10 +3,8 @@ package commands
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -16,6 +14,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/openotters/holt/cmd/holt/internal/style"
@@ -57,7 +56,7 @@ func (e *Expose) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out 
 	if out.Pretty {
 		fmt.Print(style.Banner("exposing "+targetURL.String(), []style.BannerRow{
 			{Key: "peer", Value: jt.Peer, Hint: "your identity on the hub"},
-			{Key: "hub", Value: jt.TunnelAddr, Hint: "attached over TLS, redials automatically"},
+			{Key: "hub", Value: jt.TunnelURL, Hint: "redials automatically"},
 			{Key: "reach", Value: "curl -H 'x-tunnel-peer: " + jt.Peer + "'", Hint: "against the hub proxy address"},
 		}, ""))
 	} else {
@@ -104,25 +103,25 @@ func localProxy(target string) (http.Handler, *url.URL, error) {
 	return proxy, u, nil
 }
 
-// dialHub builds the TLS-pinned, JWT-authenticated connection to the hub.
+// dialHub builds the JWT-authenticated connection to the hub. The
+// tunnel URL's scheme selects the transport: https dials standard TLS
+// (verified with the system roots, so it works through a TLS edge like
+// Cloudflare or an ingress), http dials plaintext h2c for a loopback or
+// otherwise-trusted link.
 func dialHub(jt token.JoinToken) (*grpc.ClientConn, error) {
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(jt.CAPEM) {
-		return nil, fmt.Errorf("token carries an invalid hub certificate")
+	addr, serverName, useTLS, err := jt.Target()
+	if err != nil {
+		return nil, err
 	}
 
-	serverName := jt.TunnelAddr
-	if host, _, splitErr := net.SplitHostPort(jt.TunnelAddr); splitErr == nil {
-		serverName = host
+	var creds credentials.TransportCredentials
+	if useTLS {
+		creds = credentials.NewTLS(&tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12})
+	} else {
+		creds = insecure.NewCredentials()
 	}
 
-	creds := credentials.NewTLS(&tls.Config{
-		RootCAs:    pool,
-		ServerName: serverName,
-		MinVersion: tls.VersionTLS13,
-	})
-
-	return grpc.NewClient(jt.TunnelAddr,
+	return grpc.NewClient(addr,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithUnaryInterceptor(bearer(jt.JWT)),
 		grpc.WithStreamInterceptor(bearerStream(jt.JWT)))

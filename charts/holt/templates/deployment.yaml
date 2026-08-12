@@ -89,9 +89,9 @@ spec:
             - name: metrics
               containerPort: {{ .Values.metrics.port }}
             {{- end }}
-          # Probes hit the plaintext /healthz on the admin port, not the
-          # TLS tunnel port (a TCP poke of the TLS listener logs an
-          # aborted handshake). Override the whole block via values.
+          # Probes hit /healthz on the admin port, not the tunnel port
+          # (the tunnel speaks h2c and has no health route). Override the
+          # whole block via values.
           readinessProbe:
             {{- if .Values.readinessProbe }}
             {{- toYaml .Values.readinessProbe | nindent 12 }}

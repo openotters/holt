@@ -14,7 +14,7 @@ Full values in [`charts/holt/values.yaml`](../charts/holt/values.yaml).
 
 ## Shape
 
-The hub runs as a **single replica** on purpose: its state (cert, JWT
+The hub runs as a **single replica** on purpose: its state (JWT
 secret, blocklist, presence) lives in a local SQLite database. Fleets
 with several hubs use the [library](library.md) with a shared PostgreSQL
 directory, not this chart.
@@ -26,13 +26,21 @@ it from outside the cluster), while **admin** and **proxy** stay
 ## Advertised address
 
 The pod binds `0.0.0.0`, which peers cannot dial, so tokens minted in
-the cluster must advertise the reachable tunnel address. Set it to the
-tunnel Service's LoadBalancer IP and port:
+the cluster must advertise the reachable tunnel URL. The scheme picks
+the peer transport: `https://holt.example.com` dials standard TLS
+(verified with the system roots, so it works through an ingress, a
+LoadBalancer with TLS, or Cloudflare), while `http://192.168.8.193:7000`
+dials plaintext h2c straight to a bare LoadBalancer IP.
 
 ```yaml
 hub:
-  advertiseAddr: "192.168.8.193:7000"
+  advertiseAddr: "https://holt.example.com"
 ```
+
+The tunnel listener itself is plaintext h2c, like the admin and proxy
+listeners. Transport encryption is the deployment's job: put a TLS edge
+(ingress, LoadBalancer with TLS, or a service mesh) in front of the hub
+and advertise its `https://` URL.
 
 ## Persistence
 
@@ -64,9 +72,10 @@ guard, so the console keeps working while staying safe. See
 
 ## Health probes
 
-Liveness and readiness probe `GET /healthz` on the admin port (plaintext),
-never the TLS tunnel port (a TCP poke of a TLS listener logs an aborted
-handshake). Override either with `livenessProbe` / `readinessProbe`.
+Liveness and readiness probe `GET /healthz` on the admin port, never the
+tunnel port (it speaks h2c and has no health route, so a bare probe there
+just logs a spurious dial). Override either with `livenessProbe` /
+`readinessProbe`.
 
 ## Metrics
 

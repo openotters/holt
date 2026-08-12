@@ -2,11 +2,19 @@
 
 # Security
 
-*Expose the admin and proxy listeners safely, and advertise the address peers can dial.*
+*Expose the hub's listeners safely, and advertise the URL peers can dial.*
 
-The **tunnel** listener is always TLS + JWT: peers authenticate with a
-JWT and pin the hub's self-signed certificate (it travels in the join
-token). Leave that one on; it is the peer-to-hub security boundary.
+All three listeners (tunnel, admin, proxy) are plaintext **h2c**: holt
+does not manage a certificate, so transport encryption is the
+deployment's job (a TLS edge, ingress, LoadBalancer, or mesh in front of
+the hub).
+
+The **tunnel** listener authenticates every peer with a **JWT**, but it
+does not encrypt by itself. For remote peers, put TLS in front and
+advertise an `https://` URL: the peer then dials over TLS (verified with
+the system roots) so the JWT travels encrypted to the edge, which
+forwards to the hub. On loopback or a trusted link, `http://` (plaintext
+h2c) is fine. Keep `--token-ttl` short: a JWT is a bearer credential.
 
 The **admin** and **proxy** listeners have no built-in auth and bind to
 `127.0.0.1` by default. They are meant to stay on loopback or sit behind
@@ -22,14 +30,16 @@ do expose them:
 - the [Helm chart](kubernetes.md) keeps both ingresses disabled by
   default and auto-adds the admin ingress host to the guard.
 
-## Advertised address
+## Advertised URL
 
-`--advertise-addr` is the tunnel address stamped into join tokens (what
-peers dial). It defaults to `--tunnel-addr`, the **bind** address, which
-is wrong behind a LoadBalancer or NAT (a peer cannot dial `0.0.0.0`).
-Set it to the reachable address, for example the tunnel Service's
-LoadBalancer IP and port. The Helm chart exposes it as
-`hub.advertiseAddr`.
+`--advertise-addr` is the tunnel **URL** stamped into join tokens (what
+peers dial). It defaults to `http://` + `--tunnel-addr`, the **bind**
+address, which is wrong behind a LoadBalancer, NAT, or TLS edge (a peer
+cannot dial `0.0.0.0`, and a plaintext URL skips your edge's TLS). Set
+it to the reachable URL, for example `https://holt.example.com` for a
+hub behind a TLS ingress, or `http://<lb-ip>:7000` for a plain
+LoadBalancer on a trusted network. Its scheme selects the peer
+transport. The Helm chart exposes it as `hub.advertiseAddr`.
 
 ## Reaching the admin API remotely
 

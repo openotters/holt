@@ -10,7 +10,7 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# The hub is a single replica on purpose: its state (cert, JWT secret,
+# The hub is a single replica on purpose: its state (JWT secret,
 # blocklist, presence) lives in a local SQLite database. Fleets with
 # several hubs use the library with a shared PostgreSQL directory, not
 # this chart.
@@ -19,10 +19,13 @@ hub:
   ui: true
   # Lifetime of JWTs minted by enroll.
   tokenTTL: 24h
-  # Public tunnel address stamped into join tokens (what peers dial).
-  # The pod binds 0.0.0.0, which peers cannot dial, so set this to the
-  # tunnel Service's reachable address, e.g. its LoadBalancer IP and
-  # port: "192.168.8.193:7000". Empty falls back to the bind address.
+  # Public tunnel URL stamped into join tokens (what peers dial). The
+  # pod binds 0.0.0.0, which peers cannot dial, so set this to the
+  # reachable URL. The scheme picks the peer transport:
+  # "https://holt.example.com" dials TLS through a TLS edge (ingress,
+  # LoadBalancer with TLS, or Cloudflare, verified with the system
+  # roots), "http://192.168.8.193:7000" dials plaintext h2c to a bare
+  # LoadBalancer IP. Empty falls back to http://<bind address>.
   advertiseAddr: ""
   # Log level (debug, info, warn, error). Logs are always JSON here;
   # this is a server.
@@ -57,9 +60,10 @@ metrics:
 
 service:
   # Tunnel listener: peers dial this from OUTSIDE the cluster, so it
-  # usually needs to be reachable publicly (LoadBalancer or an
-  # ingress able to pass TLS through; the tunnel is TLS end to end
-  # with the hub's own pinned certificate, do NOT terminate it).
+  # usually needs to be reachable publicly (a LoadBalancer or an
+  # ingress). The listener is plaintext h2c; transport encryption is
+  # the deployment's job, so terminate TLS at a LoadBalancer, ingress,
+  # or Cloudflare edge in front and advertise its https:// URL.
   tunnel:
     type: LoadBalancer
     port: 7000
@@ -99,7 +103,7 @@ ingress:
     tls: []
 
 persistence:
-  # The hub state: certificate, JWT secret, blocklist, presence.
+  # The hub state: JWT secret, blocklist, presence.
   # Losing it invalidates every join token already handed out.
   enabled: true
   size: 1Gi

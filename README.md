@@ -52,9 +52,11 @@ Then reach the peer *through* the hub:
 curl -H 'x-tunnel-peer: web' http://127.0.0.1:7002/
 ```
 
-The token bundles the peer's JWT, the hub address, and the hub's
-self-signed certificate to pin. The tunnel is TLS encrypted and both
-sides are authenticated, out of the box.
+The token bundles the peer's JWT and the hub's tunnel URL. Peers
+authenticate with the JWT, and the URL's scheme picks the transport: an
+`https://` URL is encrypted by a TLS edge in front of the hub (an
+ingress, LoadBalancer, or Cloudflare), while `http://` dials plaintext
+h2c for local use.
 
 ## Documentation
 

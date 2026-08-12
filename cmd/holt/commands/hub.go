@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,8 +27,8 @@ import (
 
 	"github.com/openotters/holt"
 	holtv1connect "github.com/openotters/holt/api/v1/holtv1connect"
+	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/cmd/holt/internal/selfsigned"
 	"github.com/openotters/holt/cmd/holt/internal/store"
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
@@ -43,33 +42,43 @@ const routeHeader = "x-tunnel-peer"
 
 type peerCtxKey struct{}
 
-// certState holds the hub's current serving identity behind an atomic
-// pointer, so `holt renew` (CLI restart, or the console's renew button)
-// swaps the certificate the tunnel listener serves and the cert PEM
-// enroll stamps into tokens, without a process restart.
-type certState struct {
-	v atomic.Pointer[selfsigned.Material]
+// secretState holds the hub's JWT signing secret behind an atomic
+// pointer, so `holt rotate-secret` from the console can swap it live —
+// invalidating every issued JWT — without a process restart.
+type secretState struct {
+	v atomic.Pointer[[]byte]
 }
 
-func (c *certState) get() *selfsigned.Material  { return c.v.Load() }
-func (c *certState) set(m *selfsigned.Material) { c.v.Store(m) }
+func (s *secretState) get() []byte {
+	if p := s.v.Load(); p != nil {
+		return *p
+	}
 
-// Hub runs the reverse-tunnel hub with three listeners: a TLS+JWT
+	return nil
+}
+
+func (s *secretState) set(b []byte) { s.v.Store(&b) }
+
+// Hub runs the reverse-tunnel hub with three listeners: a JWT-auth
 // tunnel endpoint peers attach to, an Admin gRPC endpoint (list, stop,
-// block), and a header-routed proxy that reaches peer services.
+// block), and a header-routed proxy that reaches peer services. All
+// three are plaintext h2c: transport encryption is the deployment's job
+// (a TLS edge, ingress, or mesh in front of the hub).
 type Hub struct {
-	TunnelAddr string        `help:"TLS+JWT listener where peers attach." default:"127.0.0.1:7000"`
+	TunnelAddr string        `help:"JWT-auth listener where peers attach (plaintext h2c; front with TLS)." default:"127.0.0.1:7000"`
 	AdminAddr  string        `help:"Admin gRPC listener (list/stop/block); also serves the console with --ui." default:"127.0.0.1:7001"`
 	ProxyAddr  string        `help:"Header-routed proxy to reach peer services (x-tunnel-peer)." default:"127.0.0.1:7002"`
-	State      string        `help:"Directory for the hub cert + JWT secret (default: ~/.holt)." type:"path"`
+	State      string        `help:"Directory for the hub JWT secret + state (default: ~/.holt)." type:"path"`
 	UI         bool          `help:"Serve the web console (and its enroll endpoint) on the admin listener."`
 	UIPath     string        `help:"Serve the console from this directory instead of the embedded build." type:"path"`
 	TokenTTL   time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
 
-	// Public tunnel address stamped into join tokens (what peers dial).
-	// Defaults to --tunnel-addr, but that is the BIND address; behind a
-	// LoadBalancer or NAT it differs, so set this to the reachable one.
-	AdvertiseAddr string `help:"Public tunnel address to advertise in tokens (default: --tunnel-addr)." name:"advertise-addr"`
+	// Public tunnel URL stamped into join tokens (what peers dial). Its
+	// scheme selects the peer transport: https dials standard TLS (to a
+	// TLS edge in front of the hub), http dials plaintext h2c. Defaults
+	// to http://<tunnel-addr>, but that is the BIND address; behind a
+	// LoadBalancer, NAT, or TLS edge it differs, set the reachable URL.
+	AdvertiseAddr string `help:"Public tunnel URL peers dial, stamped into tokens (e.g. https://holt.example.com; default: http://<tunnel-addr>)." name:"advertise-addr"`
 
 	// The admin listener has no built-in auth (mint token, kill, block);
 	// it is meant to sit behind an authenticating proxy or stay on
@@ -97,29 +106,19 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 		h.State = defaultStateDir()
 	}
 
-	// Cert + JWT secret persist as files in the config folder. The cert
-	// SANs must cover the advertised tunnel host: a peer pins the cert
-	// and verifies the TLS name against the address it dials, so a
-	// loopback-only cert makes every remote join fail the handshake.
-	mat, regenerated, err := selfsigned.Ensure(h.State, tunnelCertHosts(h.advertiseAddr()))
+	// The JWT signing secret persists as a file in the state folder,
+	// held behind an atomic so the console's rotate-secret can swap it
+	// live (invalidating every issued JWT) without a restart.
+	secret, err := hubsecret.LoadOrCreate(h.State)
 	if err != nil {
 		return err
 	}
 
-	if regenerated {
-		logger.Warn("tunnel certificate regenerated to cover the advertised address; "+
-			"re-enroll peers (tokens pinned to the old certificate no longer attach)",
-			zap.String("advertise", h.advertiseAddr()))
-	}
+	secrets := &secretState{}
+	secrets.set(secret)
 
-	// …held behind an atomic so `holt renew` (CLI or console) can swap
-	// the serving cert without a restart. The JWT secret is preserved
-	// across renews, so it stays a plain value.
-	certs := &certState{}
-	certs.set(mat)
-
-	// …everything else (blocklist, tunnel presence) in a SQLite DB
-	// alongside them.
+	// Everything else (blocklist, tunnel presence) lives in a SQLite DB
+	// alongside it.
 	st, err := store.Open(h.State)
 	if err != nil {
 		return err
@@ -167,7 +166,7 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 
 	info := h.adminInfo(commons)
 
-	servers, err := h.startServers(registry, blocks, certs, metrics, info, logger)
+	servers, err := h.startServers(registry, blocks, secrets, metrics, info, logger)
 	if err != nil {
 		return err
 	}
@@ -264,15 +263,15 @@ const gracePeriod = 5 * time.Second
 // startServers boots the tunnel, admin, proxy, and (optional) metrics
 // listeners and returns them for shutdown.
 func (h *Hub) startServers(
-	registry *hub.Registry, blocks *blockList, certs *certState,
+	registry *hub.Registry, blocks *blockList, secrets *secretState,
 	metrics *hubMetrics, info admin.HubInfo, logger *zap.Logger,
 ) ([]*http.Server, error) {
-	tunnelSrv, err := h.serveTunnels(registry, certs, blocks, metrics, logger)
+	tunnelSrv, err := h.serveTunnels(registry, secrets, blocks, metrics, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	adminSrv, err := h.serveAdmin(registry, blocks, certs, info, logger)
+	adminSrv, err := h.serveAdmin(registry, blocks, secrets, info, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -318,11 +317,11 @@ func (h *Hub) logFields() []zap.Field {
 // and a first-step hint.
 func (h *Hub) welcomeBanner() string {
 	rows := []style.BannerRow{
-		{Key: "tunnel", Value: h.TunnelAddr, Hint: "peers attach here (TLS + JWT)"},
+		{Key: "tunnel", Value: h.TunnelAddr, Hint: "peers attach here (JWT auth; put TLS in front)"},
 	}
-	if h.AdvertiseAddr != "" && h.AdvertiseAddr != h.TunnelAddr {
+	if h.AdvertiseAddr != "" {
 		rows = append(rows,
-			style.BannerRow{Key: "advertise", Value: h.AdvertiseAddr, Hint: "address stamped into tokens"})
+			style.BannerRow{Key: "advertise", Value: h.advertiseURL(), Hint: "URL stamped into tokens"})
 	}
 
 	rows = append(rows, style.BannerRow{Key: "admin", Value: h.AdminAddr, Hint: "holt ls / kill / block"})
@@ -348,16 +347,18 @@ func (h *Hub) welcomeBanner() string {
 	}
 
 	rows = append(rows,
-		style.BannerRow{Key: "state", Value: tildePath(h.State), Hint: "cert, JWT secret, blocklist"})
+		style.BannerRow{Key: "state", Value: tildePath(h.State), Hint: "JWT secret, blocklist"})
 
 	return style.Banner("holt is up", rows, "enroll your first peer:  holt enroll <name>")
 }
 
-// serveTunnels runs the TLS tunnel listener; peers authenticate with a
-// JWT whose subject becomes the tunnel key. A blocked subject is
-// rejected even with a valid token.
+// serveTunnels runs the plaintext h2c tunnel listener; peers
+// authenticate with a JWT whose subject becomes the tunnel key. A
+// blocked subject is rejected even with a valid token. Transport
+// encryption is expected from the network in front of the hub (a TLS
+// edge, ingress, or mesh), same as the proxy and admin listeners.
 func (h *Hub) serveTunnels(
-	registry *hub.Registry, certs *certState, blocks *blockList, metrics *hubMetrics, logger *zap.Logger,
+	registry *hub.Registry, secrets *secretState, blocks *blockList, metrics *hubMetrics, logger *zap.Logger,
 ) (*http.Server, error) {
 	identity := func(ctx context.Context) (string, error) {
 		peer, _ := ctx.Value(peerCtxKey{}).(string)
@@ -371,26 +372,11 @@ func (h *Hub) serveTunnels(
 	path, handler := holtv1connect.NewTunnelHandler(hub.NewHandler(registry, identity, logger))
 
 	mux := http.NewServeMux()
-	// The JWT secret is preserved across renews, so reading it once is
-	// safe; the CERT is read per-handshake via GetCertificate so a
-	// renew takes effect on the next connection.
-	mux.Handle(path, jwtMiddleware(certs.get().JWTSecret, blocks, metrics, handler))
+	// The secret is read per-request from the atomic holder, so a
+	// rotate-secret takes effect on the next attach without a restart.
+	mux.Handle(path, jwtMiddleware(secrets, blocks, metrics, handler))
 
-	srv := &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: readHeaderTimeout,
-		// No Read/Write timeout: the Attach stream is long-lived, and a
-		// deadline on the whole request/response would kill live
-		// tunnels. Slow-header and idle connections are bounded below;
-		// a wedged peer is reaped by the inner HTTP/2 PINGs.
-		IdleTimeout: idleTimeout,
-		TLSConfig: &tls.Config{
-			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-				return &certs.get().Cert, nil
-			},
-			MinVersion: tls.VersionTLS13,
-		},
-	}
+	srv := newH2CServer(mux)
 
 	lis, err := listen(h.TunnelAddr)
 	if err != nil {
@@ -405,7 +391,7 @@ func (h *Hub) serveTunnels(
 	}
 
 	go func() {
-		if serveErr := srv.ServeTLS(lis, "", ""); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		if serveErr := srv.Serve(lis); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			logger.Error("tunnel serve", zap.Error(serveErr))
 		}
 	}()
@@ -416,7 +402,7 @@ func (h *Hub) serveTunnels(
 // serveAdmin runs the Admin gRPC service (list / stop / block) and,
 // with --ui, the web console plus its enroll endpoint.
 func (h *Hub) serveAdmin(
-	registry *hub.Registry, blocks *blockList, certs *certState, info admin.HubInfo, logger *zap.Logger,
+	registry *hub.Registry, blocks *blockList, secrets *secretState, info admin.HubInfo, logger *zap.Logger,
 ) (*http.Server, error) {
 	mux := http.NewServeMux()
 
@@ -434,10 +420,10 @@ func (h *Hub) serveAdmin(
 
 	// Enroll is always on so `holt enroll` works against a remote hub;
 	// the console adds the rest of its endpoints only with --ui.
-	h.mountEnroll(mux, certs)
+	h.mountEnroll(mux, secrets)
 
 	if h.UI {
-		h.mountConsole(mux, registry, certs, logger)
+		h.mountConsole(mux, registry, secrets, logger)
 	}
 
 	// Host guard defeats DNS-rebinding against the plaintext console:
@@ -519,7 +505,7 @@ func (h *Hub) adminInfo(commons *c.Commons) admin.HubInfo {
 	return admin.HubInfo{
 		Version:       commons.Version.Version(),
 		Commit:        commons.Version.Commit(),
-		AdvertiseAddr: h.advertiseAddr(),
+		AdvertiseAddr: h.advertiseURL(),
 		ProxyAddr:     h.ProxyAddr,
 		RouteHeader:   routeHeader,
 		MetricsAddr:   metricsAddr,
@@ -528,47 +514,31 @@ func (h *Hub) adminInfo(commons *c.Commons) admin.HubInfo {
 	}
 }
 
-// advertiseAddr is the tunnel address stamped into tokens: the operator
-// override if set, otherwise the bind address.
-func (h *Hub) advertiseAddr() string {
-	if h.AdvertiseAddr != "" {
-		return h.AdvertiseAddr
+// advertiseURL is the tunnel URL stamped into tokens (what peers dial):
+// the operator override if set, otherwise http://<bind address>. A value
+// without a scheme is assumed http, so peers get a well-formed URL and
+// the scheme drives their transport.
+func (h *Hub) advertiseURL() string {
+	adv := h.AdvertiseAddr
+	if adv == "" {
+		adv = h.TunnelAddr
 	}
 
-	return h.TunnelAddr
-}
-
-// tunnelCertHosts is the SAN set for the tunnel certificate: always
-// loopback, plus the advertised tunnel host when it is a real name or
-// IP (a bind wildcard like 0.0.0.0 is not a usable SAN).
-func tunnelCertHosts(advertise string) []string {
-	hosts := []string{"127.0.0.1", "localhost"}
-
-	host := advertise
-	if h, _, err := net.SplitHostPort(advertise); err == nil {
-		host = h
+	if !strings.Contains(adv, "://") {
+		adv = "http://" + adv
 	}
 
-	switch host {
-	case "", "0.0.0.0", "::", "[::]":
-		// bind wildcards, not real SANs
-	case "127.0.0.1", "localhost", "::1":
-		// already in the base set
-	default:
-		hosts = append(hosts, host)
-	}
-
-	return hosts
+	return adv
 }
 
 // mountEnroll registers POST /api/enroll on the admin listener. It is
 // always on (not gated on --ui), so `holt enroll` can mint tokens
 // against a remote hub — the hub supplies its own advertise address.
-func (h *Hub) mountEnroll(mux *http.ServeMux, certs *certState) {
+func (h *Hub) mountEnroll(mux *http.ServeMux, secrets *secretState) {
 	mux.HandleFunc("POST /api/enroll", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Peer       string `json:"peer"`
-			TunnelAddr string `json:"tunnel_addr"`
+			Peer      string `json:"peer"`
+			TunnelURL string `json:"tunnel_url"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Peer == "" {
 			http.Error(w, "peer is required", http.StatusBadRequest)
@@ -576,16 +546,15 @@ func (h *Hub) mountEnroll(mux *http.ServeMux, certs *certState) {
 			return
 		}
 
-		// The advertise address stamped into the token: the caller's
-		// override if given, otherwise the hub's configured one. Reads
-		// the current cert PEM so tokens minted after a renew pin the
-		// new certificate.
-		tunnelAddr := body.TunnelAddr
-		if tunnelAddr == "" {
-			tunnelAddr = h.advertiseAddr()
+		// The tunnel URL stamped into the token: the caller's override if
+		// given, otherwise the hub's advertised one. Signs with the
+		// current secret so a rotate takes effect immediately.
+		tunnelURL := body.TunnelURL
+		if tunnelURL == "" {
+			tunnelURL = h.advertiseURL()
 		}
 
-		tok, err := mintToken(certs.get(), tunnelAddr, body.Peer, h.TokenTTL)
+		tok, err := mintToken(secrets.get(), tunnelURL, body.Peer, h.TokenTTL)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -599,30 +568,30 @@ func (h *Hub) mountEnroll(mux *http.ServeMux, certs *certState) {
 	})
 }
 
-// mountConsole registers the web console, its config/renew endpoints,
+// mountConsole registers the web console, its config/rotate endpoints,
 // and the static build.
-func (h *Hub) mountConsole(mux *http.ServeMux, registry *hub.Registry, certs *certState, logger *zap.Logger) {
-	// Danger zone: renew the hub certificate. Regenerates on disk and
-	// hot-swaps the serving cert, so it takes effect immediately. Every
-	// existing join token is invalidated (peers pinned the old cert)
-	// and live tunnels are closed; they must be re-enrolled.
-	mux.HandleFunc("POST /api/renew", func(w http.ResponseWriter, _ *http.Request) {
-		mat, err := selfsigned.Renew(h.State)
+func (h *Hub) mountConsole(mux *http.ServeMux, registry *hub.Registry, secrets *secretState, logger *zap.Logger) {
+	// Danger zone: rotate the JWT signing secret. Regenerates it on disk
+	// and hot-swaps the live secret, so it takes effect immediately.
+	// Every JWT already issued was signed with the old secret and stops
+	// verifying, and live tunnels are closed; peers must be re-enrolled.
+	mux.HandleFunc("POST /api/rotate-secret", func(w http.ResponseWriter, _ *http.Request) {
+		secret, err := hubsecret.Rotate(h.State)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 
 			return
 		}
 
-		certs.set(mat)
+		secrets.set(secret)
 
 		closed := registry.CountTunnels()
 		registry.StopAllTunnels(holt.ReasonTokenRevoked)
 
-		logger.Warn("hub certificate renewed via console; tokens invalidated, tunnels closed",
+		logger.Warn("hub signing secret rotated via console; tokens invalidated, tunnels closed",
 			zap.Int("closed_tunnels", closed))
 
-		writeJSON(w, map[string]any{"renewed": true, "closedTunnels": closed})
+		writeJSON(w, map[string]any{"rotated": true, "closedTunnels": closed})
 	})
 
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
@@ -737,11 +706,11 @@ func (h *Hub) serveProxy(registry *hub.Registry, metrics *hubMetrics) (*http.Ser
 
 // jwtMiddleware verifies the Bearer JWT, rejects blocked subjects, and
 // stamps the peer id onto the request context for the identity func.
-func jwtMiddleware(secret []byte, blocks *blockList, metrics *hubMetrics, next http.Handler) http.Handler {
+func jwtMiddleware(secrets *secretState, blocks *blockList, metrics *hubMetrics, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 
-		peer, err := jwtauth.Verify(secret, bearer)
+		peer, err := jwtauth.Verify(secrets.get(), bearer)
 		if err != nil {
 			metrics.recordReject(r.Context(), "unauthorized")
 			http.Error(w, "unauthorized: "+err.Error(), http.StatusUnauthorized)
@@ -867,13 +836,13 @@ const proxyPageHTML = `<!doctype html><html lang="en"><head><meta charset="utf-8
 // mintToken issues a JWT for peer and packages a join token — the same
 // token `holt enroll` prints, but minted server-side for the
 // console's enroll button.
-func mintToken(mat *selfsigned.Material, tunnelAddr, peer string, ttl time.Duration) (string, error) {
-	jwtStr, err := jwtauth.Issue(mat.JWTSecret, peer, ttl)
+func mintToken(secret []byte, tunnelURL, peer string, ttl time.Duration) (string, error) {
+	jwtStr, err := jwtauth.Issue(secret, peer, ttl)
 	if err != nil {
 		return "", err
 	}
 
-	return token.JoinToken{Peer: peer, TunnelAddr: tunnelAddr, JWT: jwtStr, CAPEM: mat.CertPEM}.Encode(), nil
+	return token.JoinToken{Peer: peer, TunnelURL: tunnelURL, JWT: jwtStr}.Encode(), nil
 }
 
 func newH2CServer(handler http.Handler) *http.Server {

@@ -12,26 +12,27 @@ import (
 
 	c "github.com/merlindorin/go-shared/pkg/cmd"
 
+	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/cmd/holt/internal/selfsigned"
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
 )
 
 // Enroll mints a join token for a peer. With an admin endpoint
 // configured (--admin-url / --profile / --header) it asks a running hub
-// to mint one, so the token carries the hub's own advertise address and
-// no --tunnel-addr is needed. Otherwise it works locally, signing with the
-// cert + JWT secret in the state folder — offline, on the hub machine.
+// to mint one, so the token carries the hub's own advertised URL and no
+// --tunnel-url is needed. Otherwise it works locally, signing with the
+// JWT secret in the state folder — offline, on the hub machine.
 type Enroll struct {
 	Peer string `arg:"" help:"Identity to mint the token for."`
 
-	// Tunnel address advertised in the token. Resolves flag > env >
-	// profile tunnel_addr; local mode falls back to 127.0.0.1:7000, remote
-	// mode falls back to the hub's --advertise-addr.
-	TunnelAddr string        `help:"Tunnel address to advertise (default: profile tunnel_addr, then 127.0.0.1:7000; the hub's advertise-addr when remote)." env:"HOLT_TUNNEL_ADDR"`
-	State      string        `help:"Hub state directory (cert + JWT secret)." type:"path"`
-	TokenTTL   time.Duration `help:"Lifetime of the minted JWT (local mode)." default:"24h"`
+	// Tunnel URL advertised in the token (its scheme selects the peer
+	// transport). Resolves flag > env > profile tunnel_url; local mode
+	// falls back to http://127.0.0.1:7000, remote mode to the hub's
+	// --advertise-addr.
+	TunnelURL string        `help:"Tunnel URL to advertise, e.g. https://holt.example.com (default: profile tunnel_url, then http://127.0.0.1:7000; the hub's advertised URL when remote)." name:"tunnel-url" env:"HOLT_TUNNEL_URL"`
+	State     string        `help:"Hub state directory (JWT secret)." type:"path"`
+	TokenTTL  time.Duration `help:"Lifetime of the minted JWT (local mode)." default:"24h"`
 
 	// Remote mode: --admin-url / --header / --profile / --config.
 	adminConn
@@ -49,27 +50,27 @@ func (e *Enroll) Run(ctx context.Context, _ *c.Commons) error {
 		return err
 	}
 
-	// Advertised address, same precedence as everything else: flag/env
+	// Advertised URL, same precedence as everything else: flag/env
 	// (folded by kong) then profile. Empty means "let the mode decide"
-	// (loopback default local, hub's advertise-addr remote).
-	tunnelAddr := coalesce(e.TunnelAddr, prof.TunnelAddr)
+	// (loopback default local, hub's advertised URL remote).
+	tunnelURL := coalesce(e.TunnelURL, prof.TunnelURL)
 
 	if ep.remote {
-		return e.enrollRemote(ctx, ep, tunnelAddr)
+		return e.enrollRemote(ctx, ep, tunnelURL)
 	}
 
-	return e.enrollLocal(tunnelAddr)
+	return e.enrollLocal(tunnelURL)
 }
 
-// enrollRemote asks the hub to mint the token. Without a tunnelAddr the
-// hub stamps its own advertise address; with one, it uses the override.
-func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint, tunnelAddr string) error {
+// enrollRemote asks the hub to mint the token. Without a tunnelURL the
+// hub stamps its own advertised URL; with one, it uses the override.
+func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint, tunnelURL string) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	body := map[string]string{"peer": e.Peer}
-	if tunnelAddr != "" {
-		body["tunnel_addr"] = tunnelAddr
+	if tunnelURL != "" {
+		body["tunnel_url"] = tunnelURL
 	}
 
 	payload, _ := json.Marshal(body)
@@ -106,31 +107,30 @@ func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint, tunnelAddr strin
 	return nil
 }
 
-// enrollLocal signs a token from the on-disk hub identity.
-func (e *Enroll) enrollLocal(tunnelAddr string) error {
+// enrollLocal signs a token from the on-disk JWT secret.
+func (e *Enroll) enrollLocal(tunnelURL string) error {
 	if e.State == "" {
 		e.State = defaultStateDir()
 	}
 
-	if tunnelAddr == "" {
-		tunnelAddr = "127.0.0.1:7000"
+	if tunnelURL == "" {
+		tunnelURL = "http://127.0.0.1:7000"
 	}
 
-	mat, err := selfsigned.Load(e.State)
+	secret, err := hubsecret.Load(e.State)
 	if err != nil {
 		return err
 	}
 
-	jwtStr, err := jwtauth.Issue(mat.JWTSecret, e.Peer, e.TokenTTL)
+	jwtStr, err := jwtauth.Issue(secret, e.Peer, e.TokenTTL)
 	if err != nil {
 		return err
 	}
 
 	tok := token.JoinToken{
-		Peer:       e.Peer,
-		TunnelAddr: tunnelAddr,
-		JWT:        jwtStr,
-		CAPEM:      mat.CertPEM,
+		Peer:      e.Peer,
+		TunnelURL: tunnelURL,
+		JWT:       jwtStr,
 	}.Encode()
 
 	printToken(e.Peer, tok)

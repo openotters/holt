@@ -1,14 +1,15 @@
 // Command holt is the operator CLI for a reverse-tunnel hub: run the
 // hub, enroll peers, and manage live tunnels. Peers authenticate with a
-// JWT and the tunnel transport is encrypted with the hub's self-signed
-// certificate, which the client pins.
+// JWT; transport encryption is the deployment's job (a TLS edge,
+// ingress, or mesh in front of the hub), so there is no certificate to
+// manage.
 //
 // The peer side is a separate program — see cmd/starter-client, or
 // write your own; both consume the enroll token.
 //
 //	holt hub                     # run the hub
 //	holt enroll <peer>           # mint a join token for a peer
-//	holt renew                   # regenerate the hub cert (invalidates tokens)
+//	holt rotate-secret           # rotate the JWT secret (invalidates tokens)
 //	holt expose <addr> --token … # expose a local HTTP service through the hub
 //	holt ls                      # list live tunnels
 //	holt kill <peer>             # disconnect a tunnel (peer may reconnect)
@@ -47,15 +48,15 @@ func main() {
 	cli := CMD{
 		Commons: &c.Commons{Version: c.NewVersion(name, version, commit, buildSource, date)},
 
-		Hub:     &commands.Hub{},
-		Enroll:  &commands.Enroll{},
-		Renew:   &commands.Renew{},
-		Expose:  &commands.Expose{},
-		Info:    &commands.Info{},
-		Ls:      &commands.Ls{},
-		Kill:    &commands.Kill{},
-		Block:   &commands.Block{},
-		Unblock: &commands.Unblock{},
+		Hub:          &commands.Hub{},
+		Enroll:       &commands.Enroll{},
+		RotateSecret: &commands.RotateSecret{},
+		Expose:       &commands.Expose{},
+		Info:         &commands.Info{},
+		Ls:           &commands.Ls{},
+		Kill:         &commands.Kill{},
+		Block:        &commands.Block{},
+		Unblock:      &commands.Unblock{},
 	}
 
 	kctx := kong.Parse(
@@ -98,13 +99,13 @@ type CMD struct {
 	ShowVersion kong.VersionFlag `name:"version" help:"Show version information and exit."`
 	LogFormat   string           `help:"Log format: pretty for humans (default), json for production." enum:"pretty,json" default:"pretty"`
 
-	Hub     *commands.Hub     `cmd:"" help:"Run the hub: TLS+JWT tunnel listener, Admin gRPC, and header-routed proxy."`
-	Enroll  *commands.Enroll  `cmd:"" help:"Mint a join token (JWT + pinned hub cert) for a peer."`
-	Renew   *commands.Renew   `cmd:"" help:"Regenerate the hub's TLS certificate (invalidates all existing join tokens)."`
-	Expose  *commands.Expose  `cmd:"" help:"Expose a local HTTP service through the hub (ngrok style)."`
-	Info    *commands.Info    `cmd:"" help:"Show a snapshot of the hub (build, counts, addresses, metrics)."`
-	Ls      *commands.Ls      `cmd:"" aliases:"list" help:"List live tunnels via the hub's Admin service."`
-	Kill    *commands.Kill    `cmd:"" help:"Force a peer's tunnel closed (it may reconnect)."`
-	Block   *commands.Block   `cmd:"" help:"Ban a peer id and close its tunnel; every token for that id is refused until unblock."`
-	Unblock *commands.Unblock `cmd:"" help:"Lift a peer's ban (tokens minted before the block work again until they expire)."`
+	Hub          *commands.Hub          `cmd:"" help:"Run the hub: JWT tunnel listener, Admin gRPC, and header-routed proxy."`
+	Enroll       *commands.Enroll       `cmd:"" help:"Mint a join token (JWT) for a peer."`
+	RotateSecret *commands.RotateSecret `cmd:"" name:"rotate-secret" help:"Rotate the hub's JWT signing secret (invalidates all existing join tokens)."`
+	Expose       *commands.Expose       `cmd:"" help:"Expose a local HTTP service through the hub (ngrok style)."`
+	Info         *commands.Info         `cmd:"" help:"Show a snapshot of the hub (build, counts, addresses, metrics)."`
+	Ls           *commands.Ls           `cmd:"" aliases:"list" help:"List live tunnels via the hub's Admin service."`
+	Kill         *commands.Kill         `cmd:"" help:"Force a peer's tunnel closed (it may reconnect)."`
+	Block        *commands.Block        `cmd:"" help:"Ban a peer id and close its tunnel; every token for that id is refused until unblock."`
+	Unblock      *commands.Unblock      `cmd:"" help:"Lift a peer's ban (tokens minted before the block work again until they expire)."`
 }
