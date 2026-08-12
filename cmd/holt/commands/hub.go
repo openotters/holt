@@ -62,7 +62,12 @@ type Hub struct {
 	State      string        `help:"Directory for the hub cert + JWT secret (default: ~/.holt)." type:"path"`
 	UI         bool          `help:"Serve the web console (and its enroll endpoint) on the admin listener."`
 	UIPath     string        `help:"Serve the console from this directory instead of the embedded build." type:"path"`
-	TokenTTL   time.Duration `help:"Lifetime of JWTs minted by the console's enroll button." default:"24h"`
+	TokenTTL   time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
+
+	// Public tunnel address stamped into join tokens (what peers dial).
+	// Defaults to --tunnel-addr, but that is the BIND address; behind a
+	// LoadBalancer or NAT it differs, so set this to the reachable one.
+	AdvertiseAddr string `help:"Public tunnel address to advertise in tokens (default: --tunnel-addr)." name:"advertise-addr"`
 
 	// The admin listener has no built-in auth (mint token, kill, block);
 	// it is meant to sit behind an authenticating proxy or stay on
@@ -300,8 +305,13 @@ func (h *Hub) logFields() []zap.Field {
 func (h *Hub) welcomeBanner() string {
 	rows := []style.BannerRow{
 		{Key: "tunnel", Value: h.TunnelAddr, Hint: "peers attach here (TLS + JWT)"},
-		{Key: "admin", Value: h.AdminAddr, Hint: "holt ls / kill / block"},
 	}
+	if h.AdvertiseAddr != "" && h.AdvertiseAddr != h.TunnelAddr {
+		rows = append(rows,
+			style.BannerRow{Key: "advertise", Value: h.AdvertiseAddr, Hint: "address stamped into tokens"})
+	}
+
+	rows = append(rows, style.BannerRow{Key: "admin", Value: h.AdminAddr, Hint: "holt ls / kill / block"})
 	if h.UI {
 		rows = append(rows,
 			style.BannerRow{Key: "console", Value: "http://" + h.AdminAddr + "/", Hint: "web console"})
@@ -408,6 +418,10 @@ func (h *Hub) serveAdmin(
 		w.WriteHeader(http.StatusOK)
 	})
 
+	// Enroll is always on so `holt enroll` works against a remote hub;
+	// the console adds the rest of its endpoints only with --ui.
+	h.mountEnroll(mux, certs)
+
 	if h.UI {
 		h.mountConsole(mux, registry, certs, logger)
 	}
@@ -481,11 +495,20 @@ func hostGuard(allowed []string, next http.Handler) http.Handler {
 	})
 }
 
-// mountConsole registers the web console, its enroll/renew endpoints,
-// and the /api/config the front-end reads.
-func (h *Hub) mountConsole(mux *http.ServeMux, registry *hub.Registry, certs *certState, logger *zap.Logger) {
-	// The console's "add" button mints a join token; the browser posts
-	// {peer} here and gets back the token + a run command.
+// advertiseAddr is the tunnel address stamped into tokens: the operator
+// override if set, otherwise the bind address.
+func (h *Hub) advertiseAddr() string {
+	if h.AdvertiseAddr != "" {
+		return h.AdvertiseAddr
+	}
+
+	return h.TunnelAddr
+}
+
+// mountEnroll registers POST /api/enroll on the admin listener. It is
+// always on (not gated on --ui), so `holt enroll` can mint tokens
+// against a remote hub — the hub supplies its own advertise address.
+func (h *Hub) mountEnroll(mux *http.ServeMux, certs *certState) {
 	mux.HandleFunc("POST /api/enroll", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Peer string `json:"peer"`
@@ -497,8 +520,9 @@ func (h *Hub) mountConsole(mux *http.ServeMux, registry *hub.Registry, certs *ce
 		}
 
 		// Read the current cert PEM so tokens minted after a renew pin
-		// the new certificate.
-		tok, err := mintToken(certs.get(), h.TunnelAddr, body.Peer, h.TokenTTL)
+		// the new certificate, and the advertise address so peers dial
+		// the reachable endpoint, not the bind address.
+		tok, err := mintToken(certs.get(), h.advertiseAddr(), body.Peer, h.TokenTTL)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -510,7 +534,11 @@ func (h *Hub) mountConsole(mux *http.ServeMux, registry *hub.Registry, certs *ce
 			"command": "holt expose localhost:PORT --token " + tok,
 		})
 	})
+}
 
+// mountConsole registers the web console, its config/renew endpoints,
+// and the static build.
+func (h *Hub) mountConsole(mux *http.ServeMux, registry *hub.Registry, certs *certState, logger *zap.Logger) {
 	// Danger zone: renew the hub certificate. Regenerates on disk and
 	// hot-swaps the serving cert, so it takes effect immediately. Every
 	// existing join token is invalidated (peers pinned the old cert)

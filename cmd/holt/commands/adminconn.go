@@ -24,26 +24,37 @@ type adminConn struct {
 
 // client resolves the endpoint and headers and returns an Admin client.
 func (a adminConn) client() (holtv1connect.AdminClient, error) {
-	url, headers, err := a.resolve()
+	e, err := a.endpoint()
 	if err != nil {
 		return nil, err
 	}
 
-	httpClient := &http.Client{Transport: headerTransport{headers: headers, base: http.DefaultTransport}}
+	httpClient := &http.Client{Transport: headerTransport{headers: e.headers, base: http.DefaultTransport}}
 
-	return holtv1connect.NewAdminClient(httpClient, url), nil
+	return holtv1connect.NewAdminClient(httpClient, e.url), nil
 }
 
-// resolve applies precedence flag > env > profile > default for the
+// endpoint is the resolved connection: the base URL, the headers to
+// send, and whether an endpoint was explicitly configured (a remote
+// hub) versus the loopback default.
+type endpoint struct {
+	url     string
+	headers map[string]string
+	remote  bool
+}
+
+// endpoint applies precedence flag > env > profile > default for the
 // URL, and merges the --header flags over the profile's headers.
-func (a adminConn) resolve() (string, map[string]string, error) {
+func (a adminConn) endpoint() (endpoint, error) {
 	cfg, err := config.Load(a.Config)
 	if err != nil {
-		return "", nil, err
+		return endpoint{}, err
 	}
 
 	prof := cfg.Pick(a.Profile)
 
+	// An explicitly configured URL (flag, env, or profile) means a
+	// remote hub; absent that, fall back to the loopback admin address.
 	url := prof.AdminURL
 	if env := os.Getenv("HOLT_ADMIN_URL"); env != "" {
 		url = env
@@ -53,9 +64,8 @@ func (a adminConn) resolve() (string, map[string]string, error) {
 		url = a.AdminURL
 	}
 
+	remote := url != ""
 	if url == "" {
-		// No URL anywhere: fall back to the (possibly default)
-		// plaintext host:port.
 		url = "http://" + a.AdminAddr
 	}
 
@@ -63,13 +73,19 @@ func (a adminConn) resolve() (string, map[string]string, error) {
 	for _, h := range a.Header {
 		name, value, ok := splitHeader(h)
 		if !ok {
-			return "", nil, fmt.Errorf("invalid --header %q, want 'Name: Value'", h)
+			return endpoint{}, fmt.Errorf("invalid --header %q, want 'Name: Value'", h)
 		}
 
 		headers[name] = value
 	}
 
-	return url, headers, nil
+	return endpoint{url: url, headers: headers, remote: remote}, nil
+}
+
+// httpClient builds an HTTP client that injects the resolved headers,
+// for the bespoke /api/enroll endpoint (not a Connect RPC).
+func (e endpoint) httpClient() *http.Client {
+	return &http.Client{Transport: headerTransport{headers: e.headers, base: http.DefaultTransport}}
 }
 
 // splitHeader parses "Name: Value" into its parts.

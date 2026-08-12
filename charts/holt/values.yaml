@@ -17,8 +17,13 @@ fullnameOverride: ""
 hub:
   # Serve the web console on the admin port.
   ui: true
-  # Lifetime of JWTs minted by the console's enroll button.
+  # Lifetime of JWTs minted by enroll.
   tokenTTL: 24h
+  # Public tunnel address stamped into join tokens (what peers dial).
+  # The pod binds 0.0.0.0, which peers cannot dial, so set this to the
+  # tunnel Service's reachable address, e.g. its LoadBalancer IP and
+  # port: "192.168.8.193:7000". Empty falls back to the bind address.
+  advertiseAddr: ""
   # Log level (debug, info, warn, error). Logs are always JSON here;
   # this is a server.
   logLevel: info
