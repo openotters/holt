@@ -49,6 +49,57 @@ func LoadOrCreate(dir string, hosts []string) (*Material, error) {
 	return create(dir, hosts)
 }
 
+// Ensure loads the hub material, creating it on first run and
+// regenerating the certificate when it does not yet cover hosts — e.g.
+// a hub whose cert was minted for loopback only, then started with
+// --advertise-addr pointing at a public name/IP. Peers pin the cert and
+// verify the TLS hostname against the advertised address, so a cert
+// missing that SAN makes every join fail the handshake.
+//
+// Regeneration keeps the JWT secret (only the pinned identity rotates)
+// and takes the UNION of the existing SANs and hosts, so loopback keeps
+// working. It invalidates tokens that pinned the old cert, hence the
+// bool result: true means peers must be re-enrolled.
+func Ensure(dir string, hosts []string) (*Material, bool, error) {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, false, err
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, certFile)); err != nil {
+		// First run: create with the requested SANs, not a "regeneration".
+		mat, createErr := create(dir, hosts)
+
+		return mat, false, createErr
+	}
+
+	mat, err := Load(dir)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if len(missingSANs(mat.CertPEM, hosts)) == 0 {
+		return mat, false, nil
+	}
+
+	union := dedupe(append(sansFromPEM(mat.CertPEM), hosts...))
+
+	certPEM, keyPEM, err := generateCert(union)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if err = writeFiles(dir, certPEM, keyPEM, mat.JWTSecret); err != nil {
+		return nil, false, err
+	}
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return &Material{Cert: cert, CertPEM: certPEM, JWTSecret: mat.JWTSecret}, true, nil
+}
+
 // Load reads existing hub material from dir, erroring if it was never
 // created. Used by `enroll` to mint against the SAME cert + secret a
 // running hub uses.
@@ -211,4 +262,54 @@ func sansFromPEM(certPEM []byte) []string {
 	}
 
 	return append(hosts, leaf.DNSNames...)
+}
+
+// missingSANs returns the hosts a leaf certificate does not already
+// cover (empty ones are ignored). VerifyHostname checks both DNS and IP
+// SANs, so it works whether a host is a name or an address.
+func missingSANs(certPEM []byte, hosts []string) []string {
+	block, _ := pem.Decode(certPEM)
+	if block == nil {
+		return hosts
+	}
+
+	leaf, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return hosts
+	}
+
+	var missing []string
+	for _, h := range hosts {
+		if h == "" {
+			continue
+		}
+
+		if leaf.VerifyHostname(h) != nil {
+			missing = append(missing, h)
+		}
+	}
+
+	return missing
+}
+
+// dedupe returns the input with empties and duplicates removed, order
+// preserved.
+func dedupe(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+
+	for _, s := range in {
+		if s == "" {
+			continue
+		}
+
+		if _, ok := seen[s]; ok {
+			continue
+		}
+
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+
+	return out
 }

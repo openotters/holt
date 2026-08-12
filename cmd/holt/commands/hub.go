@@ -97,10 +97,19 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 		h.State = defaultStateDir()
 	}
 
-	// Cert + JWT secret persist as files in the config folder…
-	mat, err := selfsigned.LoadOrCreate(h.State, []string{"127.0.0.1", "localhost"})
+	// Cert + JWT secret persist as files in the config folder. The cert
+	// SANs must cover the advertised tunnel host: a peer pins the cert
+	// and verifies the TLS name against the address it dials, so a
+	// loopback-only cert makes every remote join fail the handshake.
+	mat, regenerated, err := selfsigned.Ensure(h.State, tunnelCertHosts(h.advertiseAddr()))
 	if err != nil {
 		return err
+	}
+
+	if regenerated {
+		logger.Warn("tunnel certificate regenerated to cover the advertised address; "+
+			"re-enroll peers (tokens pinned to the old certificate no longer attach)",
+			zap.String("advertise", h.advertiseAddr()))
 	}
 
 	// …held behind an atomic so `holt renew` (CLI or console) can swap
@@ -527,6 +536,29 @@ func (h *Hub) advertiseAddr() string {
 	}
 
 	return h.TunnelAddr
+}
+
+// tunnelCertHosts is the SAN set for the tunnel certificate: always
+// loopback, plus the advertised tunnel host when it is a real name or
+// IP (a bind wildcard like 0.0.0.0 is not a usable SAN).
+func tunnelCertHosts(advertise string) []string {
+	hosts := []string{"127.0.0.1", "localhost"}
+
+	host := advertise
+	if h, _, err := net.SplitHostPort(advertise); err == nil {
+		host = h
+	}
+
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		// bind wildcards, not real SANs
+	case "127.0.0.1", "localhost", "::1":
+		// already in the base set
+	default:
+		hosts = append(hosts, host)
+	}
+
+	return hosts
 }
 
 // mountEnroll registers POST /api/enroll on the admin listener. It is
