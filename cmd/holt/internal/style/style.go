@@ -1,22 +1,20 @@
 // Package style is the CLI's small output vocabulary: a success mark,
-// a dim note, and a bordered table. Colors degrade to plain text
+// a dim note, and a plain column list. Colors degrade to plain text
 // automatically when stdout is not a terminal.
 package style
 
 import (
 	"fmt"
+	"strings"
+	"text/tabwriter"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 )
 
 var (
-	okMark    = lipgloss.NewStyle().Foreground(lipgloss.Color("35"))
-	warnMark  = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
-	dim       = lipgloss.NewStyle().Faint(true)
-	headerRow = lipgloss.NewStyle().Bold(true).Padding(0, 1)
-	cell      = lipgloss.NewStyle().Padding(0, 1)
-	borders   = lipgloss.NewStyle().Faint(true)
+	okMark   = lipgloss.NewStyle().Foreground(lipgloss.Color("35"))
+	warnMark = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
+	dim      = lipgloss.NewStyle().Faint(true)
 )
 
 // Success renders a green check followed by the message.
@@ -96,19 +94,19 @@ func pad(s string, w int) string {
 	return s
 }
 
-// Table renders rows under a bold header with a subtle rounded border.
-func Table(headers []string, rows [][]string) string {
-	return table.New().
-		Border(lipgloss.RoundedBorder()).
-		BorderStyle(borders).
-		StyleFunc(func(row, _ int) lipgloss.Style {
-			if row == table.HeaderRow {
-				return headerRow
-			}
+// List renders plain, space-aligned columns under uppercase headers,
+// the way `kubectl get` prints: no borders, two spaces between columns.
+func List(headers []string, rows [][]string) string {
+	var b strings.Builder
 
-			return cell
-		}).
-		Headers(headers...).
-		Rows(rows...).
-		String()
+	w := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, strings.Join(headers, "\t"))
+
+	for _, r := range rows {
+		fmt.Fprintln(w, strings.Join(r, "\t"))
+	}
+
+	_ = w.Flush()
+
+	return strings.TrimRight(b.String(), "\n")
 }

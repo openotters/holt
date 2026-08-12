@@ -41,15 +41,28 @@ func (l *Ls) Run(ctx context.Context, _ *c.Commons) error {
 
 	rows := make([][]string, 0, len(tunnels))
 	for _, t := range tunnels {
-		attachedAt := time.Unix(t.GetAttachedAtUnix(), 0)
-		attached := fmt.Sprintf("%s (%s ago)",
-			attachedAt.Format("15:04:05"), time.Since(attachedAt).Round(time.Second))
-		rows = append(rows, []string{t.GetPeer(), t.GetPeerVersion(), attached})
+		age := kubeAge(time.Since(time.Unix(t.GetAttachedAtUnix(), 0)))
+		rows = append(rows, []string{t.GetPeer(), t.GetPeerVersion(), age})
 	}
 
-	fmt.Println(style.Table([]string{"PEER", "VERSION", "ATTACHED"}, rows))
+	fmt.Println(style.List([]string{"PEER", "VERSION", "AGE"}, rows))
 
 	return nil
+}
+
+// kubeAge formats a duration the way `kubectl get` prints AGE: a short
+// single unit (seconds, minutes, hours) up to a day, then days.
+func kubeAge(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	}
 }
 
 // Kill forces a peer's tunnel closed via the hub's Admin service.
