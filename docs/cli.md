@@ -99,6 +99,11 @@ curl -H 'x-tunnel-peer: alice' http://localhost:7002/
 Whatever the peer serves over the tunnel (HTTP, or gRPC, see the
 `grpc-tunnel` example) is reachable this way.
 
+A bare visit to the proxy (no `x-tunnel-peer` header) gets a small help
+page (`400`), and naming a peer that is not attached gets a `404`, not a
+`502`, so a proxy in front of the hub (Cloudflare, etc.) does not turn a
+missing header or an offline peer into a scary bad-gateway page.
+
 ## Inspect the hub
 
 `holt info` prints a snapshot of a running hub, the CLI view of the
