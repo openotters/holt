@@ -18,6 +18,7 @@ import (
 
 	c "github.com/merlindorin/go-shared/pkg/cmd"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
 	promexporter "go.opentelemetry.io/otel/exporters/prometheus"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/zap"
@@ -82,7 +83,7 @@ type Hub struct {
 }
 
 // Run starts the hub and blocks until the context is cancelled.
-func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *style.Output) error {
+func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, out *style.Output) error {
 	logger = logger.Named("hub")
 
 	if h.State == "" {
@@ -121,22 +122,22 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 		return migErr
 	}
 
-	regOpts := []hub.RegistryOption{hub.WithHubID(hostname()), hub.WithDirectory(dir)}
-
-	// Prometheus metrics: an OTel exporter feeds the SDK meter provider
-	// the registry records against, and promhttp serves them below.
+	// Prometheus metrics: install the OTel SDK provider globally (before
+	// building the registry and the CLI instruments, so both bind to
+	// it), and promhttp serves it below. When off, everything records
+	// against the global no-op provider.
 	if h.Metrics {
 		mp, mpErr := meterProvider()
 		if mpErr != nil {
 			return mpErr
 		}
 
-		defer func() { _ = mp.Shutdown(context.Background()) }()
+		otel.SetMeterProvider(mp)
 
-		regOpts = append(regOpts, hub.WithMeterProvider(mp))
+		defer func() { _ = mp.Shutdown(context.Background()) }()
 	}
 
-	registry := hub.NewRegistry(logger, regOpts...)
+	registry := hub.NewRegistry(logger, hub.WithHubID(hostname()), hub.WithDirectory(dir))
 	if clearErr := registry.ClearStale(ctx); clearErr != nil {
 		return clearErr
 	}
@@ -146,7 +147,9 @@ func (h *Hub) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *st
 		return err
 	}
 
-	servers, err := h.startServers(registry, blocks, certs, logger)
+	metrics := newHubMetrics(commons.Version.Version(), commons.Version.Commit())
+
+	servers, err := h.startServers(registry, blocks, certs, metrics, logger)
 	if err != nil {
 		return err
 	}
@@ -243,9 +246,9 @@ const gracePeriod = 5 * time.Second
 // startServers boots the tunnel, admin, proxy, and (optional) metrics
 // listeners and returns them for shutdown.
 func (h *Hub) startServers(
-	registry *hub.Registry, blocks *blockList, certs *certState, logger *zap.Logger,
+	registry *hub.Registry, blocks *blockList, certs *certState, metrics *hubMetrics, logger *zap.Logger,
 ) ([]*http.Server, error) {
-	tunnelSrv, err := h.serveTunnels(registry, certs, blocks, logger)
+	tunnelSrv, err := h.serveTunnels(registry, certs, blocks, metrics, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +258,7 @@ func (h *Hub) startServers(
 		return nil, err
 	}
 
-	proxySrv, err := h.serveProxy(registry)
+	proxySrv, err := h.serveProxy(registry, metrics)
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +333,7 @@ func (h *Hub) welcomeBanner() string {
 // JWT whose subject becomes the tunnel key. A blocked subject is
 // rejected even with a valid token.
 func (h *Hub) serveTunnels(
-	registry *hub.Registry, certs *certState, blocks *blockList, logger *zap.Logger,
+	registry *hub.Registry, certs *certState, blocks *blockList, metrics *hubMetrics, logger *zap.Logger,
 ) (*http.Server, error) {
 	identity := func(ctx context.Context) (string, error) {
 		peer, _ := ctx.Value(peerCtxKey{}).(string)
@@ -347,7 +350,7 @@ func (h *Hub) serveTunnels(
 	// The JWT secret is preserved across renews, so reading it once is
 	// safe; the CERT is read per-handshake via GetCertificate so a
 	// renew takes effect on the next connection.
-	mux.Handle(path, jwtMiddleware(certs.get().JWTSecret, blocks, handler))
+	mux.Handle(path, jwtMiddleware(certs.get().JWTSecret, blocks, metrics, handler))
 
 	srv := &http.Server{
 		Handler:           mux,
@@ -589,19 +592,19 @@ func (h *Hub) serveMetrics(logger *zap.Logger) (*http.Server, error) {
 }
 
 // serveProxy runs the header-routed reverse proxy.
-func (h *Hub) serveProxy(registry *hub.Registry) (*http.Server, error) {
+func (h *Hub) serveProxy(registry *hub.Registry, metrics *hubMetrics) (*http.Server, error) {
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.Out.URL.Scheme = "http"
 			pr.Out.URL.Host = "peer.invalid"
 			pr.Out.Host = "peer.invalid"
 		},
-		Transport:     peerRouter{registry: registry},
+		Transport:     peerRouter{registry: registry, metrics: metrics},
 		FlushInterval: -1,
 		ErrorHandler:  proxyError,
 	}
 
-	srv := newH2CServer(proxy)
+	srv := newH2CServer(metrics.instrument(proxy))
 
 	lis, err := listen(h.ProxyAddr)
 	if err != nil {
@@ -615,18 +618,20 @@ func (h *Hub) serveProxy(registry *hub.Registry) (*http.Server, error) {
 
 // jwtMiddleware verifies the Bearer JWT, rejects blocked subjects, and
 // stamps the peer id onto the request context for the identity func.
-func jwtMiddleware(secret []byte, blocks *blockList, next http.Handler) http.Handler {
+func jwtMiddleware(secret []byte, blocks *blockList, metrics *hubMetrics, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 
 		peer, err := jwtauth.Verify(secret, bearer)
 		if err != nil {
+			metrics.recordReject(r.Context(), "unauthorized")
 			http.Error(w, "unauthorized: "+err.Error(), http.StatusUnauthorized)
 
 			return
 		}
 
 		if blocks.IsBlocked(peer) {
+			metrics.recordReject(r.Context(), "blocked")
 			http.Error(w, "forbidden: peer is blocked", http.StatusForbidden)
 
 			return
@@ -640,21 +645,31 @@ func jwtMiddleware(secret []byte, blocks *blockList, next http.Handler) http.Han
 // route header.
 type peerRouter struct {
 	registry *hub.Registry
+	metrics  *hubMetrics
 }
 
 func (pr peerRouter) RoundTrip(req *http.Request) (*http.Response, error) {
 	peer := req.Header.Get(routeHeader)
 	if peer == "" {
+		pr.metrics.recordProxyError(req.Context(), "no-header")
+
 		return nil, errors.New("set the " + routeHeader + " header to the target peer id")
 	}
 
 	req.Header.Del(routeHeader)
 
 	if !pr.registry.Attached(peer) {
+		pr.metrics.recordProxyError(req.Context(), "not-attached")
+
 		return nil, fmt.Errorf("peer %q is not attached", peer)
 	}
 
-	return pr.registry.RoundTripper(peer).RoundTrip(req)
+	resp, err := pr.registry.RoundTripper(peer).RoundTrip(req)
+	if err != nil {
+		pr.metrics.recordProxyError(req.Context(), "transport")
+	}
+
+	return resp, err
 }
 
 // proxyError renders a tunnel/proxy failure as a gRPC status (for

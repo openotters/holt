@@ -307,11 +307,31 @@ an attack.
 
 ## Observability
 
-The hub emits OTel metrics (`holt.tunnels.active` / `.attaches` /
-`.detaches`) and a span per tunnel (`holt.tunnel`, tagged with peer,
-version, detach reason). It uses the global OTel providers by default,
-which are a no-op until you install an SDK: instrumentation is always
-present, never mandatory, and costs nothing when unconfigured.
+The hub records OTel instruments and a span per tunnel (`holt.tunnel`,
+tagged with peer, version, detach reason), against the global OTel
+providers by default, which are a no-op until you install an SDK:
+instrumentation is always present, never mandatory, and costs nothing
+when unconfigured.
+
+The `holt` CLI can expose them as Prometheus metrics with `--metrics`
+(on `--metrics-addr`, default `127.0.0.1:7003`):
+
+| Metric | Type | Labels |
+|--------|------|--------|
+| `holt_tunnels_active` | gauge | |
+| `holt_tunnels_attaches_total` | counter | |
+| `holt_tunnels_detaches_total` | counter | `reason` |
+| `holt_tunnels_rejected_total` | counter | `reason` (unauthorized, blocked) |
+| `holt_proxy_requests_total` | counter | `code` |
+| `holt_proxy_request_duration_seconds` | histogram | `code` |
+| `holt_proxy_inflight` | gauge | |
+| `holt_proxy_errors_total` | counter | `reason` (no-header, not-attached, transport) |
+| `holt_build_info` | gauge | `version`, `commit` |
+
+The Helm chart wires this up with `metrics.enabled` and an optional
+Prometheus Operator `ServiceMonitor` (`metrics.serviceMonitor.enabled`).
+
+As a library, point the hub at your own providers:
 
 ```go
 hub.NewRegistry(log, hub.WithMeterProvider(mp))
