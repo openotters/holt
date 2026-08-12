@@ -46,10 +46,10 @@ import (
 // peer's JWT, and the hub's certificate to pin. Kept inline so this
 // starter has no internal imports.
 type joinToken struct {
-	Peer    string `json:"peer"`
-	HubAddr string `json:"hub_addr"`
-	JWT     string `json:"jwt"`
-	CAPEM   []byte `json:"ca_pem"`
+	Peer       string `json:"peer"`
+	TunnelAddr string `json:"tunnel_addr"`
+	JWT        string `json:"jwt"`
+	CAPEM      []byte `json:"ca_pem"`
 }
 
 func main() {
@@ -80,8 +80,8 @@ func run(rawToken string) error {
 		return fmt.Errorf("token carries an invalid hub certificate")
 	}
 
-	serverName := jt.HubAddr
-	if host, _, splitErr := net.SplitHostPort(jt.HubAddr); splitErr == nil {
+	serverName := jt.TunnelAddr
+	if host, _, splitErr := net.SplitHostPort(jt.TunnelAddr); splitErr == nil {
 		serverName = host
 	}
 
@@ -92,7 +92,7 @@ func run(rawToken string) error {
 	})
 
 	// ── 2. Dial the hub, presenting the JWT on every call. ──────────────
-	cc, err := grpc.NewClient(jt.HubAddr,
+	cc, err := grpc.NewClient(jt.TunnelAddr,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithUnaryInterceptor(bearer(jt.JWT)),
 		grpc.WithStreamInterceptor(bearerStream(jt.JWT)))

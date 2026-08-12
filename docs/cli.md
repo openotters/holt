@@ -63,12 +63,12 @@ from the state folder and signs the token itself. Pass the tunnel
 address to advertise:
 
 ```sh
-holt enroll alice --hub-addr 192.168.1.10:7000
+holt enroll alice --tunnel-addr 192.168.1.10:7000
 ```
 
 **Remote** (against a running hub): give it an admin endpoint (see
 [remote hubs](#remote-hubs-and-profiles)) and the hub mints the token,
-stamping its own `--advertise-addr`, so you do not pass `--hub-addr`:
+stamping its own `--advertise-addr`, so you do not pass `--tunnel-addr`:
 
 ```sh
 holt enroll alice --admin-url https://holt.example.com
@@ -164,7 +164,7 @@ profiles:
 
   prod:
     admin_url: https://holt.example.com
-    hub_addr: 192.168.8.193:7000   # advertised in tokens enroll mints
+    tunnel_addr: 192.168.8.193:7000   # advertised in tokens enroll mints
     headers:
       # Any headers work. This example is a Cloudflare Access service
       # token; the secret is read from an env var, not stored here.
@@ -181,14 +181,14 @@ holt ls --admin-url http://127.0.0.1:7001   # explicit flag wins over the profil
 
 Every value follows one precedence: **flag > env (`HOLT_*`) > profile >
 built-in default**, so `--admin-url` beats `HOLT_ADMIN_URL` beats the
-profile's `admin_url`, and likewise for `--header`, `--hub-addr`, and
+profile's `admin_url`, and likewise for `--header`, `--tunnel-addr`, and
 `--profile` itself. Header values expand `${ENV}` references, so secrets
 stay in the environment and out of the file. The proxy fronting the hub
 is your business; holt just sends the headers you give it.
 
 `enroll` reads the same profile: `holt enroll web --profile prod` mints
-remotely, and the advertised tunnel address resolves `--hub-addr` >
-`HOLT_HUB_ADDR` > the profile's `hub_addr` > (remote) the hub's own
+remotely, and the advertised tunnel address resolves `--tunnel-addr` >
+`HOLT_TUNNEL_ADDR` > the profile's `tunnel_addr` > (remote) the hub's own
 `--advertise-addr` > (local) `127.0.0.1:7000`.
 
 ## Output modes

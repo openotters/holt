@@ -12,10 +12,10 @@ import (
 
 // JoinToken bundles a peer's enrollment credential.
 type JoinToken struct {
-	Peer    string `json:"peer"`
-	HubAddr string `json:"hub_addr"` // host:port of the hub's tunnel listener
-	JWT     string `json:"jwt"`      // Bearer credential presented on attach
-	CAPEM   []byte `json:"ca_pem"`   // hub's self-signed cert, pinned by the client
+	Peer       string `json:"peer"`
+	TunnelAddr string `json:"tunnel_addr"` // host:port of the hub's tunnel listener
+	JWT        string `json:"jwt"`         // Bearer credential presented on attach
+	CAPEM      []byte `json:"ca_pem"`      // hub's self-signed cert, pinned by the client
 }
 
 // Encode returns a single-line base64 token.
@@ -37,8 +37,8 @@ func Decode(s string) (JoinToken, error) {
 		return JoinToken{}, fmt.Errorf("token: invalid payload: %w", unmarshalErr)
 	}
 
-	if t.HubAddr == "" || t.JWT == "" || len(t.CAPEM) == 0 {
-		return JoinToken{}, fmt.Errorf("token: incomplete (missing hub_addr, jwt, or ca_pem)")
+	if t.TunnelAddr == "" || t.JWT == "" || len(t.CAPEM) == 0 {
+		return JoinToken{}, fmt.Errorf("token: incomplete (missing tunnel_addr, jwt, or ca_pem)")
 	}
 
 	return t, nil

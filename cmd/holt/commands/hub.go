@@ -533,8 +533,8 @@ func (h *Hub) advertiseAddr() string {
 func (h *Hub) mountEnroll(mux *http.ServeMux, certs *certState) {
 	mux.HandleFunc("POST /api/enroll", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Peer    string `json:"peer"`
-			HubAddr string `json:"hub_addr"`
+			Peer       string `json:"peer"`
+			TunnelAddr string `json:"tunnel_addr"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Peer == "" {
 			http.Error(w, "peer is required", http.StatusBadRequest)
@@ -546,12 +546,12 @@ func (h *Hub) mountEnroll(mux *http.ServeMux, certs *certState) {
 		// override if given, otherwise the hub's configured one. Reads
 		// the current cert PEM so tokens minted after a renew pin the
 		// new certificate.
-		hubAddr := body.HubAddr
-		if hubAddr == "" {
-			hubAddr = h.advertiseAddr()
+		tunnelAddr := body.TunnelAddr
+		if tunnelAddr == "" {
+			tunnelAddr = h.advertiseAddr()
 		}
 
-		tok, err := mintToken(certs.get(), hubAddr, body.Peer, h.TokenTTL)
+		tok, err := mintToken(certs.get(), tunnelAddr, body.Peer, h.TokenTTL)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -762,13 +762,13 @@ func proxyError(w http.ResponseWriter, r *http.Request, err error) {
 // mintToken issues a JWT for peer and packages a join token — the same
 // token `holt enroll` prints, but minted server-side for the
 // console's enroll button.
-func mintToken(mat *selfsigned.Material, hubAddr, peer string, ttl time.Duration) (string, error) {
+func mintToken(mat *selfsigned.Material, tunnelAddr, peer string, ttl time.Duration) (string, error) {
 	jwtStr, err := jwtauth.Issue(mat.JWTSecret, peer, ttl)
 	if err != nil {
 		return "", err
 	}
 
-	return token.JoinToken{Peer: peer, HubAddr: hubAddr, JWT: jwtStr, CAPEM: mat.CertPEM}.Encode(), nil
+	return token.JoinToken{Peer: peer, TunnelAddr: tunnelAddr, JWT: jwtStr, CAPEM: mat.CertPEM}.Encode(), nil
 }
 
 func newH2CServer(handler http.Handler) *http.Server {

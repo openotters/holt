@@ -57,7 +57,7 @@ func (e *Expose) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out 
 	if out.Pretty {
 		fmt.Print(style.Banner("exposing "+targetURL.String(), []style.BannerRow{
 			{Key: "peer", Value: jt.Peer, Hint: "your identity on the hub"},
-			{Key: "hub", Value: jt.HubAddr, Hint: "attached over TLS, redials automatically"},
+			{Key: "hub", Value: jt.TunnelAddr, Hint: "attached over TLS, redials automatically"},
 			{Key: "reach", Value: "curl -H 'x-tunnel-peer: " + jt.Peer + "'", Hint: "against the hub proxy address"},
 		}, ""))
 	} else {
@@ -111,8 +111,8 @@ func dialHub(jt token.JoinToken) (*grpc.ClientConn, error) {
 		return nil, fmt.Errorf("token carries an invalid hub certificate")
 	}
 
-	serverName := jt.HubAddr
-	if host, _, splitErr := net.SplitHostPort(jt.HubAddr); splitErr == nil {
+	serverName := jt.TunnelAddr
+	if host, _, splitErr := net.SplitHostPort(jt.TunnelAddr); splitErr == nil {
 		serverName = host
 	}
 
@@ -122,7 +122,7 @@ func dialHub(jt token.JoinToken) (*grpc.ClientConn, error) {
 		MinVersion: tls.VersionTLS13,
 	})
 
-	return grpc.NewClient(jt.HubAddr,
+	return grpc.NewClient(jt.TunnelAddr,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithUnaryInterceptor(bearer(jt.JWT)),
 		grpc.WithStreamInterceptor(bearerStream(jt.JWT)))

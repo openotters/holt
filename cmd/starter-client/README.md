@@ -9,7 +9,7 @@ join token is decoded inline).
 ```bash
 # on the hub machine
 holt hub &
-holt enroll myservice --hub-addr 127.0.0.1:7000   # prints a token
+holt enroll myservice --tunnel-addr 127.0.0.1:7000   # prints a token
 
 # anywhere (paste the token)
 go run ./cmd/starter-client --token eyJ...
