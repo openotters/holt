@@ -99,10 +99,12 @@ curl -H 'x-tunnel-peer: alice' http://localhost:7002/
 Whatever the peer serves over the tunnel (HTTP, or gRPC, see the
 `grpc-tunnel` example) is reachable this way.
 
-A bare visit to the proxy (no `x-tunnel-peer` header) gets a small help
+A bare visit to the proxy (no `x-tunnel-peer` header) gets a plain swirl
 page (`400`), and naming a peer that is not attached gets a `404`, not a
 `502`, so a proxy in front of the hub (Cloudflare, etc.) does not turn a
-missing header or an offline peer into a scary bad-gateway page.
+missing header or an offline peer into a scary bad-gateway page. The page
+is only the swirl, on purpose: no peer names or hub details leak through
+the proxy.
 
 ## Inspect the hub
 

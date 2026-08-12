@@ -774,10 +774,11 @@ func (e notAttachedError) Error() string {
 	return "peer " + strconv.Quote(e.peer) + " is not attached"
 }
 
-// proxyError renders a tunnel/proxy failure as a gRPC status (for
-// grpcurl) or a readable body (for curl / a browser). An absent peer is
-// a 404, not a 502: the peer is not a failing upstream, it just is not
-// there, so Cloudflare and friends stop showing their scary 502 page.
+// proxyError renders a tunnel/proxy failure. An absent peer is a 404,
+// not a 502 (it is not a failing upstream, it just is not there), a real
+// transport error stays a 502. The body is only the holt swirl, never
+// the peer name or any hub detail, so a proxy in front of the hub cannot
+// leak anything from an error.
 func proxyError(w http.ResponseWriter, r *http.Request, err error) {
 	status := http.StatusBadGateway
 
@@ -789,71 +790,47 @@ func proxyError(w http.ResponseWriter, r *http.Request, err error) {
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 		w.Header().Set("Content-Type", "application/grpc")
 		w.Header().Set("Grpc-Status", "14") // UNAVAILABLE
-		w.Header().Set("Grpc-Message", err.Error())
+		w.Header().Set("Grpc-Message", "unavailable")
 		w.WriteHeader(http.StatusOK)
 
 		return
 	}
 
-	if wantsHTML(r) {
-		writeProxyHTML(w, status, "tunnel unavailable", err.Error())
-
-		return
-	}
-
-	http.Error(w, err.Error(), status)
+	writeProxyPage(w, r, status)
 }
 
 // proxyLanding answers a bare visit to the proxy (no target peer named)
-// with a short help page instead of a proxied request, so hitting the
-// proxy root shows guidance rather than a 502.
+// with the same swirl page instead of a proxied request, so hitting the
+// proxy root reveals nothing and never shows a 502.
 func proxyLanding(w http.ResponseWriter, r *http.Request) {
-	const hint = "name a peer with the '" + routeHeader + "' header, e.g. " +
-		"curl -H '" + routeHeader + ": <peer>' <this-url>/"
+	writeProxyPage(w, r, http.StatusBadRequest)
+}
 
-	if wantsHTML(r) {
-		writeProxyHTML(w, http.StatusBadRequest, "holt tunnel proxy", hint)
+// writeProxyPage writes a bare holt swirl, centered, and nothing else,
+// so no peer name, address, or other hub state leaks through the proxy,
+// whoever the caller is.
+func writeProxyPage(w http.ResponseWriter, r *http.Request, status int) {
+	if strings.Contains(r.Header.Get("Accept"), "text/html") {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, proxyPageHTML)
 
 		return
 	}
 
-	http.Error(w, "holt tunnel proxy\n\n"+hint+"\n", http.StatusBadRequest)
-}
-
-// wantsHTML reports whether the caller (a browser) prefers HTML.
-func wantsHTML(r *http.Request) bool {
-	return strings.Contains(r.Header.Get("Accept"), "text/html")
-}
-
-// writeProxyHTML renders a minimal self-contained page for the proxy's
-// help / error responses.
-func writeProxyHTML(w http.ResponseWriter, status int, title, detail string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
-
-	page := `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
-		`<meta name="viewport" content="width=device-width,initial-scale=1">` +
-		`<title>🌀 holt</title><style>` +
-		`body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;` +
-		`font:16px/1.6 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;` +
-		`background:#0b0f14;color:#e6edf3}` +
-		`main{max-width:34rem;padding:2rem;text-align:center}` +
-		`.logo{font-size:3rem}h1{font-size:1.25rem;margin:.75rem 0 .5rem}` +
-		`p{margin:.25rem 0;color:#9aa7b4}code{background:#161b22;color:#e6edf3;` +
-		`padding:.15rem .4rem;border-radius:.35rem;font-size:.9em;word-break:break-all}` +
-		`</style></head><body><main><div class="logo">🌀</div><h1>` +
-		htmlEscape(title) + `</h1><p>` + htmlEscape(detail) + `</p></main></body></html>`
-
-	_, _ = io.WriteString(w, page)
+	_, _ = io.WriteString(w, "🌀\n")
 }
 
-// htmlEscape is the small subset needed for the proxy pages (title and a
-// hint string that may contain the route header and angle brackets).
-func htmlEscape(s string) string {
-	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;")
-
-	return r.Replace(s)
-}
+// proxyPageHTML is the swirl, centered, self-contained, no other text.
+const proxyPageHTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+	`<meta name="viewport" content="width=device-width,initial-scale=1">` +
+	`<title>🌀</title><style>` +
+	`html,body{height:100%;margin:0}` +
+	`body{display:flex;align-items:center;justify-content:center;` +
+	`background:#0b0f14;font-size:4rem;line-height:1}` +
+	`</style></head><body>🌀</body></html>`
 
 // mintToken issues a JWT for peer and packages a join token — the same
 // token `holt enroll` prints, but minted server-side for the

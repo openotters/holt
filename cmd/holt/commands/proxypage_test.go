@@ -41,8 +41,14 @@ func TestProxyLanding(t *testing.T) {
 				t.Fatalf("content-type %q, want prefix %q", ct, tc.wantType)
 			}
 
-			if !strings.Contains(rec.Body.String(), routeHeader) {
-				t.Fatalf("body should mention the %q header, got: %s", routeHeader, rec.Body.String())
+			// The page is only the swirl: no header names, addresses, or
+			// other hub state may leak through the proxy.
+			if !strings.Contains(rec.Body.String(), "🌀") {
+				t.Fatalf("body should be the swirl, got: %s", rec.Body.String())
+			}
+
+			if strings.Contains(rec.Body.String(), routeHeader) {
+				t.Fatalf("body must not leak the %q header, got: %s", routeHeader, rec.Body.String())
 			}
 		})
 	}
@@ -71,6 +77,11 @@ func TestProxyErrorStatus(t *testing.T) {
 
 			if rec.Code != tc.want {
 				t.Fatalf("got status %d, want %d", rec.Code, tc.want)
+			}
+
+			// The error body must not echo the peer name or the raw error.
+			if strings.Contains(rec.Body.String(), "alice") {
+				t.Fatalf("body must not leak the peer name, got: %s", rec.Body.String())
 			}
 		})
 	}
