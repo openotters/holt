@@ -8,6 +8,11 @@ ui/node_modules/
 ui/dist/
 ui/tsconfig.tsbuildinfo
 
+# embedded console build: rebuilt by `task ui:build` / goreleaser, only
+# the .gitkeep placeholder is tracked (go:embed needs the dir to exist).
+cmd/holt/internal/webui/dist/*
+!cmd/holt/internal/webui/dist/.gitkeep
+
 # local env
 .env
 .env.local

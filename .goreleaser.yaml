@@ -16,7 +16,7 @@ before:
     # `&&` working as expected.
     - sh -c "cd ui && npm ci"
     - sh -c "cd ui && npm run build"
-    - sh -c "rsync -a --delete ui/dist/ cmd/holt/internal/webui/dist/"
+    - sh -c "rsync -a --delete --exclude=.gitkeep ui/dist/ cmd/holt/internal/webui/dist/"
 
 builds:
   - id: holt

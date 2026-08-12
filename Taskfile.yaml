@@ -89,7 +89,7 @@ tasks:
     dir: ui
     cmds:
       - npm run build
-      - rsync -a --delete dist/ ../{{.WEBUI_DIST}}/
+      - rsync -a --delete --exclude=.gitkeep dist/ ../{{.WEBUI_DIST}}/
 
   chart:lint:
     desc: Lint and render the Helm chart
