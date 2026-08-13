@@ -10,10 +10,11 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# The hub is a single replica on purpose: its state (JWT secret,
-# blocklist, presence) lives in a local SQLite database. Fleets with
-# several hubs use the library with a shared PostgreSQL directory, not
-# this chart.
+# The hub is a single replica on purpose: the JWT secret, blocklist,
+# and live tunnels are process-local. The tunnel-presence directory
+# can move to a shared PostgreSQL (see `postgres` below) so several
+# hub releases see each other's peers; each release still runs one
+# replica.
 hub:
   # Serve the web console on the admin port.
   ui: true
@@ -42,6 +43,34 @@ hub:
   # "Call" command. Leave empty to auto-derive https://<proxy ingress
   # host> when the proxy ingress is enabled.
   externalURL: ""
+
+# Shared tunnel-presence directory in PostgreSQL (optional). Off by
+# default: presence then lives in the hub's local SQLite state. Set
+# exactly ONE of the three sources below; each ends up as the
+# HOLT_DIRECTORY_DSN env var (the hub's --directory-dsn flag). The JWT
+# secret and blocklist stay on the state volume either way.
+postgres:
+  # Inline DSN (e.g. postgres://user:pass@host:5432/holt). Convenient
+  # for dev; prefer existingSecret so the password stays out of values.
+  dsn: ""
+  # Read the DSN from a key of an existing Secret — e.g. one your
+  # PostgreSQL operator generates.
+  existingSecret:
+    name: ""
+    key: "uri"
+  # Provision a CloudNativePG Cluster (postgresql.cnpg.io/v1) named
+  # "<fullname>-db" and wire the hub to the operator-generated
+  # "<fullname>-db-app" Secret's uri. Requires the CNPG operator
+  # (https://cloudnative-pg.io) and its CRDs in the cluster.
+  cnpg:
+    enabled: false
+    instances: 1
+    storage:
+      size: 1Gi
+      storageClass: ""
+    # Extra fields merged verbatim into the Cluster spec (imageName,
+    # postgresql.parameters, backup, resources, ...).
+    extraSpec: {}
 
 # Prometheus metrics (/metrics): the hub exposes tunnel counters via an
 # OTel Prometheus exporter.

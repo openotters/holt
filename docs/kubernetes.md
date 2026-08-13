@@ -14,10 +14,11 @@ Full values in [`charts/holt/values.yaml`](../charts/holt/values.yaml).
 
 ## Shape
 
-The hub runs as a **single replica** on purpose: its state (JWT
-secret, blocklist, presence) lives in a local SQLite database. Fleets
-with several hubs use the [library](library.md) with a shared PostgreSQL
-directory, not this chart.
+The hub runs as a **single replica** on purpose: the JWT secret,
+blocklist, and live tunnels are process-local. The tunnel-presence
+directory can move to a shared PostgreSQL (see
+[below](#shared-presence-directory-postgresql)) so several hub releases
+see each other's peers; each release still runs one replica.
 
 Three services: the **tunnel** listener is a `LoadBalancer` (peers dial
 it from outside the cluster), while **admin** and **proxy** stay
@@ -76,6 +77,38 @@ Liveness and readiness probe `GET /healthz` on the admin port, never the
 tunnel port (it speaks h2c and has no health route, so a bare probe there
 just logs a spurious dial). Override either with `livenessProbe` /
 `readinessProbe`.
+
+## Shared presence directory (PostgreSQL)
+
+By default presence lives in the hub's local SQLite state. The
+`postgres` values move it to a shared PostgreSQL — the hub then starts
+with `--directory-dsn` (via the `HOLT_DIRECTORY_DSN` env var). Three
+mutually exclusive sources:
+
+```yaml
+postgres:
+  # 1. Inline DSN (dev only; the password lands in the values).
+  dsn: "postgres://user:pass@db:5432/holt"
+
+  # 2. A key of an existing Secret, e.g. one your operator generates.
+  existingSecret:
+    name: my-db-app
+    key: uri
+
+  # 3. Provision a CloudNativePG Cluster. Needs the CNPG operator
+  #    (postgresql.cnpg.io CRDs, https://cloudnative-pg.io).
+  cnpg:
+    enabled: true
+    instances: 1
+    storage:
+      size: 1Gi
+```
+
+With `cnpg.enabled` the chart creates a `Cluster` named
+`<fullname>-db`; the operator bootstraps the `app` database and a
+`<fullname>-db-app` Secret whose `uri` key the deployment consumes.
+Tune the rest of the Cluster spec (backups, parameters, image) through
+`postgres.cnpg.extraSpec`, merged verbatim.
 
 ## Metrics
 

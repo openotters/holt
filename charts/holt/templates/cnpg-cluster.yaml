@@ -1,0 +1,22 @@
+{{- if .Values.postgres.cnpg.enabled }}
+# A CloudNativePG Cluster backing the shared presence directory.
+# Requires the CNPG operator (postgresql.cnpg.io CRDs). The operator
+# creates the "app" database and a "<name>-app" Secret whose `uri` key
+# the deployment consumes as HOLT_DIRECTORY_DSN.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "holt.fullname" . }}-db
+  labels:
+    {{- include "holt.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.postgres.cnpg.instances }}
+  storage:
+    size: {{ .Values.postgres.cnpg.storage.size }}
+    {{- with .Values.postgres.cnpg.storage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- with .Values.postgres.cnpg.extraSpec }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

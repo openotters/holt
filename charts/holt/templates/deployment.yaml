@@ -78,6 +78,25 @@ spec:
               value: json
             - name: LOG_LEVEL
               value: {{ .Values.hub.logLevel | quote }}
+            {{- include "holt.postgresValidate" . }}
+            {{- if include "holt.postgresEnabled" . }}
+            # Shared presence directory (--directory-dsn). CNPG's app
+            # Secret carries the ready-made connection URI.
+            - name: HOLT_DIRECTORY_DSN
+              {{- if .Values.postgres.cnpg.enabled }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "holt.fullname" . }}-db-app
+                  key: uri
+              {{- else if .Values.postgres.existingSecret.name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.existingSecret.name }}
+                  key: {{ .Values.postgres.existingSecret.key | default "uri" }}
+              {{- else }}
+              value: {{ .Values.postgres.dsn | quote }}
+              {{- end }}
+            {{- end }}
           ports:
             - name: tunnel
               containerPort: {{ .Values.service.tunnel.port }}
