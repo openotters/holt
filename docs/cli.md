@@ -39,6 +39,17 @@ The hub keeps everything under `~/.holt` (override with `--state`):
 - `holt.db`: a SQLite database holding the **peer blocklist** and the
   **tunnel-presence directory** (via `hub/sqldir`).
 
+The presence directory can move to a shared PostgreSQL instead of the
+local SQLite file with `--directory-dsn` (env `HOLT_DIRECTORY_DSN`):
+
+```sh
+holt hub --directory-dsn postgres://user:pass@db.example.com:5432/holt
+```
+
+A fleet of hubs pointed at the same database then sees which peer is
+attached to which hub. Presence only: the JWT secret and blocklist stay
+local, and only the owning hub can proxy to a peer's live tunnel.
+
 ## Run a hub
 
 ```sh

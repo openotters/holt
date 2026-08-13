@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -17,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver, registered as "pgx" (--directory-dsn)
 	c "github.com/merlindorin/go-shared/pkg/cmd"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
@@ -65,13 +68,20 @@ func (s *secretState) set(b []byte) { s.v.Store(&b) }
 // three are plaintext h2c: transport encryption is the deployment's job
 // (a TLS edge, ingress, or mesh in front of the hub).
 type Hub struct {
-	TunnelAddr string        `help:"JWT-auth listener where peers attach (plaintext h2c; front with TLS)." default:"127.0.0.1:7000"`
-	AdminAddr  string        `help:"Admin gRPC listener (list/stop/block); also serves the console with --ui." default:"127.0.0.1:7001"`
-	ProxyAddr  string        `help:"Header-routed proxy to reach peer services (x-tunnel-peer)." default:"127.0.0.1:7002"`
-	State      string        `help:"Directory for the hub JWT secret + state (default: ~/.holt)." type:"path"`
-	UI         bool          `help:"Serve the web console (and its enroll endpoint) on the admin listener."`
-	UIPath     string        `help:"Serve the console from this directory instead of the embedded build." type:"path"`
-	TokenTTL   time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
+	TunnelAddr string `help:"JWT-auth listener where peers attach (plaintext h2c; front with TLS)." default:"127.0.0.1:7000"`
+	AdminAddr  string `help:"Admin gRPC listener (list/stop/block); also serves the console with --ui." default:"127.0.0.1:7001"`
+	ProxyAddr  string `help:"Header-routed proxy to reach peer services (x-tunnel-peer)." default:"127.0.0.1:7002"`
+	State      string `help:"Directory for the hub JWT secret + state (default: ~/.holt)." type:"path"`
+
+	// Presence backend: by default the tunnel-presence directory shares
+	// the local SQLite state DB. A PostgreSQL DSN moves it to a shared
+	// database instead, so a fleet of hubs can see which peer is
+	// attached where. The JWT secret and blocklist stay local either
+	// way — this is presence only.
+	DirectoryDSN string        `help:"PostgreSQL DSN for a shared presence directory (e.g. postgres://user:pass@host/db). Empty keeps presence in the local SQLite state." name:"directory-dsn"`
+	UI           bool          `help:"Serve the web console (and its enroll endpoint) on the admin listener."`
+	UIPath       string        `help:"Serve the console from this directory instead of the embedded build." type:"path"`
+	TokenTTL     time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
 
 	// Public tunnel URL stamped into join tokens (what peers dial). Its
 	// scheme selects the peer transport: https dials standard TLS (to a
@@ -129,10 +139,16 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 	// already tells the operator where state lives.
 	logger.Debug("hub state ready", zap.String("dir", h.State))
 
-	// Tunnel presence is projected into a SQL Directory on the same
-	// DB (durable, and shareable across a fleet); stale rows from a
+	// Tunnel presence is projected into a SQL Directory: the same
+	// SQLite DB by default, or a shared PostgreSQL with --directory-dsn
+	// (so a fleet of hubs sees each other's peers); stale rows from a
 	// previous run are cleared on boot.
-	dir := sqldir.New(st.DB(), sqldir.SQLite)
+	dir, closeDir, err := h.openDirectory(ctx, st)
+	if err != nil {
+		return err
+	}
+	defer closeDir()
+
 	if migErr := dir.Migrate(ctx); migErr != nil {
 		return migErr
 	}
@@ -191,6 +207,42 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 	h.shutdown(registry, servers, logger, out.Pretty)
 
 	return nil
+}
+
+// openDirectory picks the presence-directory backend: the local SQLite
+// state DB by default, or a shared PostgreSQL when --directory-dsn is
+// set. The returned close func releases the PostgreSQL pool (a no-op
+// for SQLite, whose DB belongs to the store).
+func (h *Hub) openDirectory(ctx context.Context, st *store.Store) (*sqldir.Directory, func(), error) {
+	if h.DirectoryDSN == "" {
+		return sqldir.New(st.DB(), sqldir.SQLite), func() {}, nil
+	}
+
+	db, err := sql.Open("pgx", h.DirectoryDSN)
+	if err != nil {
+		return nil, nil, fmt.Errorf("directory: open postgres: %w", err)
+	}
+
+	// Fail at boot with a clear error, not on the first attach.
+	if pingErr := db.PingContext(ctx); pingErr != nil {
+		_ = db.Close()
+
+		return nil, nil, fmt.Errorf("directory: ping postgres: %w", pingErr)
+	}
+
+	return sqldir.New(db, sqldir.Postgres), func() { _ = db.Close() }, nil
+}
+
+// redactDSN is the display form of the directory DSN: URL-form DSNs
+// get their password masked; anything else (key=value form) is hidden
+// entirely rather than risk echoing a credential.
+func redactDSN(dsn string) string {
+	u, err := url.Parse(dsn)
+	if err != nil || u.Host == "" {
+		return "postgres (DSN hidden)"
+	}
+
+	return u.Redacted()
 }
 
 // shutdown drains the listeners after Ctrl-C. Everything past the
@@ -302,6 +354,9 @@ func (h *Hub) logFields() []zap.Field {
 		zap.String("admin", h.AdminAddr),
 		zap.String("proxy", h.ProxyAddr),
 	}
+	if h.DirectoryDSN != "" {
+		fields = append(fields, zap.String("directory", redactDSN(h.DirectoryDSN)))
+	}
 	if h.UI {
 		fields = append(fields, zap.String("console", "http://"+h.AdminAddr+"/"))
 	}
@@ -348,6 +403,14 @@ func (h *Hub) welcomeBanner() string {
 
 	rows = append(rows,
 		style.BannerRow{Key: "state", Value: tildePath(h.State), Hint: "JWT secret, blocklist"})
+
+	if h.DirectoryDSN != "" {
+		rows = append(rows, style.BannerRow{
+			Key:   "directory",
+			Value: redactDSN(h.DirectoryDSN),
+			Hint:  "shared presence (postgres)",
+		})
+	}
 
 	return style.Banner("holt is up", rows, "enroll your first peer:  holt enroll <name>")
 }
