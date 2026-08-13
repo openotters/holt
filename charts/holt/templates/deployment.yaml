@@ -48,7 +48,7 @@ spec:
             - --proxy-addr=0.0.0.0:{{ .Values.service.proxy.port }}
             - --state=/data
             - --token-ttl={{ .Values.hub.tokenTTL }}
-            {{- with .Values.hub.advertiseAddr }}
+            {{- with include "holt.advertiseAddr" . }}
             - --advertise-addr={{ . }}
             {{- end }}
             # In-cluster callers reach the admin service by its name.

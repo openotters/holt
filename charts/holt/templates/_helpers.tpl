@@ -36,6 +36,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
+The tunnel URL stamped into join tokens: the explicit hub.advertiseAddr
+wins; otherwise an enabled tunnel ingress IS the address peers dial, so
+advertise https://<its host><its non-root path>. Empty when neither is
+set (the hub falls back to its bind address).
+*/}}
+{{- define "holt.advertiseAddr" -}}
+{{- if .Values.hub.advertiseAddr -}}
+{{- .Values.hub.advertiseAddr -}}
+{{- else if .Values.ingress.tunnel.enabled -}}
+{{- $host := required "ingress.tunnel.host is required when ingress.tunnel.enabled" .Values.ingress.tunnel.host -}}
+{{- $path := .Values.ingress.tunnel.path | default "/" -}}
+{{- printf "https://%s%s" $host (ternary "" (trimSuffix "/" $path) (eq $path "/")) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Whether a shared PostgreSQL presence directory is configured, from any
 of the three sources. Renders "true" or "" so it works in `if`.
 */}}

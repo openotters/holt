@@ -38,6 +38,10 @@ hub:
   advertiseAddr: "https://holt.example.com"
 ```
 
+With the tunnel ingress enabled you can skip this: the chart advertises
+`https://<ingress.tunnel.host>` automatically (see
+[Ingresses](#ingresses)).
+
 The tunnel listener itself is plaintext h2c, like the admin and proxy
 listeners. Transport encryption is the deployment's job: put a TLS edge
 (ingress, LoadBalancer with TLS, or a service mesh) in front of the hub
@@ -51,11 +55,19 @@ non-root; `fsGroup` makes the volume writable.
 
 ## Ingresses
 
-Both ingresses are **disabled by default** and should stay that way
-unless an authenticating layer sits in front. The admin API mints tokens
-and can kill/block peers; the proxy reaches every peer's service.
-Neither has built-in auth. The intended exposure is behind a zero trust
-proxy (Cloudflare Tunnel + Access) or an authenticating ingress.
+All three listeners can be exposed through an ingress; all are
+**disabled by default**. Admin and proxy should stay that way unless an
+authenticating layer sits in front: the admin API mints tokens and can
+kill/block peers, the proxy reaches every peer's service, and neither
+has built-in auth. The intended exposure is behind a zero trust proxy
+(Cloudflare Tunnel + Access) or an authenticating ingress.
+
+The tunnel ingress is different: that listener is JWT-authenticated and
+exists to be dialed from outside, so exposing it is the point. The edge
+must speak **HTTP/2 to the origin** — the tunnel is gRPC over h2c, and
+an HTTP/1.1 origin connection breaks attaches. On the cloudflare-tunnel
+ingress class that means the annotation
+`cloudflare-tunnel-ingress-controller.strrl.dev/http2-origin: "true"`.
 
 ```yaml
 ingress:
@@ -65,11 +77,21 @@ ingress:
   proxy:
     enabled: true
     host: peers.example.com
+  tunnel:
+    enabled: true
+    host: holt-tunnel.example.com
+    annotations:
+      cloudflare-tunnel-ingress-controller.strrl.dev/http2-origin: "true"
 ```
 
-Enabling the admin ingress auto-adds its host to the DNS-rebinding host
-guard, so the console keeps working while staying safe. See
-[Security](security.md).
+Each listener also takes a `path` (default `/`, pathType `Prefix`), so
+the three can share one hostname split by path.
+
+Enabling the tunnel ingress auto-advertises `https://<its host>` (plus
+its non-root path) to peers when `hub.advertiseAddr` is empty; an
+explicit `hub.advertiseAddr` always wins. Enabling the admin ingress
+auto-adds its host to the DNS-rebinding host guard, so the console
+keeps working while staying safe. See [Security](security.md).
 
 ## Health probes
 

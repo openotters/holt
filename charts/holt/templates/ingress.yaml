@@ -1,4 +1,4 @@
-{{- range $kind := list "admin" "proxy" }}
+{{- range $kind := list "admin" "proxy" "tunnel" }}
 {{- $ing := index $.Values.ingress $kind }}
 {{- if $ing.enabled }}
 ---
@@ -24,11 +24,17 @@ spec:
     - host: {{ required (printf "ingress.%s.host is required when ingress.%s.enabled" $kind $kind) $ing.host | quote }}
       http:
         paths:
-          - path: /
+          - path: {{ $ing.path | default "/" }}
             pathType: Prefix
             backend:
               service:
+                {{- if eq $kind "tunnel" }}
+                # The tunnel port lives in its own Service; admin and
+                # proxy share the main one (see service.yaml).
+                name: {{ include "holt.fullname" $ }}-tunnel
+                {{- else }}
                 name: {{ include "holt.fullname" $ }}
+                {{- end }}
                 port:
                   name: {{ $kind }}
 {{- end }}

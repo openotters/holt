@@ -109,26 +109,47 @@ service:
     type: ClusterIP
     port: 7002
 
-# Ingresses are DISABLED by default and should stay that way unless an
-# authenticating layer sits in front. The admin API mints join tokens
-# and can kill/block peers, and the proxy reaches every peer's service;
-# neither has built-in auth. The intended exposure is behind a zero
-# trust proxy (e.g. Cloudflare Tunnel + Access) or an authenticating
-# ingress, NOT a bare public ingress. When you do enable the admin
-# ingress, its host is added to hub.allowedHosts automatically so the
-# console keeps working while staying DNS-rebinding safe.
+# Ingresses are DISABLED by default. Admin and proxy should stay that
+# way unless an authenticating layer sits in front: the admin API mints
+# join tokens and can kill/block peers, and the proxy reaches every
+# peer's service; neither has built-in auth. The intended exposure is
+# behind a zero trust proxy (e.g. Cloudflare Tunnel + Access) or an
+# authenticating ingress, NOT a bare public ingress. When you do enable
+# the admin ingress, its host is added to hub.allowedHosts automatically
+# so the console keeps working while staying DNS-rebinding safe.
+#
+# The tunnel ingress is different: that listener is JWT-authenticated
+# and exists to be dialed from outside, so exposing it is the point.
+# The edge MUST speak HTTP/2 to the origin (the tunnel is gRPC over
+# h2c; an HTTP/1.1 origin connection breaks attaches) — e.g. the
+# cloudflare-tunnel ingress class needs the annotation
+# cloudflare-tunnel-ingress-controller.strrl.dev/http2-origin: "true".
+# When enabled, its host is advertised to peers automatically unless
+# hub.advertiseAddr overrides it.
+#
+# Each listener takes a `path` (default "/", pathType Prefix), so all
+# three can share one hostname split by path.
 ingress:
   admin:
     enabled: false
     className: ""
     annotations: {}
     host: ""
+    path: /
     tls: []
   proxy:
     enabled: false
     className: ""
     annotations: {}
     host: ""
+    path: /
+    tls: []
+  tunnel:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: ""
+    path: /
     tls: []
 
 persistence:
