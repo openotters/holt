@@ -1,9 +1,9 @@
 // Command client is a holt peer that dials the hub over MUTUAL
 // TLS. It mints a client certificate carrying its own name (signed by
-// the shared demo CA), presents it on the connection, and verifies the
-// hub's server certificate against the same CA. Its identity at the
-// hub is that certificate's Common Name — nothing it asserts in a
-// header.
+// the shared demo CA), presents it on the wss:// connection, and
+// verifies the hub's server certificate against the same CA. Its
+// identity at the hub is that certificate's Common Name, nothing it
+// asserts in a header.
 //
 // It serves an HTTP handler over the tunnel and listens on nothing.
 //
@@ -25,25 +25,23 @@ import (
 	"syscall"
 
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/openotters/holt/dial"
 	"github.com/openotters/holt/examples/certs"
 )
 
 func main() {
-	hubAddr := flag.String("hub", "127.0.0.1:7100", "hub mutual-TLS tunnel address")
+	hubURL := flag.String("hub", "wss://127.0.0.1:7100", "hub tunnel URL (mutual TLS, wss)")
 	name := flag.String("name", "alice", "this peer's identity (its client-cert Common Name)")
 	certsDir := flag.String("certs", certs.DefaultDir(), "directory holding the demo CA")
 	flag.Parse()
 
-	if err := run(*hubAddr, *name, *certsDir); err != nil {
+	if err := run(*hubURL, *name, *certsDir); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(hubAddr, name, certsDir string) error {
+func run(hubURL, name, certsDir string) error {
 	logger, _ := zap.NewDevelopment()
 	defer func() { _ = logger.Sync() }()
 
@@ -60,19 +58,14 @@ func run(hubAddr, name, certsDir string) error {
 	}
 
 	// Mutual TLS on the outer hop: present our client cert, verify the
-	// hub's "hub" server cert via the shared CA.
-	creds := credentials.NewTLS(&tls.Config{
+	// hub's "hub" server cert via the shared CA. The custom pool rides
+	// in through the HTTP client the WebSocket upgrade uses.
+	httpClient := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caPool,
 		ServerName:   certs.Hub,
 		MinVersion:   tls.VersionTLS13,
-	})
-
-	cc, err := grpc.NewClient(hubAddr, grpc.WithTransportCredentials(creds))
-	if err != nil {
-		return err
-	}
-	defer func() { _ = cc.Close() }()
+	}}}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/hello", func(w http.ResponseWriter, _ *http.Request) {
@@ -82,13 +75,14 @@ func run(hubAddr, name, certsDir string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logger.Info("attaching to hub over mutual TLS", zap.String("hub", hubAddr), zap.String("name", name))
+	logger.Info("attaching to hub over mutual TLS", zap.String("hub", hubURL), zap.String("name", name))
 
 	if err := dial.Run(ctx, dial.Options{
-		Conn:    cc,
-		Handler: mux,
-		Version: "transport-tls-demo",
-		Logger:  logger,
+		URL:        hubURL,
+		HTTPClient: httpClient,
+		Handler:    mux,
+		Version:    "transport-tls-demo",
+		Logger:     logger,
 	}); err != nil && ctx.Err() == nil {
 		return err
 	}

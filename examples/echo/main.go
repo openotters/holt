@@ -25,10 +25,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/dial"
 	"github.com/openotters/holt/hub"
 )
@@ -43,16 +40,14 @@ func run() error {
 	logger := zap.NewNop()
 
 	// ── Hub ────────────────────────────────────────────────────────
-	// The registry tracks live peers; the handler accepts Attach
-	// streams. This demo trusts every caller and labels it "peer"
+	// The registry tracks live peers; the handler accepts WebSocket
+	// attachments. This demo trusts every caller and labels it "peer"
 	// (see the `authenticated` example for a real identity func).
 	registry := hub.NewRegistry(logger)
 	identity := func(context.Context) (string, error) { return "peer", nil }
 
-	path, handler := holtv1connect.NewTunnelHandler(hub.NewHandler(registry, identity, logger))
-
 	mux := http.NewServeMux()
-	mux.Handle(path, handler)
+	mux.Handle("/", hub.NewHandler(registry, identity, logger))
 
 	var lc net.ListenConfig
 	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
@@ -60,11 +55,7 @@ func run() error {
 		return err
 	}
 
-	var protocols http.Protocols
-	protocols.SetHTTP1(true)
-	protocols.SetUnencryptedHTTP2(true)
-
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, Protocols: &protocols}
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = srv.Serve(lis) }()
 	defer func() { _ = srv.Close() }()
 
@@ -76,17 +67,16 @@ func run() error {
 		_, _ = w.Write([]byte("I am the peer; the hub reached me through the tunnel"))
 	})
 
-	cc, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return err
-	}
-	defer func() { _ = cc.Close() }()
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	go func() {
-		_ = dial.Run(ctx, dial.Options{Conn: cc, Handler: peerMux, Version: "echo-demo", Logger: logger})
+		_ = dial.Run(ctx, dial.Options{
+			URL:     "ws://" + lis.Addr().String(),
+			Handler: peerMux,
+			Version: "echo-demo",
+			Logger:  logger,
+		})
 	}()
 
 	// ── Wait for attach, then dial the peer through the tunnel ──────

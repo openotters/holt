@@ -46,8 +46,12 @@ fmt.Println(bundle.Encode())                 // <- the copy-paste token
 // client: rebuild the whole TLS config from the token
 bundle, _ := certs.DecodeBundle(token)
 tlsCfg, _ := bundle.ClientTLS(certs.Hub)      // present cert, verify hub via bundled CA
-grpc.NewClient(hubAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+httpClient := &http.Client{Transport: &http.Transport{TLSClientConfig: tlsCfg}}
+dial.Run(ctx, dial.Options{URL: "wss://...", HTTPClient: httpClient, Handler: mux})
 ```
+
+The tunnel is a WebSocket, so the client dials `wss://` and the mutual
+TLS wraps the upgrade request itself.
 
 The peer's identity at the hub is still its **client-certificate CN**
 (minted into the token), verified against the CA — not anything the

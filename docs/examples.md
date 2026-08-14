@@ -11,11 +11,10 @@ Every example under [`examples/`](../examples) is runnable with
 |-----------------|------------------------------------------------------------|
 | `echo`          | Smallest end-to-end demo, hub and peer in one process      |
 | `client-server` | Standalone hub and peer as two programs                    |
-| `authenticated` | Bearer-token auth interceptors on both sides               |
-| `transport-tls` | Mutual TLS on the outer gRPC hop                           |
+| `authenticated` | Bearer-token auth on the attach, both sides                |
+| `transport-tls` | TLS on the outer WebSocket hop (wss with a private CA)     |
 | `encrypted`     | Plaintext outer hop, mutual TLS inside the tunnel          |
 | `join-token`    | Token-based enrollment, like the CLI does it               |
-| `grpc-tunnel`   | A peer serving gRPC (not just HTTP) through the tunnel     |
 
 For example:
 

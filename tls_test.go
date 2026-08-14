@@ -17,10 +17,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/dial"
 	"github.com/openotters/holt/hub"
 )
@@ -132,12 +129,8 @@ func runHubAndPeer(t *testing.T, hubTLS, peerTLS *tls.Config, handler http.Handl
 	registry := hub.NewRegistry(logger)
 	identity := func(context.Context) (string, error) { return "peer", nil }
 
-	path, h := holtv1connect.NewTunnelHandler(
-		hub.NewHandler(registry, identity, logger, hub.WithPeerTLS(hubTLS)),
-	)
-
 	mux := http.NewServeMux()
-	mux.Handle(path, h)
+	mux.Handle("/", hub.NewHandler(registry, identity, logger, hub.WithPeerTLS(hubTLS)))
 
 	var lc net.ListenConfig
 
@@ -146,25 +139,18 @@ func runHubAndPeer(t *testing.T, hubTLS, peerTLS *tls.Config, handler http.Handl
 		t.Fatal(err)
 	}
 
-	var protocols http.Protocols
-	protocols.SetHTTP1(true)
-	protocols.SetUnencryptedHTTP2(true)
-
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, Protocols: &protocols}
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = srv.Serve(lis) }()
 	t.Cleanup(func() { _ = srv.Close() })
-
-	cc, err := grpc.NewClient(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = cc.Close() })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	go func() {
-		_ = dial.Run(ctx, dial.Options{Conn: cc, Handler: handler, TLSConfig: peerTLS, Version: "test", Logger: logger})
+		_ = dial.Run(ctx, dial.Options{
+			URL:     "ws://" + lis.Addr().String(),
+			Handler: handler, TLSConfig: peerTLS, Version: "test", Logger: logger,
+		})
 	}()
 
 	return registry

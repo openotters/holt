@@ -1,6 +1,6 @@
 # encrypted — mutual TLS inside the tunnel
 
-Two standalone binaries. The **outer** gRPC hop is **plaintext**, but
+Two standalone binaries. The **outer** WebSocket hop is **plaintext**, but
 each tunnel runs **mutual TLS inside** it: after the plaintext holt
 handshake, the peer becomes the inner TLS server and the hub the inner
 TLS client, and each authenticates the other by certificate. The
@@ -8,11 +8,11 @@ payload is encrypted end-to-end and both processes are
 cryptographically authenticated — even though the transport carries no
 TLS, as it would after a TLS-terminating proxy.
 
-- **`server/`** — the hub. Plaintext h2c transport, but `WithPeerTLS`
+- **`server/`** — the hub. Plaintext WebSocket transport, but `WithPeerTLS`
   makes it the inner TLS client: presents the `hub` cert, verifies the
   peer's inner server cert against the shared CA. Generates the demo
   CA + certs on first run.
-- **`client/`** — the peer. Plaintext dial, but `dial.Options.TLSConfig`
+- **`client/`** — the peer. Plaintext `ws://` dial, but `dial.Options.TLSConfig`
   makes it the inner TLS server: presents the `peer` cert and
   `RequireAndVerifyClientCert`. Serves its handler over the encrypted
   tunnel; listens on nothing.
@@ -50,7 +50,7 @@ hub.NewHandler(reg, id, log, hub.WithPeerTLS(&tls.Config{
 }))
 
 // peer (inner TLS server)
-dial.Run(ctx, dial.Options{Conn: cc, Handler: mux, TLSConfig: &tls.Config{
+dial.Run(ctx, dial.Options{URL: "ws://...", Handler: mux, TLSConfig: &tls.Config{
     Certificates: []tls.Certificate{peerCert},
     ClientAuth:   tls.RequireAndVerifyClientCert,
     ClientCAs:    caPool,                        // trusts the hub

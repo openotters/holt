@@ -28,24 +28,25 @@ it from outside the cluster), while **admin** and **proxy** stay
 
 The pod binds `0.0.0.0`, which peers cannot dial, so tokens minted in
 the cluster must advertise the reachable tunnel URL. The scheme picks
-the peer transport: `https://holt.example.com` dials standard TLS
-(verified with the system roots, so it works through an ingress, a
-LoadBalancer with TLS, or Cloudflare), while `http://192.168.8.193:7000`
-dials plaintext h2c straight to a bare LoadBalancer IP.
+the peer transport: `wss://holt.example.com` dials TLS under the
+WebSocket (verified with the system roots, so it works through an
+ingress, a LoadBalancer with TLS, or Cloudflare), while
+`ws://192.168.8.193:7000` dials plaintext straight to a bare
+LoadBalancer IP (`https`/`http` are accepted as aliases).
 
 ```yaml
 hub:
-  advertiseAddr: "https://holt.example.com"
+  advertiseAddr: "wss://holt.example.com"
 ```
 
 With the tunnel ingress enabled you can skip this: the chart advertises
-`https://<ingress.tunnel.host>` automatically (see
+`wss://<ingress.tunnel.host>` automatically (see
 [Ingresses](#ingresses)).
 
-The tunnel listener itself is plaintext h2c, like the admin and proxy
+The tunnel listener itself is plaintext, like the admin and proxy
 listeners. Transport encryption is the deployment's job: put a TLS edge
 (ingress, LoadBalancer with TLS, or a service mesh) in front of the hub
-and advertise its `https://` URL.
+and advertise its `wss://` URL.
 
 ## Persistence
 
@@ -63,11 +64,12 @@ has built-in auth. The intended exposure is behind a zero trust proxy
 (Cloudflare Tunnel + Access) or an authenticating ingress.
 
 The tunnel ingress is different: that listener is JWT-authenticated and
-exists to be dialed from outside, so exposing it is the point. The edge
-must speak **HTTP/2 to the origin** — the tunnel is gRPC over h2c, and
-an HTTP/1.1 origin connection breaks attaches. On the cloudflare-tunnel
-ingress class that means the annotation
-`cloudflare-tunnel-ingress-controller.strrl.dev/http2-origin: "true"`.
+exists to be dialed from outside, so exposing it is the point. The
+tunnel is a WebSocket, so any edge that forwards plain HTTP/1.1
+upgrades carries it, Cloudflare public hostnames included; no HTTP/2
+origin setting is needed (on the cloudflare-tunnel ingress class, do
+NOT set the `http2-origin` annotation, an HTTP/2 origin connection
+would break the upgrade).
 
 ```yaml
 ingress:
@@ -80,14 +82,13 @@ ingress:
   tunnel:
     enabled: true
     host: holt-tunnel.example.com
-    annotations:
-      cloudflare-tunnel-ingress-controller.strrl.dev/http2-origin: "true"
 ```
 
 Each listener also takes a `path` (default `/`, pathType `Prefix`), so
-the three can share one hostname split by path.
+the three can share one hostname split by path (the hub accepts the
+tunnel upgrade on any path).
 
-Enabling the tunnel ingress auto-advertises `https://<its host>` (plus
+Enabling the tunnel ingress auto-advertises `wss://<its host>` (plus
 its non-root path) to peers when `hub.advertiseAddr` is empty; an
 explicit `hub.advertiseAddr` always wins. Enabling the admin ingress
 auto-adds its host to the DNS-rebinding host guard, so the console
@@ -96,8 +97,8 @@ keeps working while staying safe. See [Security](security.md).
 ## Health probes
 
 Liveness and readiness probe `GET /healthz` on the admin port, never the
-tunnel port (it speaks h2c and has no health route, so a bare probe there
-just logs a spurious dial). Override either with `livenessProbe` /
+tunnel port (it has no health route, so a bare probe there just logs a
+spurious request). Override either with `livenessProbe` /
 `readinessProbe`.
 
 ## Shared presence directory (PostgreSQL)

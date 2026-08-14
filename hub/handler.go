@@ -6,9 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"time"
 
-	"connectrpc.com/connect"
+	"github.com/coder/websocket"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -16,7 +17,6 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/openotters/holt"
-	holtv1 "github.com/openotters/holt/api/v1"
 )
 
 // pingInterval / pingTimeout drive the inner HTTP/2 session's PING
@@ -29,13 +29,19 @@ const (
 
 // Identity extracts the peer ID from a request context. The
 // application supplies it — it's the bridge from whatever auth
-// middleware wraps the Attach handler (JWT claims, mTLS SAN, …) to
+// middleware wraps the attach handler (JWT claims, mTLS SAN, …) to
 // the registry key. Returning ("", err) rejects the attach.
 type Identity func(ctx context.Context) (peer string, err error)
 
-// Handler implements holtv1connect.TunnelHandler. Mount it
-// behind the application's auth middleware; the Identity func reads
-// whatever that middleware established.
+// Handler accepts reverse-tunnel attachments over WebSockets: the
+// peer upgrades a plain HTTP request, then every binary message
+// carries one TunnelFrame. WebSockets are the carrier precisely
+// because they pass through the layers that gRPC cannot — CDN
+// public hostnames, access proxies, HTTP/1.1-only edges.
+//
+// Mount it behind the application's auth middleware; the Identity
+// func reads whatever that middleware established from the upgrade
+// request's context.
 type Handler struct {
 	registry *Registry
 	identity Identity
@@ -51,7 +57,7 @@ type HandlerOption func(*Handler)
 // speaking HTTP/2, so the payload is encrypted end-to-end between hub
 // and peer. Peers must attach with a matching TLS server config
 // (dial.Options.TLSConfig). Use it to verify peer certificates and to
-// keep the payload confidential even when the outer gRPC hop is
+// keep the payload confidential even when the outer WebSocket hop is
 // plaintext or TLS-terminated at a proxy. NextProtos is forced to h2.
 func WithPeerTLS(cfg *tls.Config) HandlerOption {
 	return func(h *Handler) { h.peerTLS = cfg }
@@ -64,7 +70,7 @@ func WithTracerProvider(tp trace.TracerProvider) HandlerOption {
 	return func(h *Handler) { h.tracer = tracer(tp) }
 }
 
-// NewHandler builds the Attach handler. identity maps the
+// NewHandler builds the attach handler. identity maps the
 // authenticated request context to the registry key.
 func NewHandler(registry *Registry, identity Identity, logger *zap.Logger, opts ...HandlerOption) *Handler {
 	h := &Handler{registry: registry, identity: identity, logger: logger.Named("holt-hub")}
@@ -79,33 +85,56 @@ func NewHandler(registry *Registry, identity Identity, logger *zap.Logger, opts 
 	return h
 }
 
-// Attach accepts one peer's reverse tunnel: handshake, then an
-// HTTP/2 client session over the raw byte stream until the peer
-// disconnects or the registry closes the tunnel.
-func (h *Handler) Attach(
-	ctx context.Context,
-	stream *connect.BidiStream[holtv1.TunnelFrame, holtv1.TunnelFrame],
-) error {
-	peer, err := h.identity(ctx)
+// ServeHTTP accepts one peer's reverse tunnel: identity, WebSocket
+// upgrade, handshake, then an HTTP/2 client session over the raw
+// byte stream until the peer disconnects or the registry closes the
+// tunnel.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	peer, err := h.identity(r.Context())
 	if err != nil {
-		return connect.NewError(connect.CodeUnauthenticated, err)
+		http.Error(w, "unauthorized: "+err.Error(), http.StatusUnauthorized)
+
+		return
 	}
+
 	if peer == "" {
-		return connect.NewError(connect.CodeUnauthenticated,
-			errors.New("holt: empty peer identity"))
+		http.Error(w, "unauthorized: empty peer identity", http.StatusUnauthorized)
+
+		return
 	}
+
+	// Peers are programs, not browsers, so the browser same-origin
+	// model does not apply; authentication happened above.
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		OriginPatterns: []string{"*"},
+	})
+	if err != nil {
+		// Accept has already written the HTTP error response.
+		h.logger.Debug("websocket accept failed", zap.String("peer", peer), zap.Error(err))
+
+		return
+	}
+
+	h.serve(r.Context(), peer, c)
+}
+
+// serve runs one attached tunnel to completion.
+func (h *Handler) serve(ctx context.Context, peer string, c *websocket.Conn) {
+	// CloseNow is the failure path; the normal path closes below.
+	defer func() { _ = c.CloseNow() }()
 
 	ctx, span := h.tracer.Start(ctx, "holt.tunnel",
 		trace.WithAttributes(attribute.String("holt.peer", peer)))
 	defer span.End()
 
-	fs := connectStream{stream}
+	fs := holt.NewWSStream(ctx, c)
 
 	hello, hsErr := holt.ServerHandshake(fs)
 	if hsErr != nil {
 		span.SetStatus(codes.Error, "handshake failed")
+		h.logger.Warn("tunnel handshake failed", zap.String("peer", peer), zap.Error(hsErr))
 
-		return connect.NewError(connect.CodeInvalidArgument, hsErr)
+		return
 	}
 
 	span.SetAttributes(attribute.String("holt.peer_version", hello.GetPeerVersion()))
@@ -119,12 +148,14 @@ func (h *Handler) Attach(
 	conn := holt.NewConn(fs, holt.WithSides("hub", "peer"))
 	// Seal the adapter LAST (LIFO): after cc.Close() has flushed its
 	// final frames, further transport-goroutine writes fail locally
-	// instead of panicking inside a finished connect handler.
+	// instead of reaching a finished handler's socket.
 	defer func() { _ = conn.Close() }()
 
 	cc, err := h.clientConn(ctx, conn)
 	if err != nil {
-		return err
+		logger.Warn("tunnel session setup failed", zap.Error(err))
+
+		return
 	}
 	defer func() { _ = cc.Close() }()
 
@@ -167,7 +198,7 @@ func (h *Handler) Attach(
 	span.SetAttributes(attribute.String("holt.detach_reason", reason))
 	logger.Info("tunnel detached", zap.String("reason", reason))
 
-	return nil
+	_ = c.Close(websocket.StatusNormalClosure, reason)
 }
 
 // clientConn builds the hub's HTTP/2 client session over the tunnel
@@ -189,8 +220,7 @@ func (h *Handler) clientConn(ctx context.Context, conn *holt.Conn) (*http2.Clien
 		tlsConn := tls.Client(conn, tlsCfg)
 
 		if tlsErr := tlsConn.HandshakeContext(ctx); tlsErr != nil {
-			return nil, connect.NewError(connect.CodePermissionDenied,
-				fmt.Errorf("tunnel TLS handshake: %w", tlsErr))
+			return nil, fmt.Errorf("tunnel TLS handshake: %w", tlsErr)
 		}
 
 		session = tlsConn
@@ -198,18 +228,10 @@ func (h *Handler) clientConn(ctx context.Context, conn *holt.Conn) (*http2.Clien
 
 	cc, err := transport.NewClientConn(session)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal,
-			fmt.Errorf("tunnel session setup: %w", err))
+		return nil, fmt.Errorf("tunnel session setup: %w", err)
 	}
 
 	return cc, nil
 }
 
-// connectStream adapts connect's BidiStream (Receive) to the
-// holt.FrameStream shape (Recv).
-type connectStream struct {
-	s *connect.BidiStream[holtv1.TunnelFrame, holtv1.TunnelFrame]
-}
-
-func (c connectStream) Send(f *holtv1.TunnelFrame) error   { return c.s.Send(f) }
-func (c connectStream) Recv() (*holtv1.TunnelFrame, error) { return c.s.Receive() }
+var _ http.Handler = (*Handler)(nil)

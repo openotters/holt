@@ -3,23 +3,25 @@
 // transport) and the JWT that authenticates the peer.
 //
 // Transport encryption is the deployment's job — a TLS edge, ingress, or
-// mesh in front of the hub — so the token carries no certificate: an
-// https:// tunnel URL dials standard TLS (verified with the system
-// roots), an http:// one dials plaintext h2c.
+// mesh in front of the hub — so the token carries no certificate: a
+// wss:// tunnel URL dials TLS under the WebSocket (verified with the
+// system roots), a ws:// one dials plaintext. https:// and http:// are
+// accepted as aliases so tokens minted before the WebSocket carrier
+// keep working.
 package token
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
+
+	"github.com/openotters/holt/dial"
 )
 
 // JoinToken bundles a peer's enrollment credential.
 type JoinToken struct {
 	Peer      string `json:"peer"`
-	TunnelURL string `json:"tunnel_url"` // e.g. https://holt.example.com or http://127.0.0.1:7000
+	TunnelURL string `json:"tunnel_url"` // e.g. wss://holt.example.com or ws://127.0.0.1:7000
 	JWT       string `json:"jwt"`        // Bearer credential presented on attach
 }
 
@@ -47,48 +49,22 @@ func Decode(s string) (JoinToken, error) {
 			"token: incomplete (missing tunnel_url or jwt); re-enroll, the token format changed in v0.11")
 	}
 
-	if _, _, _, targetErr := t.Target(); targetErr != nil {
-		return JoinToken{}, targetErr
+	if _, wsErr := t.WSURL(); wsErr != nil {
+		return JoinToken{}, wsErr
 	}
 
 	return t, nil
 }
 
-// Target resolves the tunnel URL into what a gRPC client needs: the dial
-// address (host:port), the TLS server name to verify, and whether to use
-// TLS. An https URL dials standard TLS (system roots); an http URL dials
-// plaintext h2c. A URL without a port defaults to 443 (https) or 80
-// (http).
-func (t JoinToken) Target() (string, string, bool, error) {
-	u, err := url.Parse(t.TunnelURL)
+// WSURL resolves the tunnel URL into its WebSocket form: ws and wss
+// pass through, http maps to ws and https to wss (pre-WebSocket
+// tokens keep working). Any other scheme, or a missing host, is an
+// error.
+func (t JoinToken) WSURL() (string, error) {
+	u, err := dial.NormalizeURL(t.TunnelURL)
 	if err != nil {
-		return "", "", false, fmt.Errorf("token: invalid tunnel_url %q: %w", t.TunnelURL, err)
+		return "", fmt.Errorf("token: %w", err)
 	}
 
-	var useTLS bool
-
-	switch u.Scheme {
-	case "https":
-		useTLS = true
-	case "http":
-		useTLS = false
-	default:
-		return "", "", false, fmt.Errorf("token: tunnel_url scheme must be http or https, got %q", u.Scheme)
-	}
-
-	host := u.Hostname()
-	if host == "" {
-		return "", "", false, fmt.Errorf("token: tunnel_url has no host: %q", t.TunnelURL)
-	}
-
-	port := u.Port()
-	if port == "" {
-		if useTLS {
-			port = "443"
-		} else {
-			port = "80"
-		}
-	}
-
-	return net.JoinHostPort(host, port), host, useTLS, nil
+	return u, nil
 }

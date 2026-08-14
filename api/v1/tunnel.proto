@@ -4,30 +4,24 @@ package openotters.holt.v1;
 
 option go_package = "github.com/openotters/holt/api/v1;holtv1";
 
-// Tunnel is a reverse-tunnel attachment surface: a peer (a process
-// that can only dial OUT — an agent runtime, a device, a worker)
-// calls Attach over an authenticated connection to the hub; after
-// the Hello/Welcome handshake, every data frame in each direction
-// carries one chunk of a raw byte stream. The hub runs an HTTP/2
-// client session over that byte stream; the peer serves any
+// The tunnel framing: a peer (a process that can only dial OUT — an
+// agent runtime, a device, a worker) attaches to the hub over a
+// WebSocket, where every binary message carries one TunnelFrame.
+// The peer MUST send Hello as its first frame; the hub replies
+// Welcome (or closes the socket). From then on only data and go_away
+// frames are legal: after the handshake, every data frame in each
+// direction carries one chunk of a raw byte stream. The hub runs an
+// HTTP/2 client session over that byte stream; the peer serves any
 // http.Handler on the other end. Presence of the tunnel doubles as
-// the peer's liveness signal.
+// the peer's liveness signal. A second attach for the same peer
+// replaces the first — the older tunnel is closed with
+// GoAway("superseded") so a crashed-and-redialed peer never waits
+// out a keepalive timeout.
 //
 // The peer's identity comes exclusively from the hub's own
-// authentication layer (whatever wraps this service — JWT claims,
-// mTLS identity, …); the handshake deliberately carries none. A
-// second in-band source of truth could only ever agree or be an
-// attack.
-
-service Tunnel {
-  // Attach opens the reverse tunnel. The peer is the stream client
-  // and MUST send Hello as its first frame; the hub replies Welcome
-  // (or closes the stream). From then on only data and go_away
-  // frames are legal. A second Attach for the same peer replaces the
-  // first — the older tunnel is closed with GoAway("superseded") so
-  // a crashed-and-redialed peer never waits out a keepalive timeout.
-  rpc Attach(stream TunnelFrame) returns (stream TunnelFrame);
-}
+// authentication layer on the upgrade request (JWT claims, mTLS
+// identity, …); the handshake deliberately carries none. A second
+// in-band source of truth could only ever agree or be an attack.
 
 message TunnelFrame {
   oneof kind {

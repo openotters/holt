@@ -49,20 +49,19 @@ func TestDecodeRejectsIncomplete(t *testing.T) {
 	}
 }
 
-func TestTarget(t *testing.T) {
+func TestWSURL(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name           string
-		url            string
-		wantAddr       string
-		wantServerName string
-		wantTLS        bool
+		name string
+		url  string
+		want string
 	}{
-		{"https default port", "https://holt.example.com", "holt.example.com:443", "holt.example.com", true},
-		{"https explicit port", "https://holt.example.com:8443", "holt.example.com:8443", "holt.example.com", true},
-		{"http local", "http://127.0.0.1:7000", "127.0.0.1:7000", "127.0.0.1", false},
-		{"http default port", "http://holt.example.com", "holt.example.com:80", "holt.example.com", false},
+		{"wss passes through", "wss://holt.example.com", "wss://holt.example.com"},
+		{"ws passes through", "ws://127.0.0.1:7000", "ws://127.0.0.1:7000"},
+		{"https aliases wss", "https://holt.example.com:8443", "wss://holt.example.com:8443"},
+		{"http aliases ws", "http://127.0.0.1:7000", "ws://127.0.0.1:7000"},
+		{"path survives", "wss://holt.example.com/tunnel", "wss://holt.example.com/tunnel"},
 	}
 
 	for _, tc := range cases {
@@ -71,14 +70,13 @@ func TestTarget(t *testing.T) {
 
 			jt := token.JoinToken{Peer: "p", TunnelURL: tc.url, JWT: "j"}
 
-			addr, serverName, useTLS, err := jt.Target()
+			got, err := jt.WSURL()
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if addr != tc.wantAddr || serverName != tc.wantServerName || useTLS != tc.wantTLS {
-				t.Fatalf("Target(%q) = (%q, %q, %v), want (%q, %q, %v)",
-					tc.url, addr, serverName, useTLS, tc.wantAddr, tc.wantServerName, tc.wantTLS)
+			if got != tc.want {
+				t.Fatalf("WSURL(%q) = %q, want %q", tc.url, got, tc.want)
 			}
 		})
 	}

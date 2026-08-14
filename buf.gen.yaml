@@ -5,15 +5,10 @@ plugins:
     opt:
       - paths=source_relative
 
-  # gRPC stubs: the dial side attaches via a plain gRPC client so it
-  # can ride an application's existing *grpc.ClientConn.
-  - local: protoc-gen-go-grpc
-    out: api
-    opt:
-      - paths=source_relative
-
-  # Connect stubs: the hub side serves Attach from a Connect mux so
-  # it inherits whatever auth middleware the application mounts.
+  # Connect stubs for the Admin service. Connect serves the gRPC
+  # protocol natively, so the admin listener stays reachable from
+  # grpcurl and gRPC clients without Go gRPC stubs. The tunnel itself
+  # is a WebSocket and needs no service stubs at all.
   - local: protoc-gen-connect-go
     out: api
     opt:

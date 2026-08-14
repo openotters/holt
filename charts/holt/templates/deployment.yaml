@@ -109,7 +109,7 @@ spec:
               containerPort: {{ .Values.metrics.port }}
             {{- end }}
           # Probes hit /healthz on the admin port, not the tunnel port
-          # (the tunnel speaks h2c and has no health route). Override the
+          # (the tunnel port has no health route). Override the
           # whole block via values.
           readinessProbe:
             {{- if .Values.readinessProbe }}

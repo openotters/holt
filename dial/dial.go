@@ -1,12 +1,14 @@
 // Package dial is the client half of the holt: a persistent
-// attach loop that dials the hub, serves an http.Handler over the
-// reverse tunnel, and redials with jittered backoff until the
-// context ends or the hub sends a terminal GoAway.
+// attach loop that dials the hub over a WebSocket, serves an
+// http.Handler over the reverse tunnel, and redials with jittered
+// backoff until the context ends or the hub sends a terminal GoAway.
 //
-// The loop rides an existing *grpc.ClientConn, so it reuses whatever
-// connection (and auth interceptors) the application already holds
-// to the hub — the tunnel is one more stream on that connection, not
-// a second dial.
+// The WebSocket is the tunnel's carrier because it passes through
+// what gRPC cannot: CDN public hostnames (Cloudflare included),
+// access proxies, and HTTP/1.1-only edges. wss:// puts TLS under the
+// socket exactly like https; extra headers on the upgrade request
+// carry whatever the edge in front of the hub wants (a bearer token,
+// a Cloudflare Access service token, …).
 package dial
 
 import (
@@ -17,14 +19,14 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/coder/websocket"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
-	"google.golang.org/grpc"
 
 	"github.com/openotters/holt"
-	holtv1 "github.com/openotters/holt/api/v1"
 )
 
 const (
@@ -34,13 +36,34 @@ const (
 	// readIdleTimeout makes the inner HTTP/2 server ping through the
 	// tunnel so a wedged hub-side session is detected end-to-end.
 	readIdleTimeout = 30 * time.Second
+
+	// DefaultKeepalive paces WebSocket-level pings from the peer.
+	// Proxies drop idle sockets (Cloudflare after ~100 s of silence);
+	// pinging well under that keeps a quiet tunnel attached.
+	DefaultKeepalive = 40 * time.Second
 )
 
 // Options wires one attach loop.
 type Options struct {
-	// Conn is the peer's existing gRPC connection to the hub. The
-	// attach loop opens one Tunnel.Attach stream on it.
-	Conn grpc.ClientConnInterface
+	// URL is the hub's tunnel endpoint: ws:// (plaintext) or wss://
+	// (TLS to the edge, system roots). http:// and https:// are
+	// accepted as aliases so pre-WebSocket tunnel URLs keep working.
+	URL string
+
+	// Header goes out with the WebSocket upgrade request: the
+	// Authorization bearer the hub's middleware verifies, plus
+	// anything an authenticating proxy in front wants (e.g.
+	// CF-Access-Client-Id / CF-Access-Client-Secret).
+	Header http.Header
+
+	// HTTPClient overrides the client used for the upgrade request
+	// (custom roots, proxies). Defaults to http.DefaultClient.
+	HTTPClient *http.Client
+
+	// Keepalive paces WebSocket pings; 0 means DefaultKeepalive, a
+	// negative value disables them (the inner HTTP/2 PING remains).
+	Keepalive time.Duration
+
 	// Handler is served over the tunnel — the hub dials it as if it
 	// were a normal HTTP server.
 	Handler http.Handler
@@ -52,10 +75,37 @@ type Options struct {
 	// tunnel: after the plaintext holt handshake the peer runs a
 	// TLS server over the stream and serves Handler over HTTPS. The
 	// hub must dial with a matching client config (hub.WithPeerTLS).
-	// This is independent of any TLS on the outer gRPC connection —
-	// it stays encrypted even if that hop is plaintext or terminated
+	// This is independent of any TLS on the outer WebSocket — it
+	// stays encrypted even if that hop is plaintext or terminated
 	// at a proxy. NextProtos is forced to h2.
 	TLSConfig *tls.Config
+}
+
+// NormalizeURL maps a tunnel URL to its WebSocket form: ws and wss
+// pass through, http becomes ws and https becomes wss (so tokens
+// minted before the WebSocket carrier keep working). Any other
+// scheme, or a missing host, is an error.
+func NormalizeURL(raw string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("holt: invalid tunnel URL %q: %w", raw, err)
+	}
+
+	switch u.Scheme {
+	case "ws", "wss":
+	case "http":
+		u.Scheme = "ws"
+	case "https":
+		u.Scheme = "wss"
+	default:
+		return "", fmt.Errorf("holt: tunnel URL scheme must be ws, wss, http, or https, got %q", u.Scheme)
+	}
+
+	if u.Host == "" {
+		return "", fmt.Errorf("holt: tunnel URL has no host: %q", raw)
+	}
+
+	return u.String(), nil
 }
 
 // Run attaches to the hub and serves Handler over the tunnel,
@@ -65,10 +115,16 @@ type Options struct {
 // GoAway (clean exit) and ctx.Err() on shutdown.
 func Run(ctx context.Context, opts Options) error {
 	logger := opts.Logger.Named("holt-dial")
+
+	wsURL, urlErr := NormalizeURL(opts.URL)
+	if urlErr != nil {
+		return urlErr
+	}
+
 	backoff := backoffBase
 
 	for {
-		attached, err := attachOnce(ctx, opts, logger)
+		attached, err := attachOnce(ctx, wsURL, opts, logger)
 
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -99,24 +155,44 @@ func Run(ctx context.Context, opts Options) error {
 	}
 }
 
-// attachOnce performs one attach: handshake, then serves Handler
-// over the stream until it ends. attached reports whether the
-// handshake completed (used to reset backoff).
-func attachOnce(ctx context.Context, opts Options, logger *zap.Logger) (bool, error) {
-	stream, err := holtv1.NewTunnelClient(opts.Conn).Attach(ctx)
+// attachOnce performs one attach: WebSocket dial, handshake, then
+// serves Handler over the stream until it ends. attached reports
+// whether the handshake completed (used to reset backoff).
+func attachOnce(ctx context.Context, wsURL string, opts Options, logger *zap.Logger) (bool, error) {
+	c, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: opts.Header,
+		HTTPClient: opts.HTTPClient,
+	})
 	if err != nil {
-		return false, fmt.Errorf("holt: attach: %w", err)
-	}
+		if resp != nil {
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
 
-	if hsErr := holt.ClientHandshake(stream, opts.Version); hsErr != nil {
+			// The status is the story: 401/403 is the hub (or the
+			// access layer in front) refusing the credential, 3xx is
+			// usually an auth wall bouncing to a login page.
+			return false, fmt.Errorf("holt: websocket dial: %w (http %d)", err, resp.StatusCode)
+		}
+
+		return false, fmt.Errorf("holt: websocket dial: %w", err)
+	}
+	defer func() { _ = c.CloseNow() }()
+
+	fs := holt.NewWSStream(ctx, c)
+
+	if hsErr := holt.ClientHandshake(fs, opts.Version); hsErr != nil {
 		return false, hsErr
 	}
 
 	logger.Info("tunnel attached")
 
-	conn := holt.NewConn(stream,
-		holt.WithCloseFunc(stream.CloseSend),
+	conn := holt.NewConn(fs,
+		holt.WithCloseFunc(func() error { return c.Close(websocket.StatusNormalClosure, "") }),
 		holt.WithSides("peer", "hub"))
+
+	stopPings := startKeepalive(ctx, c, opts.Keepalive, logger)
+	defer stopPings()
 
 	// Optional payload encryption: wrap the raw tunnel in a TLS
 	// server and complete the handshake before serving h2 over it.
@@ -150,4 +226,48 @@ func attachOnce(ctx context.Context, opts Options, logger *zap.Logger) (bool, er
 	}
 
 	return true, errors.New("holt: session ended")
+}
+
+// startKeepalive pings the WebSocket every interval so proxies with
+// idle timeouts (Cloudflare ~100 s) keep the carrier open through
+// quiet stretches. A failed ping closes the socket, which unblocks
+// the session above into a redial. The returned stop func ends the
+// loop; it also exits when ctx does.
+func startKeepalive(ctx context.Context, c *websocket.Conn, every time.Duration, logger *zap.Logger) func() {
+	if every < 0 {
+		return func() {}
+	}
+
+	if every == 0 {
+		every = DefaultKeepalive
+	}
+
+	pingCtx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		ticker := time.NewTicker(every)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-pingCtx.Done():
+				return
+			case <-ticker.C:
+				oneCtx, oneCancel := context.WithTimeout(pingCtx, every)
+				err := c.Ping(oneCtx)
+				oneCancel()
+
+				if err != nil {
+					if pingCtx.Err() == nil {
+						logger.Warn("websocket keepalive failed; closing carrier", zap.Error(err))
+						_ = c.CloseNow()
+					}
+
+					return
+				}
+			}
+		}
+	}()
+
+	return cancel
 }

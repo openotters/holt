@@ -5,7 +5,7 @@
 // peer's handler through the tunnel.
 //
 //	go run ./examples/client-server/client --token tok-alice
-//	go run ./examples/client-server/client --token tok-bob --hub 127.0.0.1:7000
+//	go run ./examples/client-server/client --token tok-bob --hub ws://127.0.0.1:7000
 //
 // The peer keeps running until Ctrl-C; it redials automatically if the
 // hub restarts.
@@ -23,24 +23,21 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/openotters/holt/dial"
 )
 
 func main() {
-	hubAddr := flag.String("hub", "127.0.0.1:7000", "hub tunnel (gRPC) address")
+	hubURL := flag.String("hub", "ws://127.0.0.1:7000", "hub tunnel URL (ws or wss)")
 	token := flag.String("token", "tok-alice", "bearer token identifying this peer to the hub")
 	flag.Parse()
 
-	if err := run(*hubAddr, *token); err != nil {
+	if err := run(*hubURL, *token); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(hubAddr, token string) error {
+func run(hubURL, token string) error {
 	logger, _ := zap.NewDevelopment()
 	defer func() { _ = logger.Sync() }()
 
@@ -57,27 +54,20 @@ func run(hubAddr, token string) error {
 		_, _ = fmt.Fprintf(w, "requested-path: %s\n", r.URL.Path)
 	})
 
-	// The peer owns its connection to the hub — here plaintext with a
-	// bearer token. For transport TLS, dial with
-	// credentials.NewTLS(...) instead (see ../../transport-tls).
-	cc, err := grpc.NewClient(hubAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(bearerUnary(token)),
-		grpc.WithStreamInterceptor(bearerStream(token)))
-	if err != nil {
-		return err
-	}
-	defer func() { _ = cc.Close() }()
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logger.Info("attaching to hub", zap.String("hub", hubAddr))
+	logger.Info("attaching to hub", zap.String("hub", hubURL))
 
+	// The peer owns its connection to the hub, here a plaintext ws://
+	// WebSocket with the bearer token on the upgrade request. For
+	// transport TLS, dial wss:// instead (see ../../transport-tls).
+	//
 	// dial.Run blocks, redialing with backoff, until ctx ends or the
 	// hub sends a terminal GoAway.
 	if err := dial.Run(ctx, dial.Options{
-		Conn:    cc,
+		URL:     hubURL,
+		Header:  http.Header{"Authorization": {"Bearer " + token}},
 		Handler: mux,
 		Version: "client-server-demo",
 		Logger:  logger,
@@ -88,26 +78,4 @@ func run(hubAddr, token string) error {
 	logger.Info("peer stopped")
 
 	return nil
-}
-
-func bearerUnary(token string) grpc.UnaryClientInterceptor {
-	return func(
-		ctx context.Context, method string, req, reply any,
-		cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption,
-	) error {
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
-
-		return invoker(ctx, method, req, reply, cc, opts...)
-	}
-}
-
-func bearerStream(token string) grpc.StreamClientInterceptor {
-	return func(
-		ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn,
-		method string, streamer grpc.Streamer, opts ...grpc.CallOption,
-	) (grpc.ClientStream, error) {
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
-
-		return streamer(ctx, desc, cc, method, opts...)
-	}
 }

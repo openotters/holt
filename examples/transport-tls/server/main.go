@@ -1,4 +1,4 @@
-// Command server is a holt hub that secures the OUTER gRPC
+// Command server is a holt hub that secures the OUTER WebSocket
 // connection with MUTUAL TLS. Peers dial in over TLS presenting a
 // client certificate; the hub verifies it against a shared CA and
 // takes the peer's identity from the certificate's Common Name — so a
@@ -33,7 +33,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/examples/certs"
 	"github.com/openotters/holt/hub"
 )
@@ -41,7 +40,7 @@ import (
 type peerCtxKey struct{}
 
 func main() {
-	addr := flag.String("addr", "127.0.0.1:7100", "mutual-TLS tunnel (gRPC) listen address")
+	addr := flag.String("addr", "127.0.0.1:7100", "mutual-TLS tunnel (WebSocket) listen address")
 	certsDir := flag.String("certs", certs.DefaultDir(), "directory for the demo CA + certificates")
 	flag.Parse()
 
@@ -91,12 +90,10 @@ func run(addr, certsDir string) error {
 		return peer, nil
 	}
 
-	path, handler := holtv1connect.NewTunnelHandler(hub.NewHandler(registry, identity, logger))
-
 	mux := http.NewServeMux()
-	// certIdentity runs before the connect handler and lifts the
+	// certIdentity runs before the attach handler and lifts the
 	// verified client-cert CN into the request context.
-	mux.Handle(path, certIdentity(handler))
+	mux.Handle("/", certIdentity(hub.NewHandler(registry, identity, logger)))
 
 	srv := &http.Server{
 		Handler:           mux,

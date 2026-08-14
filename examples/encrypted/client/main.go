@@ -2,7 +2,7 @@
 // PLAINTEXT transport but serves its handler over MUTUAL TLS INSIDE
 // the tunnel. It becomes the inner TLS server: it presents the "peer"
 // certificate and REQUIRES the hub's client certificate, both verified
-// against the shared demo CA. So even though the gRPC hop is plaintext
+// against the shared demo CA. So even though the WebSocket hop is plaintext
 // — as it would be after a TLS-terminating proxy — the payload is
 // encrypted and both ends are cryptographically authenticated.
 //
@@ -25,24 +25,22 @@ import (
 	"syscall"
 
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/openotters/holt/dial"
 	"github.com/openotters/holt/examples/certs"
 )
 
 func main() {
-	hubAddr := flag.String("hub", "127.0.0.1:7200", "hub tunnel address (plaintext transport)")
+	hubURL := flag.String("hub", "ws://127.0.0.1:7200", "hub tunnel URL (ws, plaintext transport)")
 	certsDir := flag.String("certs", certs.DefaultDir(), "directory holding the demo CA + certs")
 	flag.Parse()
 
-	if err := run(*hubAddr, *certsDir); err != nil {
+	if err := run(*hubURL, *certsDir); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(hubAddr, certsDir string) error {
+func run(hubURL, certsDir string) error {
 	logger, _ := zap.NewDevelopment()
 	defer func() { _ = logger.Sync() }()
 
@@ -65,13 +63,6 @@ func run(hubAddr, certsDir string) error {
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	// Outer transport is plaintext; inner TLS does the protecting.
-	cc, err := grpc.NewClient(hubAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return err
-	}
-	defer func() { _ = cc.Close() }()
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("/secret", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprintf(w, "secret from peer (pid %d), mutually authenticated inside the tunnel", os.Getpid())
@@ -80,10 +71,12 @@ func run(hubAddr, certsDir string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logger.Info("attaching (plaintext transport, inner mutual TLS)", zap.String("hub", hubAddr))
+	logger.Info("attaching (plaintext transport, inner mutual TLS)", zap.String("hub", hubURL))
 
+	// Outer transport is a plaintext ws:// WebSocket; inner TLS does
+	// the protecting.
 	if err := dial.Run(ctx, dial.Options{
-		Conn:      cc,
+		URL:       hubURL,
 		Handler:   mux,
 		TLSConfig: innerTLS,
 		Version:   "encrypted-demo",

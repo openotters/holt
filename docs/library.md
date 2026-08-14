@@ -4,26 +4,28 @@
 
 *Embed the hub and dial halves in your own Go program.*
 
-The `holt` CLI is one opinionated packaging (JWT auth, h2c transport,
-SQLite state). The library lets you bring your own auth and transport.
-See [How it works](architecture.md) for the moving parts.
+The `holt` CLI is one opinionated packaging (JWT auth, WebSocket
+transport, SQLite state). The library lets you bring your own auth and
+middleware. See [How it works](architecture.md) for the moving parts.
 
 Peer side:
 
 ```go
-cc, _ := grpc.NewClient(hubAddr, grpc.WithTransportCredentials(creds), authInterceptors...)
-dial.Run(ctx, dial.Options{Conn: cc, Handler: myHandler, Version: build.Version, Logger: log})
+dial.Run(ctx, dial.Options{
+    URL:     "wss://holt.example.com",  // ws for plaintext; http/https accepted as aliases
+    Header:  http.Header{"Authorization": {"Bearer " + jwt}},
+    Handler: myHandler, Version: build.Version, Logger: log,
+})
 ```
 
 Hub side:
 
 ```go
 registry := hub.NewRegistry(log)
-path, h := holtv1connect.NewTunnelHandler(
-    hub.NewHandler(registry, identityFromJWT, log),
-    connect.WithInterceptors(authInterceptor),
-)
-mux.Handle(path, h)
+// NewHandler is an http.Handler that accepts the WebSocket upgrade;
+// wrap it in your auth middleware, which sees the upgrade request's
+// headers (the bearer above) and stamps the identity on its context.
+mux.Handle("/", authMiddleware(hub.NewHandler(registry, identityFromCtx, log)))
 
 // later, anywhere in the hub process:
 client := &http.Client{Transport: registry.RoundTripper(peerID)}

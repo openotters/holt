@@ -1,5 +1,5 @@
-// Command server is a holt hub whose OUTER gRPC hop is plaintext,
-// but which runs MUTUAL TLS INSIDE each tunnel. After the plaintext
+// Command server is a holt hub whose OUTER WebSocket hop is
+// plaintext, but which runs MUTUAL TLS INSIDE each tunnel. After the plaintext
 // holt handshake it becomes the inner TLS client: it presents the
 // "hub" certificate and verifies the peer's inner server certificate
 // against a shared CA. The peer, in turn, requires the hub's client
@@ -30,13 +30,12 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/examples/certs"
 	"github.com/openotters/holt/hub"
 )
 
 func main() {
-	addr := flag.String("addr", "127.0.0.1:7200", "tunnel (gRPC) listen address; transport is plaintext")
+	addr := flag.String("addr", "127.0.0.1:7200", "tunnel (WebSocket) listen address; transport is plaintext")
 	certsDir := flag.String("certs", certs.DefaultDir(), "directory for the demo CA + certificates")
 	flag.Parse()
 
@@ -85,20 +84,12 @@ func run(addr, certsDir string) error {
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	path, handler := holtv1connect.NewTunnelHandler(
-		hub.NewHandler(registry, identity, logger, hub.WithPeerTLS(innerTLS)),
-	)
-
 	mux := http.NewServeMux()
-	mux.Handle(path, handler)
+	mux.Handle("/", hub.NewHandler(registry, identity, logger, hub.WithPeerTLS(innerTLS)))
 
-	// Outer transport is plaintext h2c — the point is that the inner
-	// TLS protects the payload regardless.
-	var protocols http.Protocols
-	protocols.SetHTTP1(true)
-	protocols.SetUnencryptedHTTP2(true)
-
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, Protocols: &protocols}
+	// Outer transport is a plaintext WebSocket, the point is that the
+	// inner TLS protects the payload regardless.
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 
 	var lc net.ListenConfig
 

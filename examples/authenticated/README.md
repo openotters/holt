@@ -14,15 +14,15 @@ Output:
 ```
 hub → alice   ⇒  "hello from alice"
 hub → bob     ⇒  "hello from bob"
-hub → unknown ⇒  attached=false (rejected at handshake)
+hub → unknown ⇒  attached=false (rejected at the upgrade)
 ```
 
 The mechanism:
 
-1. A **Connect streaming interceptor** validates the `Authorization`
-   header on the `Attach` call and stamps the resolved peer ID onto
+1. Plain **HTTP middleware** validates the `Authorization` header on
+   the WebSocket upgrade request and stamps the resolved peer ID onto
    the request context. (A real hub validates a JWT signature or an
-   mTLS certificate here — the demo uses a token→name map.)
+   mTLS certificate here, the demo uses a token→name map.)
 2. The hub's **`Identity` func** reads that context value. Because the
    ID comes from the authenticated credential and never from the
    handshake, a peer cannot claim to be someone else.
@@ -32,4 +32,4 @@ The mechanism:
 
 This is exactly how [openotters](https://github.com/openotters/openotters)
 wires it: the agent's JWT `agent_ref` claim is the peer ID, pinned by
-the same interceptor that guards every other daemon RPC.
+the same middleware that guards every other daemon endpoint.

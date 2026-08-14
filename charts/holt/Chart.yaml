@@ -19,5 +19,5 @@ maintainers:
 keywords:
   - tunnel
   - reverse-tunnel
-  - grpc
+  - websocket
   - nat-traversal

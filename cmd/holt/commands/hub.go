@@ -63,12 +63,12 @@ func (s *secretState) get() []byte {
 func (s *secretState) set(b []byte) { s.v.Store(&b) }
 
 // Hub runs the reverse-tunnel hub with three listeners: a JWT-auth
-// tunnel endpoint peers attach to, an Admin gRPC endpoint (list, stop,
-// block), and a header-routed proxy that reaches peer services. All
-// three are plaintext h2c: transport encryption is the deployment's job
-// (a TLS edge, ingress, or mesh in front of the hub).
+// WebSocket tunnel endpoint peers attach to, an Admin gRPC endpoint
+// (list, stop, block), and a header-routed proxy that reaches peer
+// services. All three are plaintext: transport encryption is the
+// deployment's job (a TLS edge, ingress, or mesh in front of the hub).
 type Hub struct {
-	TunnelAddr string `help:"JWT-auth listener where peers attach (plaintext h2c; front with TLS)." default:"127.0.0.1:7000"`
+	TunnelAddr string `help:"JWT-auth listener where peers attach over a WebSocket (plaintext; front with TLS)." default:"127.0.0.1:7000"`
 	AdminAddr  string `help:"Admin gRPC listener (list/stop/block); also serves the console with --ui." default:"127.0.0.1:7001"`
 	ProxyAddr  string `help:"Header-routed proxy to reach peer services (x-tunnel-peer)." default:"127.0.0.1:7002"`
 	State      string `help:"Directory for the hub JWT secret + state (default: ~/.holt)." type:"path"`
@@ -84,11 +84,12 @@ type Hub struct {
 	TokenTTL     time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
 
 	// Public tunnel URL stamped into join tokens (what peers dial). Its
-	// scheme selects the peer transport: https dials standard TLS (to a
-	// TLS edge in front of the hub), http dials plaintext h2c. Defaults
-	// to http://<tunnel-addr>, but that is the BIND address; behind a
+	// scheme selects the peer transport: wss dials TLS under the
+	// WebSocket (to a TLS edge in front of the hub), ws dials
+	// plaintext; https/http are accepted as aliases. Defaults to
+	// ws://<tunnel-addr>, but that is the BIND address; behind a
 	// LoadBalancer, NAT, or TLS edge it differs, set the reachable URL.
-	AdvertiseAddr string `help:"Public tunnel URL peers dial, stamped into tokens (e.g. https://holt.example.com; default: http://<tunnel-addr>)." name:"advertise-addr"`
+	AdvertiseAddr string `help:"Public tunnel URL peers dial, stamped into tokens (e.g. wss://holt.example.com; default: ws://<tunnel-addr>)." name:"advertise-addr"`
 
 	// The admin listener has no built-in auth (mint token, kill, block);
 	// it is meant to sit behind an authenticating proxy or stay on
@@ -415,11 +416,12 @@ func (h *Hub) welcomeBanner() string {
 	return style.Banner("holt is up", rows, "enroll your first peer:  holt enroll <name>")
 }
 
-// serveTunnels runs the plaintext h2c tunnel listener; peers
-// authenticate with a JWT whose subject becomes the tunnel key. A
-// blocked subject is rejected even with a valid token. Transport
-// encryption is expected from the network in front of the hub (a TLS
-// edge, ingress, or mesh), same as the proxy and admin listeners.
+// serveTunnels runs the plaintext tunnel listener; peers upgrade to a
+// WebSocket that carries the tunnel frames, authenticating with a JWT
+// whose subject becomes the tunnel key. A blocked subject is rejected
+// even with a valid token. Transport encryption is expected from the
+// network in front of the hub (a TLS edge, ingress, or mesh), same as
+// the proxy and admin listeners.
 func (h *Hub) serveTunnels(
 	registry *hub.Registry, secrets *secretState, blocks *blockList, metrics *hubMetrics, logger *zap.Logger,
 ) (*http.Server, error) {
@@ -432,12 +434,13 @@ func (h *Hub) serveTunnels(
 		return peer, nil
 	}
 
-	path, handler := holtv1connect.NewTunnelHandler(hub.NewHandler(registry, identity, logger))
-
+	// The upgrade is accepted on ANY path, so an advertise URL keeps
+	// working whether the ingress in front routes /, a dedicated
+	// prefix, or the pre-0.13 gRPC path. The secret is read
+	// per-request from the atomic holder, so a rotate-secret takes
+	// effect on the next attach without a restart.
 	mux := http.NewServeMux()
-	// The secret is read per-request from the atomic holder, so a
-	// rotate-secret takes effect on the next attach without a restart.
-	mux.Handle(path, jwtMiddleware(secrets, blocks, metrics, handler))
+	mux.Handle("/", jwtMiddleware(secrets, blocks, metrics, hub.NewHandler(registry, identity, logger)))
 
 	srv := newH2CServer(mux)
 
@@ -578,9 +581,9 @@ func (h *Hub) adminInfo(commons *c.Commons) admin.HubInfo {
 }
 
 // advertiseURL is the tunnel URL stamped into tokens (what peers dial):
-// the operator override if set, otherwise http://<bind address>. A value
-// without a scheme is assumed http, so peers get a well-formed URL and
-// the scheme drives their transport.
+// the operator override if set, otherwise ws://<bind address>. A value
+// without a scheme is assumed ws (plaintext), so peers get a
+// well-formed URL and the scheme drives their transport.
 func (h *Hub) advertiseURL() string {
 	adv := h.AdvertiseAddr
 	if adv == "" {
@@ -588,7 +591,7 @@ func (h *Hub) advertiseURL() string {
 	}
 
 	if !strings.Contains(adv, "://") {
-		adv = "http://" + adv
+		adv = "ws://" + adv
 	}
 
 	return adv

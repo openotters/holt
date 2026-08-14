@@ -1,6 +1,6 @@
-# transport-tls — secure the outer gRPC connection (mutual TLS)
+# transport-tls — secure the outer WebSocket connection (mutual TLS)
 
-Two standalone binaries. The **outer** gRPC channel is secured with
+Two standalone binaries. The **outer** WebSocket hop is secured with
 **mutual TLS**: peers dial in presenting a client certificate, the hub
 verifies it against a shared CA, and the hub takes each peer's identity
 from its certificate's Common Name — cryptographic identity, not a
@@ -11,8 +11,9 @@ header the peer asserts.
   from the verified client cert. On the first run it generates a demo
   CA + certs into a shared temp dir.
 - **`client/`** — a peer. Mints a client cert carrying its `--name`
-  (signed by the shared CA), presents it, verifies the hub's server
-  cert, and serves an HTTP handler over the tunnel. Listens on nothing.
+  (signed by the shared CA), presents it on the `wss://` dial, verifies
+  the hub's server cert, and serves an HTTP handler over the tunnel.
+  Listens on nothing.
 
 ## Run it
 
@@ -49,17 +50,21 @@ srv.TLSConfig = &tls.Config{
 // identity middleware lifts the verified CN into the request context:
 cn := r.TLS.PeerCertificates[0].Subject.CommonName
 
-// peer: present our client cert, verify the hub's server cert
-credentials.NewTLS(&tls.Config{
-    Certificates: []tls.Certificate{clientCert},
-    RootCAs:      caPool,
-    ServerName:   "hub",
-})
+// peer: present our client cert, verify the hub's server cert; the
+// config rides in through the HTTP client the WebSocket upgrade uses
+dial.Options{
+    URL: "wss://127.0.0.1:7100",
+    HTTPClient: &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{
+        Certificates: []tls.Certificate{clientCert},
+        RootCAs:      caPool,
+        ServerName:   "hub",
+    }}},
+}
 ```
 
-This needs no holt-specific TLS code — the peer owns the
-`*grpc.ClientConn` it hands to `dial.Run`, and the hub is a normal TLS
-`http.Server`. For end-to-end confidentiality past a TLS-terminating
+This needs no holt-specific TLS code — the peer hands `dial.Run` a
+plain `*http.Client` carrying its TLS config, and the hub is a normal
+TLS `http.Server`. For end-to-end confidentiality past a TLS-terminating
 proxy, add inner TLS on top — see [`../encrypted`](../encrypted), which
 mirrors this pair but does the mutual TLS *inside* the tunnel.
 

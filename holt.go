@@ -1,8 +1,11 @@
-// Package holt implements a reverse HTTP tunnel over a single
-// bidirectional protobuf stream: a peer that can only dial OUT
-// attaches to a hub, then serves an ordinary http.Handler back
-// through the attached stream. The hub gets an http.RoundTripper per
-// peer and a presence signal for free.
+// Package holt implements a reverse HTTP tunnel over a WebSocket
+// carrying a bidirectional protobuf frame stream: a peer that can
+// only dial OUT attaches to a hub, then serves an ordinary
+// http.Handler back through the attached stream. The hub gets an
+// http.RoundTripper per peer and a presence signal for free. The
+// carrier is a WebSocket so the tunnel passes through CDN public
+// hostnames, access proxies, and HTTP/1.1-only edges that cannot
+// proxy gRPC.
 //
 // The module ships both halves:
 //
@@ -31,8 +34,8 @@ import (
 const ProtocolVersion = 1
 
 // MaxDataFrame caps one TunnelFrame data payload — keeps inner
-// HTTP/2 stream interleaving granular and stays far under gRPC's
-// 4 MiB message ceiling.
+// HTTP/2 stream interleaving granular and each WebSocket message
+// small enough for any intermediary.
 const MaxDataFrame = 32 * 1024
 
 // Well-known GoAway reasons. Superseded, credential revocation, and
@@ -60,10 +63,9 @@ func TerminalReason(reason string) bool {
 	}
 }
 
-// FrameStream is the frame-level view of an Attach stream. The gRPC
-// client stream (holtv1.Tunnel_AttachClient) satisfies it
-// directly; the hub wraps connect's BidiStream (whose receive method
-// is named Receive) with a one-line adapter.
+// FrameStream is the frame-level view of an attached tunnel: one
+// TunnelFrame per Send/Recv. NewWSStream adapts a WebSocket
+// connection to it; tests may substitute in-memory implementations.
 type FrameStream interface {
 	Send(*holtv1.TunnelFrame) error
 	Recv() (*holtv1.TunnelFrame, error)
@@ -85,17 +87,17 @@ func GoAwayReason(err error) string {
 	return ""
 }
 
-// Conn adapts an Attach stream to a net.Conn carrying raw bytes as
-// TunnelFrame data frames. Read is single-reader — the HTTP/2
-// session on top owns it — and writes are serialised internally
-// because streams do not allow concurrent sends.
+// Conn adapts an attached FrameStream to a net.Conn carrying raw
+// bytes as TunnelFrame data frames. Read is single-reader — the
+// HTTP/2 session on top owns it — and writes are serialised
+// internally because frame streams do not allow concurrent sends.
 //
 // Close seals the adapter: it waits out any in-flight write, then
 // makes every later I/O attempt fail locally with net.ErrClosed
 // instead of reaching the stream. Hub handlers rely on this — the
 // HTTP/2 transport's background goroutines (ping, resets) outlive
-// the stream handler, and a late write to a finished handler's
-// stream panics inside connect.
+// the handler, and a late write must never reach a finished
+// handler's socket.
 type Conn struct {
 	stream  frameIO
 	closeFn func() error

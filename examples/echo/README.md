@@ -20,8 +20,8 @@ a hole in its firewall.
 
 Key calls, in order:
 
-1. `hub.NewRegistry` + `hub.NewHandler` + `holtv1connect.NewTunnelHandler` — the hub side.
-2. `dial.Run(ctx, dial.Options{Conn, Handler})` — the peer attaches and serves.
+1. `hub.NewRegistry` + `hub.NewHandler` mounted on a plain HTTP server, the hub side (the handler accepts the WebSocket upgrade itself).
+2. `dial.Run(ctx, dial.Options{URL, Handler})`, the peer attaches over a `ws://` WebSocket and serves.
 3. `registry.RoundTripper(peer)` wrapped in an `http.Client` — the hub dials through.
 
 For a hub that authenticates peers and derives their identity from a

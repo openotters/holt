@@ -30,10 +30,8 @@ import (
 	"syscall"
 	"time"
 
-	"connectrpc.com/connect"
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/hub"
 )
 
@@ -47,7 +45,7 @@ var tokens = map[string]string{
 type peerCtxKey struct{}
 
 func main() {
-	tunnelAddr := flag.String("addr", "127.0.0.1:7000", "tunnel (gRPC) listen address for peers")
+	tunnelAddr := flag.String("addr", "127.0.0.1:7000", "tunnel (WebSocket) listen address for peers")
 	httpAddr := flag.String("http", "127.0.0.1:7001", "operator HTTP API listen address")
 	flag.Parse()
 
@@ -95,8 +93,8 @@ func run(tunnelAddr, httpAddr string) error {
 	return nil
 }
 
-// serveTunnels stands up the Tunnel.Attach handler on a plaintext
-// h2c listener, behind a bearer-token auth interceptor.
+// serveTunnels stands up the WebSocket attach handler on a plaintext
+// listener, behind bearer-token auth middleware.
 func serveTunnels(registry *hub.Registry, addr string, logger *zap.Logger) (*http.Server, error) {
 	identity := func(ctx context.Context) (string, error) {
 		peer, _ := ctx.Value(peerCtxKey{}).(string)
@@ -107,19 +105,10 @@ func serveTunnels(registry *hub.Registry, addr string, logger *zap.Logger) (*htt
 		return peer, nil
 	}
 
-	path, handler := holtv1connect.NewTunnelHandler(
-		hub.NewHandler(registry, identity, logger),
-		connect.WithInterceptors(authInterceptor{}),
-	)
-
 	mux := http.NewServeMux()
-	mux.Handle(path, handler)
+	mux.Handle("/", requireBearer(hub.NewHandler(registry, identity, logger)))
 
-	var protocols http.Protocols
-	protocols.SetHTTP1(true)
-	protocols.SetUnencryptedHTTP2(true)
-
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, Protocols: &protocols}
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 
 	return listenAndServe(srv, addr)
 }
@@ -216,25 +205,19 @@ func logAttachEvents(ctx context.Context, registry *hub.Registry, logger *zap.Lo
 	}()
 }
 
-// authInterceptor validates the bearer token on the (streaming)
-// Attach call and stamps the resolved peer id onto the context.
-type authInterceptor struct{}
-
-func (authInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc { return next }
-
-func (authInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
-	return next
-}
-
-func (authInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
-	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		peer, ok := tokens[bearer(conn.RequestHeader().Get("Authorization"))]
+// requireBearer validates the bearer token on the WebSocket upgrade
+// request and stamps the resolved peer id onto the context.
+func requireBearer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		peer, ok := tokens[bearer(r.Header.Get("Authorization"))]
 		if !ok {
-			return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or missing bearer token"))
+			http.Error(w, "invalid or missing bearer token", http.StatusUnauthorized)
+
+			return
 		}
 
-		return next(context.WithValue(ctx, peerCtxKey{}, peer), conn)
-	}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), peerCtxKey{}, peer)))
+	})
 }
 
 func bearer(h string) string {

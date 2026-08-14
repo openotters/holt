@@ -4,17 +4,23 @@
 
 *Expose the hub's listeners safely, and advertise the URL peers can dial.*
 
-All three listeners (tunnel, admin, proxy) are plaintext **h2c**: holt
+All three listeners (tunnel, admin, proxy) are plaintext: holt
 does not manage a certificate, so transport encryption is the
 deployment's job (a TLS edge, ingress, LoadBalancer, or mesh in front of
 the hub).
 
-The **tunnel** listener authenticates every peer with a **JWT**, but it
-does not encrypt by itself. For remote peers, put TLS in front and
-advertise an `https://` URL: the peer then dials over TLS (verified with
-the system roots) so the JWT travels encrypted to the edge, which
-forwards to the hub. On loopback or a trusted link, `http://` (plaintext
-h2c) is fine. Keep `--token-ttl` short: a JWT is a bearer credential.
+The **tunnel** listener authenticates every peer with a **JWT** on the
+WebSocket upgrade, but it does not encrypt by itself. For remote peers,
+put TLS in front and advertise a `wss://` URL: the peer then dials over
+TLS (verified with the system roots) so the JWT travels encrypted to
+the edge, which forwards to the hub. On loopback or a trusted link,
+`ws://` (plaintext) is fine. Keep `--token-ttl` short: a JWT is a
+bearer credential.
+
+Because the carrier is a WebSocket, the tunnel hostname can also sit
+behind an authenticating proxy such as Cloudflare Access with a
+service-token policy: peers send the proxy's headers with the upgrade
+(`holt expose --header`, or `dial.Options.Header` in the library).
 
 The **admin** and **proxy** listeners have no built-in auth and bind to
 `127.0.0.1` by default. They are meant to stay on loopback or sit behind
@@ -33,11 +39,11 @@ do expose them:
 ## Advertised URL
 
 `--advertise-addr` is the tunnel **URL** stamped into join tokens (what
-peers dial). It defaults to `http://` + `--tunnel-addr`, the **bind**
+peers dial). It defaults to `ws://` + `--tunnel-addr`, the **bind**
 address, which is wrong behind a LoadBalancer, NAT, or TLS edge (a peer
 cannot dial `0.0.0.0`, and a plaintext URL skips your edge's TLS). Set
-it to the reachable URL, for example `https://holt.example.com` for a
-hub behind a TLS ingress, or `http://<lb-ip>:7000` for a plain
+it to the reachable URL, for example `wss://holt.example.com` for a
+hub behind a TLS ingress, or `ws://<lb-ip>:7000` for a plain
 LoadBalancer on a trusted network. Its scheme selects the peer
 transport. The Helm chart exposes it as `hub.advertiseAddr`.
 

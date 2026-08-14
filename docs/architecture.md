@@ -7,7 +7,7 @@
 ```
   peer (dials out)                         hub (public)
       │                                       │
-      │-- Tunnel.Attach (bidi gRPC) --------->│   auth middleware → peer id
+      │-- WebSocket upgrade (JWT header) ---->│   auth middleware → peer id
       │-- Hello ----------------------------->│
       │<----------------------------- Welcome │   registry.Attach(peer)
       │                                       │
@@ -25,20 +25,24 @@ The hub gets an `http.RoundTripper` per peer, and a presence signal for
 free. No listener, no inbound port, no published container port on the
 peer.
 
-Everything rides a single bidirectional gRPC stream. The stream carries
-raw bytes (`TunnelFrame.data`, at most 32 KiB per frame); each side runs
-a standard HTTP/2 endpoint over it, server on the peer, client on the
-hub. Presence of the tunnel doubles as the peer's liveness signal.
+Everything rides a single **WebSocket**: each binary message carries
+one `TunnelFrame` (raw bytes in `TunnelFrame.data`, at most 32 KiB per
+frame); each side runs a standard HTTP/2 endpoint over that byte
+stream, server on the peer, client on the hub. A WebSocket is the
+carrier because it passes through what gRPC cannot: CDN public
+hostnames (Cloudflare included), access proxies, and HTTP/1.1-only
+edges. Presence of the tunnel doubles as the peer's liveness signal.
 
 ## The four parts
 
 - **`hub`**: server side. `NewRegistry` tracks live tunnels per peer;
-  `NewHandler` is the `Tunnel.Attach` implementation you mount behind
-  your auth middleware.
+  `NewHandler` is the `http.Handler` that accepts attachments, mounted
+  behind your auth middleware (the peer's credential arrives on the
+  upgrade request).
 - **`dial`**: client side. `dial.Run` is a persistent attach loop that
-  serves your `http.Handler` over the tunnel and redials with jittered
-  backoff. It rides an existing `*grpc.ClientConn`, so it reuses
-  whatever auth interceptors you already attached.
+  dials the hub's WebSocket endpoint, serves your `http.Handler` over
+  the tunnel, and redials with jittered backoff; extra upgrade headers
+  carry whatever auth the hub or the edge in front wants.
 - **`hub/sqldir`**: a SQL-backed presence directory (SQLite or
   PostgreSQL) for sharing which peer is attached to which hub across a
   fleet.

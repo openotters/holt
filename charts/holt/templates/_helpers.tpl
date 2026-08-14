@@ -38,8 +38,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/*
 The tunnel URL stamped into join tokens: the explicit hub.advertiseAddr
 wins; otherwise an enabled tunnel ingress IS the address peers dial, so
-advertise https://<its host><its non-root path>. Empty when neither is
-set (the hub falls back to its bind address).
+advertise wss://<its host><its non-root path> (TLS under the WebSocket,
+terminated at the edge). Empty when neither is set (the hub falls back
+to its bind address).
 */}}
 {{- define "holt.advertiseAddr" -}}
 {{- if .Values.hub.advertiseAddr -}}
@@ -47,7 +48,7 @@ set (the hub falls back to its bind address).
 {{- else if .Values.ingress.tunnel.enabled -}}
 {{- $host := required "ingress.tunnel.host is required when ingress.tunnel.enabled" .Values.ingress.tunnel.host -}}
 {{- $path := .Values.ingress.tunnel.path | default "/" -}}
-{{- printf "https://%s%s" $host (ternary "" (trimSuffix "/" $path) (eq $path "/")) -}}
+{{- printf "wss://%s%s" $host (ternary "" (trimSuffix "/" $path) (eq $path "/")) -}}
 {{- end -}}
 {{- end -}}
 

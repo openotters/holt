@@ -306,9 +306,7 @@ const file_v1_tunnel_proto_rawDesc = "" +
 	"\aWelcome\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\" \n" +
 	"\x06GoAway\x12\x16\n" +
-	"\x06reason\x18\x01 \x01(\tR\x06reason2X\n" +
-	"\x06Tunnel\x12N\n" +
-	"\x06Attach\x12\x1f.openotters.holt.v1.TunnelFrame\x1a\x1f.openotters.holt.v1.TunnelFrame(\x010\x01B*Z(github.com/openotters/holt/api/v1;holtv1b\x06proto3"
+	"\x06reason\x18\x01 \x01(\tR\x06reasonB*Z(github.com/openotters/holt/api/v1;holtv1b\x06proto3"
 
 var (
 	file_v1_tunnel_proto_rawDescOnce sync.Once
@@ -333,10 +331,8 @@ var file_v1_tunnel_proto_depIdxs = []int32{
 	1, // 0: openotters.holt.v1.TunnelFrame.hello:type_name -> openotters.holt.v1.Hello
 	2, // 1: openotters.holt.v1.TunnelFrame.welcome:type_name -> openotters.holt.v1.Welcome
 	3, // 2: openotters.holt.v1.TunnelFrame.go_away:type_name -> openotters.holt.v1.GoAway
-	0, // 3: openotters.holt.v1.Tunnel.Attach:input_type -> openotters.holt.v1.TunnelFrame
-	0, // 4: openotters.holt.v1.Tunnel.Attach:output_type -> openotters.holt.v1.TunnelFrame
-	4, // [4:5] is the sub-list for method output_type
-	3, // [3:4] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name
 	3, // [3:3] is the sub-list for extension extendee
 	0, // [0:3] is the sub-list for field type_name
@@ -361,7 +357,7 @@ func file_v1_tunnel_proto_init() {
 			NumEnums:      0,
 			NumMessages:   4,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   0,
 		},
 		GoTypes:           file_v1_tunnel_proto_goTypes,
 		DependencyIndexes: file_v1_tunnel_proto_depIdxs,

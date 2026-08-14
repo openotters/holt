@@ -52,9 +52,10 @@ back down that tunnel.
 
 ## What it exercises
 
-- **Auth → identity**: a Connect streaming interceptor validates the
-  bearer token and stamps the peer id; the hub keys tunnels by that
-  authenticated id (`hub` doc, and the `authenticated` example).
+- **Auth → identity**: plain HTTP middleware on the WebSocket upgrade
+  validates the bearer token and stamps the peer id; the hub keys
+  tunnels by that authenticated id (`hub` doc, and the `authenticated`
+  example).
 - **Operator surface**: `registry.ListTunnels()` for the roster,
   `registry.RoundTripper(id)` as the transport of a reverse proxy.
 - **Reconnection**: kill and restart the hub — the peers redial with
@@ -64,9 +65,9 @@ back down that tunnel.
 
 ## Making it secure
 
-The demo uses plaintext h2c so you can watch it work. For production,
-secure the outer gRPC hop with TLS — the peer dials with
-`credentials.NewTLS(...)` and the hub serves a TLS listener (see
+The demo uses a plaintext `ws://` WebSocket so you can watch it work.
+For production, secure the outer hop with TLS: the peer dials `wss://`
+and the hub serves a TLS listener (see
 [`../transport-tls`](../transport-tls)); no code here changes shape.
 Add inner TLS ([`../encrypted`](../encrypted)) on top if a proxy
 terminates the outer hop.

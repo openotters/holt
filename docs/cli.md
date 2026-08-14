@@ -5,13 +5,15 @@
 *Run a hub, enroll peers, expose services, and manage tunnels with the holt command.*
 
 The operator CLI for a reverse-tunnel hub: run the hub, enroll peers,
-and manage live tunnels. Peers authenticate with a **JWT**. The tunnel
-listener is plaintext **h2c**, so transport encryption is the
-deployment's job (a TLS edge, ingress, or mesh in front of the hub);
-the join token carries the tunnel **URL** and its scheme picks the
-transport (`https` dials TLS verified with the system roots, `http`
-dials plaintext). Reach a peer's tunneled service through the hub by
-naming it in a header.
+and manage live tunnels. Peers authenticate with a **JWT** and attach
+over a **WebSocket**, so the tunnel passes through CDNs, access
+proxies, and plain HTTP ingresses. The listener is plaintext, so
+transport encryption is the deployment's job (a TLS edge, ingress, or
+mesh in front of the hub); the join token carries the tunnel **URL**
+and its scheme picks the transport (`wss` dials TLS verified with the
+system roots, `ws` dials plaintext; `https`/`http` are accepted as
+aliases). Reach a peer's tunneled service through the hub by naming it
+in a header.
 
 ## Cheat sheet
 
@@ -59,19 +61,32 @@ holt hub
 
 | Listener | Default | Purpose |
 |---|---|---|
-| `--tunnel-addr` | `127.0.0.1:7000` | JWT auth (plaintext h2c); peers attach here |
+| `--tunnel-addr` | `127.0.0.1:7000` | JWT auth (WebSocket, plaintext); peers attach here |
 | `--admin-addr`  | `127.0.0.1:7001` | the Admin service (list / stop / block / enroll), serves the console with `--ui` |
 | `--proxy-addr`  | `127.0.0.1:7002` | reach a peer's service via the `x-tunnel-peer` header |
 
-All three listeners are plaintext h2c: put your own TLS in front (a TLS
+All three listeners are plaintext: put your own TLS in front (a TLS
 edge, ingress, LoadBalancer, or mesh) for anything beyond loopback. See
 [Security](security.md).
 
 The bind address is not always the URL peers can dial (behind a
 LoadBalancer, NAT, or TLS edge). Set `--advertise-addr` to the reachable
-tunnel **URL** (e.g. `https://holt.example.com`); the hub stamps that
-into every token it mints, instead of `http://` + the bind address. The
-scheme matters: `https` tells peers to dial over TLS, `http` plaintext.
+tunnel **URL** (e.g. `wss://holt.example.com`); the hub stamps that
+into every token it mints, instead of `ws://` + the bind address. The
+scheme matters: `wss` tells peers to dial over TLS, `ws` plaintext.
+
+Because the tunnel is a WebSocket, the edge in front needs nothing
+special: any proxy that forwards HTTP/1.1 upgrades works, Cloudflare
+public hostnames included. A quiet tunnel stays attached through proxy
+idle timeouts, the peer pings the socket every 40 seconds. If an
+authenticating proxy (e.g. Cloudflare Access with a service-token
+policy) fronts the tunnel hostname, pass its headers on attach:
+
+```sh
+holt expose localhost:3000 --token <paste> \
+  --header 'CF-Access-Client-Id: <id>.access' \
+  --header 'CF-Access-Client-Secret: <secret>'
+```
 
 ## Enroll a peer
 
@@ -82,7 +97,7 @@ state folder and signs the token itself. Pass the tunnel URL to
 advertise:
 
 ```sh
-holt enroll alice --tunnel-url https://holt.example.com
+holt enroll alice --tunnel-url wss://holt.example.com
 ```
 
 **Remote** (against a running hub): give it an admin endpoint (see
@@ -96,7 +111,7 @@ holt enroll alice --profile prod            # same, via a profile
 
 The token bundles the peer's JWT and the hub's tunnel URL. The JWT
 authenticates the client; encryption comes from whatever fronts the hub
-(a TLS edge, ingress, or mesh), which the `https` URL tells the peer to
+(a TLS edge, ingress, or mesh), which the `wss` URL tells the peer to
 dial over, verified with the system roots.
 
 Two ready-made peers consume the token:
@@ -116,8 +131,7 @@ hub proxies the request down that peer's tunnel:
 curl -H 'x-tunnel-peer: alice' http://localhost:7002/
 ```
 
-Whatever the peer serves over the tunnel (HTTP, or gRPC, see the
-`grpc-tunnel` example) is reachable this way.
+Whatever the peer serves over the tunnel is reachable this way.
 
 A bare visit to the proxy (no `x-tunnel-peer` header) gets a plain swirl
 page (`400`), and naming a peer that is not attached gets a `404`, not a
@@ -137,7 +151,7 @@ holt info
 #   endpoint   http://127.0.0.1:7001
 #   tunnels    3                          live
 #   blocked    1                          banned peer ids
-#   advertise  https://holt.example.com   URL stamped into tokens
+#   advertise  wss://holt.example.com   URL stamped into tokens
 #   proxy      127.0.0.1:7002             reach peers via the x-tunnel-peer header
 #   metrics    127.0.0.1:7003/metrics     prometheus
 #   token ttl  24h0m0s                    lifetime of minted tokens
@@ -191,7 +205,7 @@ profiles:
 
   prod:
     admin_url: https://holt.example.com
-    tunnel_url: https://holt.example.com   # advertised in tokens enroll mints
+    tunnel_url: wss://holt.example.com    # advertised in tokens enroll mints
     headers:
       # Any headers work. This example is a Cloudflare Access service
       # token; the secret is read from an env var, not stored here.
@@ -252,11 +266,11 @@ tunnels, then you re-enroll your peers.
 
 ## Security notes
 
-All three listeners (tunnel, admin, proxy) are plaintext h2c and the
+All three listeners (tunnel, admin, proxy) are plaintext and the
 admin and proxy ones are **unauthenticated**: keep them on loopback (the
 default) or front them with your own TLS and auth. The tunnel checks the
 JWT but does not encrypt by itself, so for remote peers put TLS in front
-and advertise an `https://` URL. Join tokens are **bearer credentials**;
+and advertise a `wss://` URL. Join tokens are **bearer credentials**;
 deliver them over a secure channel and keep `--token-ttl` short. See
 [Security](security.md) for exposing a hub safely.
 

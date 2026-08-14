@@ -18,15 +18,13 @@ import (
 	"syscall"
 
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/openotters/holt/dial"
 	"github.com/openotters/holt/examples/certs"
 )
 
 func main() {
-	hubAddr := flag.String("hub", "127.0.0.1:7400", "hub mutual-TLS tunnel address")
+	hubURL := flag.String("hub", "wss://127.0.0.1:7400", "hub mutual-TLS tunnel URL (wss)")
 	token := flag.String("token", "", "join token printed by the server (required)")
 	flag.Parse()
 
@@ -34,12 +32,12 @@ func main() {
 		log.Fatal("--token is required; copy it from the server's output")
 	}
 
-	if err := run(*hubAddr, *token); err != nil {
+	if err := run(*hubURL, *token); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(hubAddr, token string) error {
+func run(hubURL, token string) error {
 	logger, _ := zap.NewDevelopment()
 	defer func() { _ = logger.Sync() }()
 
@@ -48,7 +46,7 @@ func run(hubAddr, token string) error {
 		return err
 	}
 
-	// Build the mutual-TLS client config straight from the token —
+	// Build the mutual-TLS client config straight from the token:
 	// present our cert, verify the hub's "hub" server cert via the
 	// bundled CA. Nothing read from disk.
 	tlsCfg, err := bundle.ClientTLS(certs.Hub)
@@ -56,11 +54,9 @@ func run(hubAddr, token string) error {
 		return err
 	}
 
-	cc, err := grpc.NewClient(hubAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
-	if err != nil {
-		return err
-	}
-	defer func() { _ = cc.Close() }()
+	// The wss:// dial goes through this client, so the WebSocket
+	// upgrade itself runs under the token's mutual TLS.
+	httpClient := &http.Client{Transport: &http.Transport{TLSClientConfig: tlsCfg}}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/hello", func(w http.ResponseWriter, _ *http.Request) {
@@ -70,13 +66,14 @@ func run(hubAddr, token string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logger.Info("attaching with join token", zap.String("hub", hubAddr))
+	logger.Info("attaching with join token", zap.String("hub", hubURL))
 
 	if err := dial.Run(ctx, dial.Options{
-		Conn:    cc,
-		Handler: mux,
-		Version: "join-token-demo",
-		Logger:  logger,
+		URL:        hubURL,
+		HTTPClient: httpClient,
+		Handler:    mux,
+		Version:    "join-token-demo",
+		Logger:     logger,
 	}); err != nil && ctx.Err() == nil {
 		return err
 	}

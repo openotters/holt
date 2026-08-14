@@ -30,10 +30,11 @@
 
 The tunnel is exposed through an ingress: peers dial
 {{ include "holt.advertiseAddr" . }} (stamped into join tokens automatically;
-hub.advertiseAddr overrides it). The edge MUST speak HTTP/2 to the
-origin — the tunnel is gRPC over h2c, and an HTTP/1.1 origin connection
-breaks attaches. On the cloudflare-tunnel ingress class, set the
-annotation cloudflare-tunnel-ingress-controller.strrl.dev/http2-origin: "true".
+hub.advertiseAddr overrides it). The tunnel is a WebSocket: any edge
+forwarding plain HTTP/1.1 upgrades carries it, Cloudflare public
+hostnames included. Do NOT enable an HTTP/2-to-origin setting on this
+hostname (e.g. the cloudflare-tunnel http2-origin annotation); it
+breaks the upgrade.
 {{- end }}
 
 The hub state (JWT secret, blocklist) lives in the

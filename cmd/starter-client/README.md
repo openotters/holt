@@ -9,26 +9,28 @@ join token is decoded inline).
 ```bash
 # on the hub machine
 holt hub &
-holt enroll myservice --tunnel-addr 127.0.0.1:7000   # prints a token
+holt enroll myservice        # prints a token
 
 # anywhere (paste the token)
 go run ./cmd/starter-client --token eyJ...
 
 # reach it through the hub
 curl -H 'x-tunnel-peer: myservice' http://localhost:7002/
-#   hello from myservice — you reached / through the tunnel
+#   hello from myservice — reached through the tunnel
 ```
 
-## The four steps every peer does
+## The three steps every peer does
 
 `main.go` is organised around them:
 
-1. **Pin the hub cert** from the token → TLS that encrypts the tunnel
-   and authenticates the hub.
-2. **Dial the hub** with a bearer-JWT interceptor → the hub
-   authenticates the peer.
-3. **Build your handler** — the one thing you customise.
-4. **`dial.Run`** — attach and serve, redialing automatically.
+1. **Decode the token** (a tiny base64+JSON struct): peer name, tunnel
+   URL, JWT.
+2. **Build your handler**, the one thing you customise.
+3. **`dial.Run`**, attach and serve, redialing automatically. The
+   token's tunnel URL picks the transport (`wss` is a TLS WebSocket
+   verified with the system roots, `ws` is plaintext, `http`/`https`
+   are aliases so older tokens keep working), and the JWT goes out as
+   the `Authorization` header of the upgrade request.
 
 That's the whole client. Everything else (the CLI, TLS files, SQLite,
 the admin API) is the hub's concern.

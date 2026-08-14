@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,10 +11,6 @@ import (
 
 	c "github.com/merlindorin/go-shared/pkg/cmd"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
@@ -28,8 +23,9 @@ import (
 // that arrives over the tunnel to the local address. The local service
 // needs no changes and no public port.
 type Expose struct {
-	Target string `arg:"" help:"Local address to forward tunneled requests to, e.g. localhost:3000."`
-	Token  string `help:"Join token from 'holt enroll' (or set HOLT_TOKEN)." required:""`
+	Target string   `arg:"" help:"Local address to forward tunneled requests to, e.g. localhost:3000."`
+	Token  string   `help:"Join token from 'holt enroll' (or set HOLT_TOKEN)." required:""`
+	Header []string `help:"Extra header 'Name: Value' sent with the WebSocket handshake (repeatable) — e.g. a Cloudflare Access service token in front of the tunnel hostname." name:"header"`
 }
 
 // Run attaches to the hub and serves the reverse proxy until the
@@ -47,11 +43,10 @@ func (e *Expose) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out 
 		return err
 	}
 
-	cc, err := dialHub(jt)
+	header, err := dialHeader(jt, e.Header)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = cc.Close() }()
 
 	if out.Pretty {
 		fmt.Print(style.Banner("exposing "+targetURL.String(), []style.BannerRow{
@@ -64,8 +59,14 @@ func (e *Expose) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out 
 			zap.String("peer", jt.Peer), zap.String("target", targetURL.String()))
 	}
 
+	wsURL, err := jt.WSURL()
+	if err != nil {
+		return err
+	}
+
 	err = dial.Run(ctx, dial.Options{
-		Conn:    cc,
+		URL:     wsURL,
+		Header:  header,
 		Handler: proxy,
 		Version: "holt-expose",
 		Logger:  logger,
@@ -77,6 +78,25 @@ func (e *Expose) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out 
 	}
 
 	return err
+}
+
+// dialHeader assembles the WebSocket upgrade headers: the peer's JWT
+// as the bearer the hub verifies, plus any operator-supplied headers
+// for whatever sits in front of the tunnel hostname.
+func dialHeader(jt token.JoinToken, extra []string) (http.Header, error) {
+	header := http.Header{}
+	header.Set("Authorization", "Bearer "+jt.JWT)
+
+	for _, h := range extra {
+		name, value, ok := splitHeader(h)
+		if !ok {
+			return nil, fmt.Errorf("invalid --header %q, want 'Name: Value'", h)
+		}
+
+		header.Set(name, value)
+	}
+
+	return header, nil
 }
 
 // localProxy builds a reverse proxy to the local target. A bare
@@ -101,50 +121,4 @@ func localProxy(target string) (http.Handler, *url.URL, error) {
 	}
 
 	return proxy, u, nil
-}
-
-// dialHub builds the JWT-authenticated connection to the hub. The
-// tunnel URL's scheme selects the transport: https dials standard TLS
-// (verified with the system roots, so it works through a TLS edge like
-// Cloudflare or an ingress), http dials plaintext h2c for a loopback or
-// otherwise-trusted link.
-func dialHub(jt token.JoinToken) (*grpc.ClientConn, error) {
-	addr, serverName, useTLS, err := jt.Target()
-	if err != nil {
-		return nil, err
-	}
-
-	var creds credentials.TransportCredentials
-	if useTLS {
-		creds = credentials.NewTLS(&tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12})
-	} else {
-		creds = insecure.NewCredentials()
-	}
-
-	return grpc.NewClient(addr,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithUnaryInterceptor(bearer(jt.JWT)),
-		grpc.WithStreamInterceptor(bearerStream(jt.JWT)))
-}
-
-func bearer(jwt string) grpc.UnaryClientInterceptor {
-	return func(
-		ctx context.Context, method string, req, reply any,
-		cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption,
-	) error {
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+jwt)
-
-		return invoker(ctx, method, req, reply, cc, opts...)
-	}
-}
-
-func bearerStream(jwt string) grpc.StreamClientInterceptor {
-	return func(
-		ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn,
-		method string, streamer grpc.Streamer, opts ...grpc.CallOption,
-	) (grpc.ClientStream, error) {
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+jwt)
-
-		return streamer(ctx, desc, cc, method, opts...)
-	}
 }

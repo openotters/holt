@@ -1,7 +1,7 @@
 // Command authenticated shows the identity seam: the hub derives each
 // peer's ID from a bearer token (a stand-in for a JWT claim or mTLS
 // SAN), so the RoundTripper is keyed by an authenticated identity the
-// peer cannot spoof — the Attach handshake carries no identity at all.
+// peer cannot spoof (the attach upgrade carries no identity at all).
 //
 // Two peers attach with different tokens; the hub reaches each by the
 // identity its token established, and an unauthenticated attach is
@@ -15,7 +15,7 @@
 //
 //	hub → alice   ⇒  "hello from alice"
 //	hub → bob     ⇒  "hello from bob"
-//	hub → unknown ⇒  not attached (rejected at handshake)
+//	hub → unknown ⇒  not attached (rejected at the upgrade)
 package main
 
 import (
@@ -29,13 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"connectrpc.com/connect"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 
-	"github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/dial"
 	"github.com/openotters/holt/hub"
 )
@@ -48,7 +43,7 @@ var tokens = map[string]string{
 }
 
 // peerCtxKey carries the authenticated peer ID from the auth
-// interceptor to the hub's Identity func.
+// middleware to the hub's Identity func.
 type peerCtxKey struct{}
 
 func main() {
@@ -61,7 +56,7 @@ func run() error {
 	logger := zap.NewNop()
 	registry := hub.NewRegistry(logger)
 
-	// The hub reads the peer ID the auth interceptor stamped on the
+	// The hub reads the peer ID the auth middleware stamped on the
 	// context. This is the whole identity seam: the handshake never
 	// carries an ID, so a peer cannot claim to be someone else.
 	identity := func(ctx context.Context) (string, error) {
@@ -73,13 +68,8 @@ func run() error {
 		return peer, nil
 	}
 
-	path, handler := holtv1connect.NewTunnelHandler(
-		hub.NewHandler(registry, identity, logger),
-		connect.WithInterceptors(authInterceptor{}),
-	)
-
 	mux := http.NewServeMux()
-	mux.Handle(path, handler)
+	mux.Handle("/", authMiddleware(hub.NewHandler(registry, identity, logger)))
 
 	var lc net.ListenConfig
 	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
@@ -87,11 +77,7 @@ func run() error {
 		return err
 	}
 
-	var protocols http.Protocols
-	protocols.SetHTTP1(true)
-	protocols.SetUnencryptedHTTP2(true)
-
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second, Protocols: &protocols}
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = srv.Serve(lis) }()
 	defer func() { _ = srv.Close() }()
 
@@ -101,9 +87,7 @@ func run() error {
 	// Two authenticated peers, each serving a handler that greets in
 	// its own name.
 	for _, name := range []string{"alice", "bob"} {
-		if startErr := startPeer(ctx, lis.Addr().String(), "tok-"+name, name, logger); startErr != nil {
-			return startErr
-		}
+		startPeer(ctx, lis.Addr().String(), "tok-"+name, name, logger)
 	}
 
 	for _, name := range []string{"alice", "bob"} {
@@ -119,64 +103,53 @@ func run() error {
 		fmt.Printf("hub → %-7s ⇒  %q\n", name, body)
 	}
 
-	// A peer with no token is rejected at the handshake — it never
-	// lands in the registry.
-	_ = startPeer(ctx, lis.Addr().String(), "", "unknown", logger)
+	// A peer with no token is rejected at the upgrade (HTTP 401), so
+	// it never lands in the registry.
+	startPeer(ctx, lis.Addr().String(), "", "unknown", logger)
 	time.Sleep(200 * time.Millisecond)
-	fmt.Printf("hub → unknown ⇒  attached=%v (rejected at handshake)\n", registry.Attached("unknown"))
+	fmt.Printf("hub → unknown ⇒  attached=%v (rejected at the upgrade)\n", registry.Attached("unknown"))
 
 	return nil
 }
 
-// authInterceptor validates the bearer token on the (streaming)
-// Attach call and stamps the resolved peer ID onto the context, so
-// the hub's Identity func can read it. Attach is server-streaming
-// from connect's point of view, so only WrapStreamingHandler matters.
-type authInterceptor struct{}
-
-func (authInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc { return next }
-
-func (authInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
-	return next
-}
-
-func (authInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
-	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		peer, ok := tokenFromHeader(conn.RequestHeader().Get("Authorization"))
+// authMiddleware validates the bearer token on the WebSocket upgrade
+// request and stamps the resolved peer ID onto the request context,
+// so the hub's Identity func can read it.
+func authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		peer, ok := tokenFromHeader(r.Header.Get("Authorization"))
 		if !ok {
-			return connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or missing bearer token"))
+			http.Error(w, "invalid or missing bearer token", http.StatusUnauthorized)
+
+			return
 		}
 
-		return next(context.WithValue(ctx, peerCtxKey{}, peer), conn)
-	}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), peerCtxKey{}, peer)))
+	})
 }
 
-// startPeer dials the hub with a bearer token and serves a
-// name-greeting handler over the tunnel.
-func startPeer(ctx context.Context, hubAddr, token, name string, logger *zap.Logger) error {
+// startPeer dials the hub with a bearer token on the upgrade request
+// and serves a name-greeting handler over the tunnel.
+func startPeer(ctx context.Context, hubAddr, token, name string, logger *zap.Logger) {
 	peerMux := http.NewServeMux()
 	peerMux.HandleFunc("/hello", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprintf(w, "hello from %s", name)
 	})
 
-	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	var header http.Header
 	if token != "" {
-		dialOpts = append(dialOpts,
-			grpc.WithUnaryInterceptor(bearerUnary(token)),
-			grpc.WithStreamInterceptor(bearerStream(token)))
-	}
-
-	cc, err := grpc.NewClient(hubAddr, dialOpts...)
-	if err != nil {
-		return err
+		header = http.Header{"Authorization": {"Bearer " + token}}
 	}
 
 	go func() {
-		defer func() { _ = cc.Close() }()
-		_ = dial.Run(ctx, dial.Options{Conn: cc, Handler: peerMux, Version: name, Logger: logger})
+		_ = dial.Run(ctx, dial.Options{
+			URL:     "ws://" + hubAddr,
+			Header:  header,
+			Handler: peerMux,
+			Version: name,
+			Logger:  logger,
+		})
 	}()
-
-	return nil
 }
 
 func getThroughTunnel(ctx context.Context, r *hub.Registry, peer string) (string, error) {
@@ -192,28 +165,6 @@ func getThroughTunnel(ctx context.Context, r *hub.Registry, peer string) (string
 	body, _ := io.ReadAll(resp.Body)
 
 	return string(body), nil
-}
-
-func bearerUnary(token string) grpc.UnaryClientInterceptor {
-	return func(
-		ctx context.Context, method string, req, reply any,
-		cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption,
-	) error {
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
-
-		return invoker(ctx, method, req, reply, cc, opts...)
-	}
-}
-
-func bearerStream(token string) grpc.StreamClientInterceptor {
-	return func(
-		ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn,
-		method string, streamer grpc.Streamer, opts ...grpc.CallOption,
-	) (grpc.ClientStream, error) {
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
-
-		return streamer(ctx, desc, cc, method, opts...)
-	}
 }
 
 func waitAttached(ctx context.Context, r *hub.Registry, peer string) error {

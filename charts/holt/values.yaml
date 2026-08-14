@@ -23,10 +23,11 @@ hub:
   # Public tunnel URL stamped into join tokens (what peers dial). The
   # pod binds 0.0.0.0, which peers cannot dial, so set this to the
   # reachable URL. The scheme picks the peer transport:
-  # "https://holt.example.com" dials TLS through a TLS edge (ingress,
-  # LoadBalancer with TLS, or Cloudflare, verified with the system
-  # roots), "http://192.168.8.193:7000" dials plaintext h2c to a bare
-  # LoadBalancer IP. Empty falls back to http://<bind address>.
+  # "wss://holt.example.com" dials TLS under the WebSocket through a
+  # TLS edge (ingress, LoadBalancer with TLS, or Cloudflare, verified
+  # with the system roots), "ws://192.168.8.193:7000" dials plaintext
+  # to a bare LoadBalancer IP (https/http accepted as aliases). Empty
+  # falls back to ws://<bind address>.
   advertiseAddr: ""
   # Log level (debug, info, warn, error). Logs are always JSON here;
   # this is a server.
@@ -90,9 +91,10 @@ metrics:
 service:
   # Tunnel listener: peers dial this from OUTSIDE the cluster, so it
   # usually needs to be reachable publicly (a LoadBalancer or an
-  # ingress). The listener is plaintext h2c; transport encryption is
-  # the deployment's job, so terminate TLS at a LoadBalancer, ingress,
-  # or Cloudflare edge in front and advertise its https:// URL.
+  # ingress). The listener is a plaintext WebSocket endpoint;
+  # transport encryption is the deployment's job, so terminate TLS at
+  # a LoadBalancer, ingress, or Cloudflare edge in front and advertise
+  # its wss:// URL.
   tunnel:
     type: LoadBalancer
     port: 7000
@@ -120,12 +122,12 @@ service:
 #
 # The tunnel ingress is different: that listener is JWT-authenticated
 # and exists to be dialed from outside, so exposing it is the point.
-# The edge MUST speak HTTP/2 to the origin (the tunnel is gRPC over
-# h2c; an HTTP/1.1 origin connection breaks attaches) — e.g. the
-# cloudflare-tunnel ingress class needs the annotation
-# cloudflare-tunnel-ingress-controller.strrl.dev/http2-origin: "true".
-# When enabled, its host is advertised to peers automatically unless
-# hub.advertiseAddr overrides it.
+# The tunnel is a WebSocket, so any edge forwarding plain HTTP/1.1
+# upgrades carries it (Cloudflare public hostnames included). Do NOT
+# enable an HTTP/2-to-origin setting on this hostname (e.g. the
+# cloudflare-tunnel http2-origin annotation); an HTTP/2 origin
+# connection breaks the upgrade. When enabled, its host is advertised
+# to peers automatically unless hub.advertiseAddr overrides it.
 #
 # Each listener takes a `path` (default "/", pathType Prefix), so all
 # three can share one hostname split by path.
