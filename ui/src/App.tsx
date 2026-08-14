@@ -45,11 +45,13 @@ function useHubConfig() {
 		routeHeader: string;
 		proxyPort: string;
 		externalURL: string;
+		tunnelURL: string;
 		metricsPort: string;
 	}>({
 		routeHeader: "x-tunnel-peer",
 		proxyPort: "7002",
 		externalURL: "",
+		tunnelURL: "",
 		metricsPort: "",
 	});
 	useEffect(() => {
@@ -66,7 +68,7 @@ export function App() {
 	const config = useHubConfig();
 	const [callPeer, setCallPeer] = useState<string | null>(null);
 
-	const { data, error, isLoading, dataUpdatedAt } = useQuery(listTunnels, {});
+	const { data, error, isLoading } = useQuery(listTunnels, {});
 
 	// While the stream is live the tunnel list is maintained client
 	// side from its events (zero ListTunnels per change); the query is
@@ -126,9 +128,8 @@ export function App() {
 					</a>
 					<StatusMenu
 						error={error}
-						live={live}
-						metricsPort={config.metricsPort}
-						updatedAt={live ? stream.lastEventAt : dataUpdatedAt}
+						proxyURL={config.externalURL || `http://${window.location.hostname}:${config.proxyPort}`}
+						tunnelURL={config.tunnelURL}
 					/>
 				</div>
 			</header>

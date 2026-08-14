@@ -665,6 +665,7 @@ func (h *Hub) mountConsole(mux *http.ServeMux, registry *hub.Registry, secrets *
 			"routeHeader": routeHeader,
 			"proxyPort":   portOf(h.ProxyAddr),
 			"externalURL": strings.TrimRight(h.ExternalURL, "/"),
+			"tunnelURL":   h.advertiseURL(),
 			"metricsPort": h.metricsPortForConfig(),
 		})
 	})
