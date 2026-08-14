@@ -1,6 +1,7 @@
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+	Activity,
 	Ban,
 	Beer,
 	Check,
@@ -27,7 +28,8 @@ import { useLiveTunnels } from "@/lib/use-tunnel-stream";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { blockPeer, listBlocked, listTunnels, stopTunnel, unblockPeer } from "@/gen/v1/admin-Admin_connectquery";
+import { blockPeer, info, listBlocked, listTunnels, stopTunnel, unblockPeer } from "@/gen/v1/admin-Admin_connectquery";
+import type { TunnelActivity } from "@/lib/use-tunnel-stream";
 
 // Proper connect-query keys: the v2 key shape is ["connect-query",
 // {...}], so hand-written ["Service", "Method"] arrays match nothing
@@ -67,8 +69,19 @@ export function App() {
 	const queryClient = useQueryClient();
 	const config = useHubConfig();
 	const [callPeer, setCallPeer] = useState<string | null>(null);
+	const [confirmBlock, setConfirmBlock] = useState<string | null>(null);
 
 	const { data, error, isLoading } = useQuery(listTunnels, {});
+	const { data: hubInfo } = useQuery(info, {});
+	const hubMinor = hubInfo ? minorVersion(hubInfo.version) : null;
+
+	// The uptime column is a duration, so it drifts even when nothing
+	// happens; a slow tick keeps it honest without event traffic.
+	const [, setUptimeTick] = useState(0);
+	useEffect(() => {
+		const t = setInterval(() => setUptimeTick((n) => n + 1), 30_000);
+		return () => clearInterval(t);
+	}, []);
 
 	// While the stream is live the tunnel list is maintained client
 	// side from its events (zero ListTunnels per change); the query is
@@ -164,8 +177,12 @@ export function App() {
 						) : isLoading ? (
 							<p className="py-8 text-center text-muted-foreground text-sm">loading…</p>
 						) : tunnels.length === 0 ? (
-							<div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-muted-foreground text-sm">
-								no peers attached
+							<div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12 text-muted-foreground text-sm">
+								<span>no peers attached</span>
+								<span>mint a token above, then on the machine to expose:</span>
+								<code className="rounded-md border bg-muted/50 px-3 py-1 font-mono text-xs">
+									holt expose localhost:3000 --token &lt;paste&gt;
+								</code>
 							</div>
 						) : (
 							<Table>
@@ -179,46 +196,80 @@ export function App() {
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{tunnels.map((t) => (
-										<TableRow key={t.peer}>
-											<TableCell className="font-mono font-medium">{t.peer}</TableCell>
-											<TableCell>
-												<StatusBadge status="attached" />
-											</TableCell>
-											<TableCell className="text-muted-foreground">{t.peerVersion || "—"}</TableCell>
-											<TableCell className="text-muted-foreground">
-												{t.attachedAtUnix
-													? new Date(Number(t.attachedAtUnix) * 1000).toLocaleTimeString()
-													: "—"}
-											</TableCell>
-											<TableCell className="text-right">
-												<div className="inline-flex items-center gap-1.5">
-													<Button size="sm" variant="outline" onClick={() => setCallPeer(t.peer)}>
-														<Terminal className="h-3.5 w-3.5" /> Call
-													</Button>
-													<Button
-														size="sm"
-														variant="outline"
-														onClick={() => kill.mutate({ peer: t.peer })}
+									{tunnels.map((t) => {
+										const peerMinor = minorVersion(t.peerVersion || "");
+										const skewed = Boolean(hubMinor && peerMinor && hubMinor !== peerMinor);
+										return (
+											<TableRow key={t.peer}>
+												<TableCell className="font-mono font-medium">{t.peer}</TableCell>
+												<TableCell>
+													<StatusBadge status="attached" />
+												</TableCell>
+												<TableCell className={skewed ? "text-amber-500" : "text-muted-foreground"}>
+													<span
+														title={
+															skewed
+																? `peer built for ${peerMinor}, hub is ${hubMinor}; consider upgrading the peer`
+																: undefined
+														}
 													>
-														<X className="h-3.5 w-3.5" /> Kill
-													</Button>
-													<Button
-														size="sm"
-														variant="destructive"
-														onClick={() => block.mutate({ peer: t.peer })}
-													>
-														<Ban className="h-3.5 w-3.5" /> Block
-													</Button>
-												</div>
-											</TableCell>
-										</TableRow>
-									))}
+														{t.peerVersion || "—"}
+													</span>
+												</TableCell>
+												<TableCell className="text-muted-foreground">
+													{t.attachedAtUnix ? (
+														<span title={new Date(Number(t.attachedAtUnix) * 1000).toLocaleString()}>
+															{formatUptime(t.attachedAtUnix)}
+														</span>
+													) : (
+														"—"
+													)}
+												</TableCell>
+												<TableCell className="text-right">
+													{confirmBlock === t.peer ? (
+														<div className="inline-flex items-center gap-1.5">
+															<Button
+																size="sm"
+																variant="destructive"
+																onClick={() => {
+																	block.mutate({ peer: t.peer });
+																	setConfirmBlock(null);
+																}}
+															>
+																<Ban className="h-3.5 w-3.5" /> Confirm block
+															</Button>
+															<Button size="sm" variant="secondary" onClick={() => setConfirmBlock(null)}>
+																Cancel
+															</Button>
+														</div>
+													) : (
+														<div className="inline-flex items-center gap-1.5">
+															<Button size="sm" variant="outline" onClick={() => setCallPeer(t.peer)}>
+																<Terminal className="h-3.5 w-3.5" /> Call
+															</Button>
+															<Button
+																size="sm"
+																variant="outline"
+																onClick={() => kill.mutate({ peer: t.peer })}
+															>
+																<X className="h-3.5 w-3.5" /> Kill
+															</Button>
+															<Button size="sm" variant="destructive" onClick={() => setConfirmBlock(t.peer)}>
+																<Ban className="h-3.5 w-3.5" /> Block
+															</Button>
+														</div>
+													)}
+												</TableCell>
+											</TableRow>
+										);
+									})}
 								</TableBody>
 							</Table>
 						)}
 					</CardContent>
 				</Card>
+
+				<ActivityCard activity={stream.activity} />
 
 				<BlockedCard onUnblock={(peer) => unblock.mutate({ peer })} />
 
@@ -496,6 +547,68 @@ function EnrollCard() {
 			</CardContent>
 		</Card>
 	);
+}
+
+// ActivityCard lists the attaches and detaches seen by this browser's
+// WatchTunnels subscription, newest first. Detaches carry the reason
+// the hub sent (superseded, connection-lost, an operator kill), which
+// is the answer to "why did my peer drop?" that the table alone
+// cannot give: a detached peer simply vanishes from it.
+function ActivityCard({ activity }: { activity: TunnelActivity[] }) {
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2">
+					<Activity className="h-4 w-4" /> Recent activity
+					<span className="font-normal text-muted-foreground text-sm">this session</span>
+				</CardTitle>
+			</CardHeader>
+			<CardContent>
+				{activity.length === 0 ? (
+					<div className="flex items-center justify-center rounded-lg border border-dashed py-8 text-muted-foreground text-sm">
+						attaches and detaches will appear here as they happen
+					</div>
+				) : (
+					<ul className="flex max-h-64 flex-col gap-1.5 overflow-auto text-sm">
+						{activity.map((a) => (
+							<li className="flex items-baseline gap-3" key={`${a.at}-${a.kind}-${a.peer}`}>
+								<span className="shrink-0 font-mono text-muted-foreground text-xs">
+									{new Date(a.at).toLocaleTimeString()}
+								</span>
+								<span className={a.kind === "attached" ? "text-emerald-500" : "text-red-500"}>
+									{a.kind}
+								</span>
+								<span className="font-mono">{a.peer}</span>
+								{a.reason && <span className="truncate text-muted-foreground">{a.reason}</span>}
+							</li>
+						))}
+					</ul>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+// formatUptime renders the time since a unix-seconds attach as a
+// compact age ("14m", "2h 14m", "3d 4h").
+function formatUptime(attachedAtUnix: bigint) {
+	const s = Math.max(0, Math.floor(Date.now() / 1000 - Number(attachedAtUnix)));
+	const d = Math.floor(s / 86400);
+	const h = Math.floor((s % 86400) / 3600);
+	const m = Math.floor((s % 3600) / 60);
+	if (d > 0) return `${d}d ${h}h`;
+	if (h > 0) return `${h}h ${m}m`;
+	if (m > 0) return `${m}m`;
+	return `${s}s`;
+}
+
+// minorVersion extracts "major.minor" from a version-ish string
+// ("0.15.0", "v0.15.0-dirty", "holt-expose v0.15.0"), or null when
+// there is nothing parseable, so free-form peer versions never
+// produce a false skew warning.
+function minorVersion(s: string): string | null {
+	const m = s.match(/v?(\d+\.\d+)(?:\.\d+)?/);
+	return m ? m[1] : null;
 }
 
 // CopyField shows a labelled, copyable mono value in the openotters

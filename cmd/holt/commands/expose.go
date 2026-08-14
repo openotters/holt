@@ -30,7 +30,7 @@ type Expose struct {
 
 // Run attaches to the hub and serves the reverse proxy until the
 // context is cancelled (Ctrl-C) or the hub sends a terminal GoAway.
-func (e *Expose) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out *style.Output) error {
+func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, out *style.Output) error {
 	logger = logger.Named("expose")
 
 	jt, err := token.Decode(e.Token)
@@ -64,11 +64,13 @@ func (e *Expose) Run(ctx context.Context, _ *c.Commons, logger *zap.Logger, out 
 		return err
 	}
 
+	// The build version rides along so the console can flag peers
+	// lagging behind the hub (plain "holt-expose" told it nothing).
 	err = dial.Run(ctx, dial.Options{
 		URL:     wsURL,
 		Header:  header,
 		Handler: proxy,
-		Version: "holt-expose",
+		Version: "holt-expose " + commons.Version.Version(),
 		Logger:  logger,
 	})
 
