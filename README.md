@@ -51,7 +51,7 @@ Then reach the peer *through* the hub:
 curl -H 'x-tunnel-peer: web' http://127.0.0.1:7002/
 ```
 
-Drop `--peer` and it enrolls under a generated name (`cosy-eddy`); from another
+Drop `--peer` and it enrolls under a generated name (`cosy-eddy-aec23e`); from another
 machine, point it at the hub with `--admin-url` or a `--profile`. For
 a long-lived peer, mint the token once with `holt enroll web` and pass
 it with `--token`.

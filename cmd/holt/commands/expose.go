@@ -153,10 +153,10 @@ func (e *Expose) resolveToken(ctx context.Context) (string, bool, error) {
 
 	peer := e.Peer
 	if peer == "" {
-		// Attaching under a name already in use evicts that peer, so
-		// the draw is made against the hub's live tunnels rather than
-		// trusted to be free.
-		generated, err := peername.Unique(e.attachedPeers(ctx))
+		// The name carries its own uniqueness (a random suffix), so
+		// exposing never needs to read the hub's other tunnels — a
+		// client may not be allowed to, and should not have to be.
+		generated, err := peername.Random()
 		if err != nil {
 			return "", false, err
 		}
@@ -177,32 +177,6 @@ func (e *Expose) resolveToken(ctx context.Context) (string, bool, error) {
 // defaultTokenTTL matches the hub's own default; it only applies when
 // expose mints locally, since a remote hub uses its own --token-ttl.
 const defaultTokenTTL = 24 * time.Hour
-
-// attachedPeers is the set of peer ids with a live tunnel, so a
-// generated name does not land on one and evict it. Best effort: a
-// hub that cannot be asked yields nil, and the name is then simply a
-// fresh draw.
-func (e *Expose) attachedPeers(ctx context.Context) map[string]bool {
-	client, err := e.client()
-	if err != nil {
-		return nil
-	}
-
-	listCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	resp, err := client.ListTunnels(listCtx, connect.NewRequest(&holtv1.ListTunnelsRequest{}))
-	if err != nil {
-		return nil
-	}
-
-	taken := make(map[string]bool, len(resp.Msg.GetTunnels()))
-	for _, t := range resp.Msg.GetTunnels() {
-		taken[t.GetPeer()] = true
-	}
-
-	return taken
-}
 
 // peerURL asks the hub how it routes, and returns this peer's own
 // hostname when the answer is by subdomain. Best effort: any failure

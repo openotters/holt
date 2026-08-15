@@ -6,15 +6,19 @@ import (
 	"math/big"
 )
 
-// Random names are two words joined by a dash, which reads and types
-// better than a UUID and is still a valid DNS label:
+// Random names are two words and a short random suffix, joined by
+// dashes, which reads and types better than a UUID and is still a
+// valid DNS label:
 //
-//	brisk-otter, amber-heron, quiet-willow
+//	cosy-eddy-aec23e, brisk-otter-1f04b9, amber-heron-77c3d1
 //
 // The words are river-and-woodland themed, a holt being an otter's
-// den. Roughly 4,000 combinations, so a name is picked against the
-// hub's live tunnels rather than trusted to be free (see Unique):
-// attaching under a name already in use would evict that peer.
+// den. The suffix is what carries uniqueness: 24 bits over roughly
+// four thousand word pairs, so a name is free to be generated
+// without asking the hub whether it is taken. That matters because
+// attaching under a name already in use evicts that peer, and a
+// client should not have to enumerate other people's tunnels (which
+// it may not be allowed to do) just to pick a safe name for its own.
 var (
 	adjectives = []string{
 		"agile", "amber", "ancient", "autumn", "bold", "brave", "brisk", "calm",
@@ -39,14 +43,14 @@ var (
 	}
 )
 
-// uniqueAttempts bounds the retries before falling back to a suffix.
-// With a few thousand combinations and a handful of live peers, one
-// draw almost always lands free; the fallback is for a busy hub (or
-// one that could not be asked).
-const uniqueAttempts = 12
+// suffixBytes is the random tail, in bytes: 3 gives six hex
+// characters, 24 bits. Across the word pairs that is far more room
+// than a hub will ever hold peers, and it keeps the whole name short
+// enough to say out loud.
+const suffixBytes = 3
 
-// Random returns a two-word name like "brisk-otter". It is always a
-// valid peer name.
+// Random returns a name like "cosy-eddy-aec23e". It is always a valid
+// peer name, and unique in practice without consulting the hub.
 func Random() (string, error) {
 	adjective, err := pick(adjectives)
 	if err != nil {
@@ -58,37 +62,12 @@ func Random() (string, error) {
 		return "", err
 	}
 
-	return adjective + "-" + noun, nil
-}
-
-// Unique returns a name that is not in taken. A nil or empty map
-// means nothing is known to be taken, in which case the first draw is
-// returned. After uniqueAttempts collisions it appends a short random
-// suffix ("brisk-otter-a3f1"), which always terminates and stays a
-// valid label.
-func Unique(taken map[string]bool) (string, error) {
-	for range uniqueAttempts {
-		name, err := Random()
-		if err != nil {
-			return "", err
-		}
-
-		if !taken[name] {
-			return name, nil
-		}
-	}
-
-	name, err := Random()
-	if err != nil {
-		return "", err
-	}
-
 	suffix, err := randomHex()
 	if err != nil {
 		return "", err
 	}
 
-	return name + "-" + suffix, nil
+	return adjective + "-" + noun + "-" + suffix, nil
 }
 
 // pick chooses one element with crypto/rand, so names are not
@@ -102,9 +81,9 @@ func pick(list []string) (string, error) {
 	return list[n.Int64()], nil
 }
 
-// randomHex is four hex characters, the collision fallback's suffix.
+// randomHex is the name's unique tail.
 func randomHex() (string, error) {
-	var b [2]byte
+	var b [suffixBytes]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", fmt.Errorf("generating a peer name: %w", err)
 	}
