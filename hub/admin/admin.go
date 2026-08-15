@@ -46,6 +46,12 @@ type HubInfo struct {
 	MetricsAddr   string // empty when metrics are off
 	ExternalURL   string
 	TokenTTL      time.Duration
+	// ProxyRouting is how the proxy picks the target peer: "header",
+	// "subdomain", or "both". ProxyDomain is the base domain the
+	// subdomain strategies match (<peer>.<domain>), empty when
+	// subdomain routing is off.
+	ProxyRouting string
+	ProxyDomain  string
 }
 
 // Service implements holtv1connect.AdminHandler against a Registry.
@@ -253,5 +259,7 @@ func (s *Service) Info(
 		MetricsAddr:     s.info.MetricsAddr,
 		ExternalUrl:     s.info.ExternalURL,
 		TokenTtlSeconds: int64(s.info.TokenTTL / time.Second),
+		ProxyRouting:    s.info.ProxyRouting,
+		ProxyDomain:     s.info.ProxyDomain,
 	}), nil
 }

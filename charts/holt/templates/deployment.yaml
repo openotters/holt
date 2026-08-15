@@ -65,7 +65,16 @@ spec:
             {{- if .Values.hub.externalURL }}
             - --external-url={{ .Values.hub.externalURL }}
             {{- else if .Values.ingress.proxy.enabled }}
-            - --external-url=https://{{ required "ingress.proxy.host is required when ingress.proxy.enabled" .Values.ingress.proxy.host }}
+            {{- $proxyHost := required "ingress.proxy.host is required when ingress.proxy.enabled" .Values.ingress.proxy.host }}
+            {{- /* A wildcard host (subdomain routing) is not a URL; the
+                   console shows the per-peer hostname there instead. */}}
+            {{- if not (hasPrefix "*" $proxyHost) }}
+            - --external-url=https://{{ $proxyHost }}
+            {{- end }}
+            {{- end }}
+            {{- if ne .Values.hub.proxyRouting "header" }}
+            - --proxy-routing={{ .Values.hub.proxyRouting }}
+            - --proxy-domain={{ required "hub.proxyDomain is required when hub.proxyRouting is subdomain or both" .Values.hub.proxyDomain }}
             {{- end }}
             {{- if .Values.metrics.enabled }}
             - --metrics

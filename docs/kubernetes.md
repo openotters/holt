@@ -133,6 +133,30 @@ With `cnpg.enabled` the chart creates a `Cluster` named
 Tune the rest of the Cluster spec (backups, parameters, image) through
 `postgres.cnpg.extraSpec`, merged verbatim.
 
+## Subdomain routing
+
+By default the proxy routes on the `x-tunnel-peer` header. Give every
+peer its own hostname instead (so browsers, webhooks, and anything
+else that only takes a URL can reach it) with:
+
+```yaml
+hub:
+  proxyRouting: both          # header, subdomain, or both
+  proxyDomain: peers.example.com
+
+ingress:
+  proxy:
+    enabled: true
+    host: "*.peers.example.com"   # wildcard record + wildcard cert
+```
+
+`subdomain` and `both` require `hub.proxyDomain`; the chart fails the
+render otherwise. With a wildcard proxy ingress host the chart skips
+the auto-derived `--external-url` (a wildcard is not a URL) and the
+console shows each peer's own hostname in its Call command instead.
+Cloudflare's universal certificate covers one wildcard level, so
+`*.peers.example.com` works but `*.a.peers.example.com` does not.
+
 ## Metrics
 
 ```yaml

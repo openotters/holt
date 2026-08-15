@@ -67,8 +67,14 @@ func infoBanner(endpoint string, m *holtv1.InfoResponse) string {
 
 	rows = append(rows, style.BannerRow{
 		Key: "proxy", Value: m.GetProxyAddr(),
-		Hint: fmt.Sprintf("reach peers via the %s header", m.GetRouteHeader()),
+		Hint: routingHint(m.GetProxyRouting(), m.GetProxyDomain(), m.GetRouteHeader()),
 	})
+
+	if d := m.GetProxyDomain(); d != "" {
+		rows = append(rows, style.BannerRow{
+			Key: "peer domain", Value: "<peer>." + d, Hint: "subdomain routing",
+		})
+	}
 
 	if a := m.GetMetricsAddr(); a != "" {
 		rows = append(rows, style.BannerRow{Key: "metrics", Value: a + "/metrics", Hint: "prometheus"})
@@ -86,6 +92,22 @@ func infoBanner(endpoint string, m *holtv1.InfoResponse) string {
 	}
 
 	return style.Banner(heading, rows, "")
+}
+
+// routingHint describes how the hub picks the target peer. A hub
+// older than the strategy flag reports no routing, which always
+// meant the header.
+func routingHint(routing, domain, header string) string {
+	byHeader := fmt.Sprintf("reach peers via the %s header", header)
+
+	switch routing {
+	case routingSubdomain:
+		return "reach peers via <peer>." + domain
+	case routingBoth:
+		return byHeader + ", or <peer>." + domain
+	default:
+		return byHeader
+	}
 }
 
 // shortCommit trims a commit hash to the first 7 characters.

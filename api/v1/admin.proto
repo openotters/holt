@@ -114,4 +114,11 @@ message InfoResponse {
   string metrics_addr      = 8;  // empty when metrics are off
   string external_url      = 9;  // public proxy URL, if set
   int64  token_ttl_seconds = 10; // lifetime of minted tokens
+  // How the proxy picks the target peer: "header", "subdomain", or
+  // "both". Empty from a hub older than the strategy flag, which
+  // always meant header.
+  string proxy_routing     = 11;
+  // Base domain for subdomain routing (<peer>.<domain>), empty when
+  // subdomain routing is off.
+  string proxy_domain      = 12;
 }

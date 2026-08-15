@@ -43,6 +43,62 @@ import (
 
 const routeHeader = "x-tunnel-peer"
 
+// Proxy routing strategies (--proxy-routing).
+const (
+	routingHeader    = "header"
+	routingSubdomain = "subdomain"
+	routingBoth      = "both"
+)
+
+// peerResolver maps an inbound proxy request to the peer it targets.
+// The header strategy reads x-tunnel-peer; the subdomain strategy
+// takes the label(s) in front of a base domain, so
+// alice.peers.example.com targets "alice". With both, the header
+// wins when present — it is the explicit signal.
+type peerResolver struct {
+	header bool
+	domain string // "" disables subdomain routing
+}
+
+func newPeerResolver(routing, domain string) peerResolver {
+	return peerResolver{
+		header: routing == routingHeader || routing == routingBoth,
+		domain: strings.ToLower(strings.Trim(domain, ".")),
+	}
+}
+
+// peer returns the target peer id, or "" when the request names none
+// (a bare visit to the proxy, or a host outside the base domain).
+func (pr peerResolver) peer(r *http.Request) string {
+	if pr.header {
+		if peer := r.Header.Get(routeHeader); peer != "" {
+			return peer
+		}
+	}
+
+	if pr.domain == "" {
+		return ""
+	}
+
+	// Host carries the authority as sent; strip the port and the DNS
+	// root dot, and lowercase it (hostnames are case-insensitive,
+	// peer ids are not, so subdomain routing only reaches lowercase
+	// peer ids).
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+
+	suffix := "." + pr.domain
+	if !strings.HasSuffix(host, suffix) {
+		return ""
+	}
+
+	return strings.TrimSuffix(host, suffix)
+}
+
 type peerCtxKey struct{}
 
 // secretState holds the hub's JWT signing secret behind an atomic
@@ -102,6 +158,13 @@ type Hub struct {
 	// operators get the externally-reachable curl, not just localhost.
 	ExternalURL string `help:"Public base URL the proxy is reachable at, shown in the console's Call command (e.g. https://peers.example.com)." name:"external-url"`
 
+	// How the proxy picks the target peer. The header works anywhere
+	// (no DNS needed); subdomain routing gives every peer its own
+	// hostname, which is what ordinary clients (browsers, webhooks,
+	// anything that only takes a URL) can actually use.
+	ProxyRouting string `help:"How the proxy picks the target peer: header (x-tunnel-peer), subdomain (<peer>.<proxy-domain>), or both." enum:"header,subdomain,both" default:"header" name:"proxy-routing"`
+	ProxyDomain  string `help:"Base domain for subdomain routing, e.g. peers.example.com (required with --proxy-routing subdomain|both)." name:"proxy-domain"`
+
 	// Prometheus metrics: the hub already records OTel instruments
 	// (holt.tunnels.active / .attaches / .detaches); this exposes them
 	// on a /metrics endpoint via an OTel Prometheus exporter.
@@ -115,6 +178,12 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 
 	if h.State == "" {
 		h.State = defaultStateDir()
+	}
+
+	// Subdomain routing without a domain to strip would match every
+	// host and route to nonsense; fail at boot, not per request.
+	if h.ProxyRouting != routingHeader && h.ProxyDomain == "" {
+		return fmt.Errorf("--proxy-routing %s needs --proxy-domain (e.g. peers.example.com)", h.ProxyRouting)
 	}
 
 	// The JWT signing secret persists as a file in the state folder,
@@ -386,8 +455,15 @@ func (h *Hub) welcomeBanner() string {
 			style.BannerRow{Key: "console", Value: "http://" + h.AdminAddr + "/", Hint: "web console"})
 	}
 
-	rows = append(rows,
-		style.BannerRow{Key: "proxy", Value: h.ProxyAddr, Hint: "reach peers: curl -H 'x-tunnel-peer: <peer>'"})
+	proxyHint := "reach peers: curl -H 'x-tunnel-peer: <peer>'"
+	if h.ProxyDomain != "" {
+		proxyHint = "reach peers: <peer>." + h.ProxyDomain
+		if h.ProxyRouting == routingBoth {
+			proxyHint += " (or the x-tunnel-peer header)"
+		}
+	}
+
+	rows = append(rows, style.BannerRow{Key: "proxy", Value: h.ProxyAddr, Hint: proxyHint})
 
 	if h.Metrics {
 		rows = append(rows,
@@ -577,6 +653,8 @@ func (h *Hub) adminInfo(commons *c.Commons) admin.HubInfo {
 		MetricsAddr:   metricsAddr,
 		ExternalURL:   strings.TrimRight(h.ExternalURL, "/"),
 		TokenTTL:      h.TokenTTL,
+		ProxyRouting:  h.ProxyRouting,
+		ProxyDomain:   h.ProxyDomain,
 	}
 }
 
@@ -662,11 +740,13 @@ func (h *Hub) mountConsole(mux *http.ServeMux, registry *hub.Registry, secrets *
 
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]string{
-			"routeHeader": routeHeader,
-			"proxyPort":   portOf(h.ProxyAddr),
-			"externalURL": strings.TrimRight(h.ExternalURL, "/"),
-			"tunnelURL":   h.advertiseURL(),
-			"metricsPort": h.metricsPortForConfig(),
+			"routeHeader":  routeHeader,
+			"proxyPort":    portOf(h.ProxyAddr),
+			"externalURL":  strings.TrimRight(h.ExternalURL, "/"),
+			"tunnelURL":    h.advertiseURL(),
+			"metricsPort":  h.metricsPortForConfig(),
+			"proxyRouting": h.ProxyRouting,
+			"proxyDomain":  h.ProxyDomain,
 		})
 	})
 
@@ -746,16 +826,22 @@ func (h *Hub) serveProxy(registry *hub.Registry, metrics *hubMetrics) (*http.Ser
 		ErrorHandler:  proxyError,
 	}
 
+	resolver := newPeerResolver(h.ProxyRouting, h.ProxyDomain)
+
 	// A bare visit (no target peer named) gets a landing page, not a
-	// proxied request, so it never turns into a 502.
+	// proxied request, so it never turns into a 502. A subdomain hit
+	// is normalised onto the header here, so everything downstream
+	// routes the one way.
 	routed := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get(routeHeader) == "" {
+		peer := resolver.peer(r)
+		if peer == "" {
 			metrics.recordProxyError(r.Context(), "no-header")
 			proxyLanding(w, r)
 
 			return
 		}
 
+		r.Header.Set(routeHeader, peer)
 		proxy.ServeHTTP(w, r)
 	})
 

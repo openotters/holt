@@ -44,6 +44,17 @@ hub:
   # "Call" command. Leave empty to auto-derive https://<proxy ingress
   # host> when the proxy ingress is enabled.
   externalURL: ""
+  # How the proxy picks the target peer:
+  #   header    the x-tunnel-peer header (default, needs no DNS)
+  #   subdomain <peer>.<proxyDomain>, so every peer gets its own
+  #             hostname that any client can use (browsers, webhooks,
+  #             anything that only takes a URL)
+  #   both      header first, subdomain as the fallback
+  # subdomain and both require proxyDomain, and a wildcard DNS record
+  # plus a wildcard certificate at the edge (set the proxy ingress
+  # host to "*.peers.example.com").
+  proxyRouting: header
+  proxyDomain: ""
 
 # Shared tunnel-presence directory in PostgreSQL (optional). Off by
 # default: presence then lives in the hub's local SQLite state. Set

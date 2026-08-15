@@ -133,6 +133,34 @@ curl -H 'x-tunnel-peer: alice' http://localhost:7002/
 
 Whatever the peer serves over the tunnel is reachable this way.
 
+### Routing strategies
+
+The header works everywhere and needs no DNS, but only a client you
+control can set it. `--proxy-routing` picks how the proxy resolves the
+target peer:
+
+| Strategy | Peer is named by | Needs |
+|---|---|---|
+| `header` (default) | `x-tunnel-peer: alice` | nothing |
+| `subdomain` | `alice.peers.example.com` | `--proxy-domain`, wildcard DNS + cert |
+| `both` | either, header wins | same as subdomain |
+
+```sh
+holt hub --proxy-routing both --proxy-domain peers.example.com
+curl https://alice.peers.example.com/     # no header needed
+```
+
+Subdomain routing is what makes a tunneled service reachable by
+anything that only takes a **URL**: a browser, a webhook sender, an
+OAuth callback, a DoH client. Point a wildcard record
+(`*.peers.example.com`) at the proxy and terminate a wildcard
+certificate at your edge.
+
+Two details worth knowing: hostnames are case-insensitive while peer
+ids are not, so subdomain routing only reaches **lowercase** peer ids;
+and a request whose host is outside the base domain names no peer at
+all, so it gets the landing page rather than someone else's tunnel.
+
 A bare visit to the proxy (no `x-tunnel-peer` header) gets a plain swirl
 page (`400`), and naming a peer that is not attached gets a `404`, not a
 `502`, so a proxy in front of the hub (Cloudflare, etc.) does not turn a

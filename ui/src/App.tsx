@@ -49,12 +49,16 @@ function useHubConfig() {
 		externalURL: string;
 		tunnelURL: string;
 		metricsPort: string;
+		proxyRouting: string;
+		proxyDomain: string;
 	}>({
 		routeHeader: "x-tunnel-peer",
 		proxyPort: "7002",
 		externalURL: "",
 		tunnelURL: "",
 		metricsPort: "",
+		proxyRouting: "header",
+		proxyDomain: "",
 	});
 	useEffect(() => {
 		fetch("/api/config")
@@ -288,6 +292,8 @@ export function App() {
 					routeHeader={config.routeHeader}
 					proxyPort={config.proxyPort}
 					externalURL={config.externalURL}
+					proxyDomain={config.proxyDomain}
+					proxyRouting={config.proxyRouting}
 					onClose={() => setCallPeer(null)}
 				/>
 			)}
@@ -304,12 +310,16 @@ function CallPeerModal({
 	routeHeader,
 	proxyPort,
 	externalURL,
+	proxyDomain,
+	proxyRouting,
 	onClose,
 }: {
 	peer: string;
 	routeHeader: string;
 	proxyPort: string;
 	externalURL: string;
+	proxyDomain: string;
+	proxyRouting: string;
 	onClose: () => void;
 }) {
 	useEffect(() => {
@@ -321,6 +331,12 @@ function CallPeerModal({
 	const host = window.location.hostname || "127.0.0.1";
 	const curl = `curl -H '${routeHeader}: ${peer}' http://${host}:${proxyPort}/`;
 	const externalCurl = externalURL ? `curl -H '${routeHeader}: ${peer}' ${externalURL}/` : "";
+
+	// With subdomain routing the peer has its own hostname, which is
+	// the form anything that only takes a URL (a browser, a webhook)
+	// can use, so it leads.
+	const headerRouted = proxyRouting !== "subdomain";
+	const subdomainURL = proxyDomain ? `https://${peer}.${proxyDomain}/` : "";
 
 	return (
 		<div
@@ -346,20 +362,45 @@ function CallPeerModal({
 					</Button>
 				</div>
 				<p className="mb-3 text-muted-foreground text-sm">
-					Requests to the hub proxy are routed to this peer by the{" "}
-					<code className="font-mono text-xs">{routeHeader}</code> header. The peer serves whatever handler
-					it attached with.
+					{subdomainURL ? (
+						<>
+							Requests to the hub proxy are routed to this peer by its own hostname
+							{headerRouted && (
+								<>
+									, or by the <code className="font-mono text-xs">{routeHeader}</code> header
+								</>
+							)}
+							. The peer serves whatever handler it attached with.
+						</>
+					) : (
+						<>
+							Requests to the hub proxy are routed to this peer by the{" "}
+							<code className="font-mono text-xs">{routeHeader}</code> header. The peer serves whatever
+							handler it attached with.
+						</>
+					)}
 				</p>
-				{externalCurl && (
+				{subdomainURL && (
+					<div className="mb-3">
+						<CopyField label="Its own hostname (any client, no header)" value={subdomainURL} multiline />
+					</div>
+				)}
+				{headerRouted && externalCurl && (
 					<div className="mb-3">
 						<CopyField label="Through the public URL" value={externalCurl} multiline />
 					</div>
 				)}
-				<CopyField
-					label={externalCurl ? "From this host (loopback / in-cluster)" : "Reach the peer through the hub"}
-					value={curl}
-					multiline
-				/>
+				{headerRouted && (
+					<CopyField
+						label={
+							externalCurl || subdomainURL
+								? "From this host (loopback / in-cluster)"
+								: "Reach the peer through the hub"
+						}
+						value={curl}
+						multiline
+					/>
+				)}
 			</div>
 		</div>
 	);

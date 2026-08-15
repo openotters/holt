@@ -750,8 +750,15 @@ type InfoResponse struct {
 	MetricsAddr     string                 `protobuf:"bytes,8,opt,name=metrics_addr,json=metricsAddr,proto3" json:"metrics_addr,omitempty"`                 // empty when metrics are off
 	ExternalUrl     string                 `protobuf:"bytes,9,opt,name=external_url,json=externalUrl,proto3" json:"external_url,omitempty"`                 // public proxy URL, if set
 	TokenTtlSeconds int64                  `protobuf:"varint,10,opt,name=token_ttl_seconds,json=tokenTtlSeconds,proto3" json:"token_ttl_seconds,omitempty"` // lifetime of minted tokens
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// How the proxy picks the target peer: "header", "subdomain", or
+	// "both". Empty from a hub older than the strategy flag, which
+	// always meant header.
+	ProxyRouting string `protobuf:"bytes,11,opt,name=proxy_routing,json=proxyRouting,proto3" json:"proxy_routing,omitempty"`
+	// Base domain for subdomain routing (<peer>.<domain>), empty when
+	// subdomain routing is off.
+	ProxyDomain   string `protobuf:"bytes,12,opt,name=proxy_domain,json=proxyDomain,proto3" json:"proxy_domain,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *InfoResponse) Reset() {
@@ -854,6 +861,20 @@ func (x *InfoResponse) GetTokenTtlSeconds() int64 {
 	return 0
 }
 
+func (x *InfoResponse) GetProxyRouting() string {
+	if x != nil {
+		return x.ProxyRouting
+	}
+	return ""
+}
+
+func (x *InfoResponse) GetProxyDomain() string {
+	if x != nil {
+		return x.ProxyDomain
+	}
+	return ""
+}
+
 var File_v1_admin_proto protoreflect.FileDescriptor
 
 const file_v1_admin_proto_rawDesc = "" +
@@ -894,7 +915,7 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rKIND_ATTACHED\x10\x01\x12\x11\n" +
 	"\rKIND_DETACHED\x10\x02\"\r\n" +
-	"\vInfoRequest\"\xcf\x02\n" +
+	"\vInfoRequest\"\x97\x03\n" +
 	"\fInfoResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
 	"\x06commit\x18\x02 \x01(\tR\x06commit\x12\x18\n" +
@@ -907,7 +928,9 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\fmetrics_addr\x18\b \x01(\tR\vmetricsAddr\x12!\n" +
 	"\fexternal_url\x18\t \x01(\tR\vexternalUrl\x12*\n" +
 	"\x11token_ttl_seconds\x18\n" +
-	" \x01(\x03R\x0ftokenTtlSeconds2\x85\x05\n" +
+	" \x01(\x03R\x0ftokenTtlSeconds\x12#\n" +
+	"\rproxy_routing\x18\v \x01(\tR\fproxyRouting\x12!\n" +
+	"\fproxy_domain\x18\f \x01(\tR\vproxyDomain2\x85\x05\n" +
 	"\x05Admin\x12^\n" +
 	"\vListTunnels\x12&.openotters.holt.v1.ListTunnelsRequest\x1a'.openotters.holt.v1.ListTunnelsResponse\x12[\n" +
 	"\n" +

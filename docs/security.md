@@ -33,6 +33,10 @@ do expose them:
   with `--allowed-host` (repeatable; `*` disables it). The `/healthz`
   endpoint is always exempt.
 - `--max-conns` caps concurrent tunnel connections.
+- with `--proxy-routing subdomain|both`, every hostname under
+  `--proxy-domain` addresses a peer, so point that record at the proxy
+  only and keep the admin listener on a different name. A host outside
+  the base domain names no peer and gets the landing page.
 - the [Helm chart](kubernetes.md) keeps both ingresses disabled by
   default and auto-adds the admin ingress host to the guard.
 
