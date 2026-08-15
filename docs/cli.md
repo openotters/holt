@@ -149,19 +149,26 @@ Two ready-made peers consume the token:
 
   The token is optional. Without one, expose enrolls itself against
   the hub it can reach (`--admin-url` / `--profile`, or the local
-  state folder when run on the hub machine) under a random UUID, so
-  an ad-hoc tunnel is one command:
+  state folder when run on the hub machine), so an ad-hoc tunnel is
+  one command:
 
   ```sh
-  holt expose localhost:3000                  # enrolls itself
+  holt expose localhost:3000                  # enrolls as e.g. cosy-eddy
   holt expose localhost:3000 --peer docs      # …under a name you pick
   holt expose localhost:3000 --token <paste>  # …or reuse an identity
   ```
 
-  The random name avoids colliding with an existing peer (a second
-  attach for the same id evicts the first) and leaves the resulting
-  hostname unguessable where the hub routes by subdomain. Where it
-  does, the banner prints the peer's URL, reachable immediately.
+  Generated names are two words, `brisk-otter` style, drawn against
+  the hub's **live tunnels** so one never lands on an attached peer —
+  a second attach for the same id evicts the first. On a hub too busy
+  (or unreachable) to settle it, a short suffix is appended
+  (`brisk-otter-a3f1`). Where the hub routes by subdomain the banner
+  prints the peer's URL, reachable immediately.
+
+  A readable name is a guessable one: roughly four thousand
+  combinations, so where peers are exposed on public hostnames, treat
+  the name as an address rather than a secret and put authentication
+  in front of anything sensitive.
 
   A bare `host:port` is treated as `http://`. An `https://` target is
   verified against the system roots, which appliances (routers, NAS,

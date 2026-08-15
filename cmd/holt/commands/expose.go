@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -18,6 +17,7 @@ import (
 
 	holtv1 "github.com/openotters/holt/api/v1"
 
+	"github.com/openotters/holt/cmd/holt/internal/peername"
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
 	"github.com/openotters/holt/dial"
@@ -35,7 +35,7 @@ type Expose struct {
 	// hub (--admin-url / --profile, same resolution as every other
 	// command), so the common case is one command with no ceremony.
 	Token string `help:"Join token from 'holt enroll' (or set HOLT_TOKEN). Omit it to enroll automatically."`
-	Peer  string `help:"Peer name to enroll as when no token is given (default: a random UUID)."`
+	Peer  string `help:"Peer name to enroll as when no token is given (default: a generated name like brisk-otter)."`
 
 	// Local hop only: appliances (routers, NAS, IPMI) serve HTTPS with
 	// a self-signed certificate no system root will verify, which the
@@ -153,11 +153,10 @@ func (e *Expose) resolveToken(ctx context.Context) (string, bool, error) {
 
 	peer := e.Peer
 	if peer == "" {
-		// A random name keeps an ad-hoc tunnel from colliding with an
-		// existing peer (a second attach would evict it), and leaves
-		// the resulting hostname unguessable where the hub routes by
-		// subdomain.
-		generated, err := randomPeerName()
+		// Attaching under a name already in use evicts that peer, so
+		// the draw is made against the hub's live tunnels rather than
+		// trusted to be free.
+		generated, err := peername.Unique(e.attachedPeers(ctx))
 		if err != nil {
 			return "", false, err
 		}
@@ -179,18 +178,30 @@ func (e *Expose) resolveToken(ctx context.Context) (string, bool, error) {
 // expose mints locally, since a remote hub uses its own --token-ttl.
 const defaultTokenTTL = 24 * time.Hour
 
-// randomPeerName is a UUIDv4 in the usual hyphenated form, which is
-// already a valid DNS label (hex and dashes, 36 characters).
-func randomPeerName() (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", fmt.Errorf("generating a peer name: %w", err)
+// attachedPeers is the set of peer ids with a live tunnel, so a
+// generated name does not land on one and evict it. Best effort: a
+// hub that cannot be asked yields nil, and the name is then simply a
+// fresh draw.
+func (e *Expose) attachedPeers(ctx context.Context) map[string]bool {
+	client, err := e.client()
+	if err != nil {
+		return nil
 	}
 
-	b[6] = (b[6] & 0x0f) | 0x40 // version 4
-	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
+	listCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+	resp, err := client.ListTunnels(listCtx, connect.NewRequest(&holtv1.ListTunnelsRequest{}))
+	if err != nil {
+		return nil
+	}
+
+	taken := make(map[string]bool, len(resp.Msg.GetTunnels()))
+	for _, t := range resp.Msg.GetTunnels() {
+		taken[t.GetPeer()] = true
+	}
+
+	return taken
 }
 
 // peerURL asks the hub how it routes, and returns this peer's own
