@@ -23,8 +23,12 @@ curl -H 'x-tunnel-peer: myservice' http://localhost:7002/
 
 `main.go` is organised around them:
 
-1. **Decode the token** (a tiny base64+JSON struct): peer name, tunnel
-   URL, JWT.
+1. **Decode the token**: it is a JWT in compact serialization, so
+   split on `.`, base64url-decode the payload, and read `sub` (the
+   peer name) and `aud` (the tunnel URL to dial). The signature is not
+   checked here, the peer holds no key; the hub verifies it on attach.
+   Tokens minted before v0.20 were a base64 JSON envelope, which the
+   holt CLI still accepts but this starter does not.
 2. **Build your handler**, the one thing you customise.
 3. **`dial.Run`**, attach and serve, redialing automatically. The
    token's tunnel URL picks the transport (`wss` is a TLS WebSocket

@@ -109,10 +109,23 @@ holt enroll alice --admin-url https://holt.example.com
 holt enroll alice --profile prod            # same, via a profile
 ```
 
-The token bundles the peer's JWT and the hub's tunnel URL. The JWT
-authenticates the client; encryption comes from whatever fronts the hub
-(a TLS edge, ingress, or mesh), which the `wss` URL tells the peer to
-dial over, verified with the system roots.
+The token **is** the JWT, in JWS compact serialization
+(`header.payload.signature`), so any JWT tool reads it:
+
+```sh
+holt enroll alice --tunnel-url wss://holt.example.com
+# eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJob2x0LWh1YiIsInN1YiI6…
+```
+
+Its **subject** is the peer id and its **audience** is the tunnel URL
+to dial, which is everything a peer needs. The JWT authenticates the
+client; encryption comes from whatever fronts the hub (a TLS edge,
+ingress, or mesh), which the `wss` URL tells the peer to dial over,
+verified with the system roots.
+
+Tokens minted before v0.20 were a base64 JSON envelope wrapping the
+same JWT. `holt expose` still accepts those, so tokens already handed
+out keep working until they expire.
 
 ### Peer names
 

@@ -1,52 +1,125 @@
 package token_test
 
 import (
+	"encoding/base64"
 	"testing"
+	"time"
 
+	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
 	"github.com/openotters/holt/cmd/holt/internal/token"
 )
 
-func TestEncodeDecodeRoundTrip(t *testing.T) {
-	t.Parallel()
+var secret = []byte("test-secret-value-for-signing-only")
 
-	in := token.JoinToken{
-		Peer:      "alice",
-		TunnelURL: "https://holt.example.com",
-		JWT:       "a.b.c",
-	}
+// mint is what the hub hands out: the signed JWT, nothing around it.
+func mint(t *testing.T, peer, tunnelURL string) string {
+	t.Helper()
 
-	out, err := token.Decode(in.Encode())
+	tok, err := jwtauth.Issue(secret, peer, tunnelURL, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if out != in {
-		t.Fatalf("round trip: got %+v, want %+v", out, in)
+	return tok
+}
+
+func TestDecodeCompactJWS(t *testing.T) {
+	t.Parallel()
+
+	tok := mint(t, "alice", "wss://holt.example.com")
+
+	got, err := token.Decode(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.Peer != "alice" {
+		t.Fatalf("peer = %q, want alice", got.Peer)
+	}
+
+	if got.TunnelURL != "wss://holt.example.com" {
+		t.Fatalf("tunnel url = %q", got.TunnelURL)
+	}
+
+	if got.JWT != tok {
+		t.Fatalf("jwt = %q, want the token itself", got.JWT)
 	}
 }
 
-func TestDecodeRejectsIncomplete(t *testing.T) {
+// A token is one format now, so what enroll prints must be exactly
+// what the peer presents as its bearer.
+func TestDecodedJWTIsTheTokenItself(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		tok  token.JoinToken
-	}{
-		{"no url", token.JoinToken{Peer: "a", JWT: "j"}},
-		{"no jwt", token.JoinToken{Peer: "a", TunnelURL: "http://localhost:7000"}},
-		{"bad scheme", token.JoinToken{Peer: "a", TunnelURL: "ftp://localhost:7000", JWT: "j"}},
-		{"no host", token.JoinToken{Peer: "a", TunnelURL: "http://", JWT: "j"}},
+	tok := mint(t, "web", "ws://127.0.0.1:7000")
+
+	jt, err := token.Decode(tok)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	if jt.JWT != tok {
+		t.Fatal("the presented credential differs from the token")
+	}
+}
+
+// Tokens minted before v0.20 were a base64 JSON envelope; they must
+// keep working so an upgrade does not strand tokens already handed
+// out.
+func TestDecodeLegacyEnvelope(t *testing.T) {
+	t.Parallel()
+
+	inner := mint(t, "legacy-peer", "wss://old.example.com")
+	envelope := `{"peer":"legacy-peer","tunnel_url":"https://old.example.com","jwt":"` + inner + `"}`
+	legacy := base64.StdEncoding.EncodeToString([]byte(envelope))
+
+	got, err := token.Decode(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.Peer != "legacy-peer" {
+		t.Fatalf("peer = %q", got.Peer)
+	}
+
+	// The envelope's URL wins for a legacy token: it is what that
+	// format carried.
+	if got.TunnelURL != "https://old.example.com" {
+		t.Fatalf("tunnel url = %q", got.TunnelURL)
+	}
+
+	if got.JWT != inner {
+		t.Fatal("legacy token must present its inner jwt")
+	}
+}
+
+func TestDecodeRejects(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"empty":             "",
+		"garbage":           "not-a-token",
+		"jwt without aud":   mintNoAudience(t),
+		"bad scheme":        mint(t, "a", "ftp://holt.example.com"),
+		"no host":           mint(t, "a", "wss://"),
+		"legacy incomplete": base64.StdEncoding.EncodeToString([]byte(`{"peer":"a"}`)),
+	}
+
+	for name, tok := range cases {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := token.Decode(tc.tok.Encode()); err == nil {
-				t.Fatalf("expected Decode to reject %s", tc.name)
+			if _, err := token.Decode(tok); err == nil {
+				t.Fatalf("expected Decode to reject %s", name)
 			}
 		})
 	}
+}
+
+func mintNoAudience(t *testing.T) string {
+	t.Helper()
+
+	return mint(t, "a", "")
 }
 
 func TestWSURL(t *testing.T) {

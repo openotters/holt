@@ -13,13 +13,18 @@ import (
 
 const issuer = "holt-hub"
 
-// Issue mints a signed JWT for peer, valid for ttl.
-func Issue(secret []byte, peer string, ttl time.Duration) (string, error) {
+// Issue mints a signed JWT for peer, valid for ttl. tunnelURL is
+// carried in the audience claim: it is the hub the token is for, and
+// the peer reads it (unverified, it holds no key) to know where to
+// dial. That makes the signed token the whole join token, with no
+// envelope around it.
+func Issue(secret []byte, peer, tunnelURL string, ttl time.Duration) (string, error) {
 	now := time.Now()
 
 	claims := jwt.RegisteredClaims{
 		Issuer:    issuer,
 		Subject:   peer,
+		Audience:  jwt.ClaimStrings{tunnelURL},
 		IssuedAt:  jwt.NewNumericDate(now),
 		ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 	}

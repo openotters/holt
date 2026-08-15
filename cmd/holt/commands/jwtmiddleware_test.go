@@ -45,7 +45,7 @@ func TestJWTMiddleware_RejectsUnroutablePeerName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			jwt, err := jwtauth.Issue(secret, tc.peer, time.Hour)
+			jwt, err := jwtauth.Issue(secret, tc.peer, "ws://127.0.0.1:7000", time.Hour)
 			if err != nil {
 				t.Fatal(err)
 			}

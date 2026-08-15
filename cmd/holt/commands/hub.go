@@ -35,7 +35,6 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/peername"
 	"github.com/openotters/holt/cmd/holt/internal/store"
 	"github.com/openotters/holt/cmd/holt/internal/style"
-	"github.com/openotters/holt/cmd/holt/internal/token"
 	"github.com/openotters/holt/cmd/holt/internal/webui"
 	"github.com/openotters/holt/hub"
 	"github.com/openotters/holt/hub/admin"
@@ -1006,16 +1005,12 @@ const proxyPageHTML = `<!doctype html><html lang="en"><head><meta charset="utf-8
 	`background:#0b0f14;font-size:4rem;line-height:1}` +
 	`</style></head><body>🌀</body></html>`
 
-// mintToken issues a JWT for peer and packages a join token — the same
-// token `holt enroll` prints, but minted server-side for the
-// console's enroll button.
+// mintToken issues the join token — the same token `holt enroll`
+// prints, but minted server-side for the console's enroll button. The
+// signed JWT is the token: peer in the subject, tunnel URL in the
+// audience.
 func mintToken(secret []byte, tunnelURL, peer string, ttl time.Duration) (string, error) {
-	jwtStr, err := jwtauth.Issue(secret, peer, ttl)
-	if err != nil {
-		return "", err
-	}
-
-	return token.JoinToken{Peer: peer, TunnelURL: tunnelURL, JWT: jwtStr}.Encode(), nil
+	return jwtauth.Issue(secret, peer, tunnelURL, ttl)
 }
 
 func newH2CServer(handler http.Handler) *http.Server {

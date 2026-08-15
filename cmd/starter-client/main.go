@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"go.uber.org/zap"
@@ -37,12 +38,15 @@ import (
 	"github.com/openotters/holt/dial"
 )
 
-// joinToken mirrors what `holt enroll` prints: the hub's tunnel URL and
-// the peer's JWT. Kept inline so this starter has no internal imports.
+// joinToken is what `holt enroll` prints: a JWT in compact
+// serialization (header.payload.signature). Its subject is the peer
+// name and its audience is the hub's tunnel URL, so the token needs
+// no envelope, and the token itself is the credential the peer
+// presents. Decoded inline so this starter has no internal imports.
 type joinToken struct {
-	Peer      string `json:"peer"`
-	TunnelURL string `json:"tunnel_url"`
-	JWT       string `json:"jwt"`
+	Peer      string // JWT "sub"
+	TunnelURL string // JWT "aud"
+	JWT       string // the token itself
 }
 
 func main() {
@@ -98,16 +102,50 @@ func run(rawToken string) error {
 	})
 }
 
+// decodeToken reads the JWT's claims WITHOUT verifying the signature:
+// the peer holds no key, and the hub is the one that checks it on
+// attach. Only the middle segment (the payload) is needed.
 func decodeToken(s string) (joinToken, error) {
-	raw, err := base64.StdEncoding.DecodeString(s)
-	if err != nil {
-		return joinToken{}, fmt.Errorf("token is not valid base64: %w", err)
+	parts := strings.Split(strings.TrimSpace(s), ".")
+	if len(parts) != 3 {
+		return joinToken{}, fmt.Errorf("token is not a JWT (want header.payload.signature)")
 	}
 
-	var jt joinToken
-	if unmarshalErr := json.Unmarshal(raw, &jt); unmarshalErr != nil {
+	// JWT segments are base64url without padding.
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return joinToken{}, fmt.Errorf("token payload is not valid base64url: %w", err)
+	}
+
+	var claims struct {
+		Subject  string `json:"sub"`
+		Audience any    `json:"aud"` // a string, or an array of them
+	}
+	if unmarshalErr := json.Unmarshal(payload, &claims); unmarshalErr != nil {
 		return joinToken{}, fmt.Errorf("token payload is invalid: %w", unmarshalErr)
 	}
 
+	jt := joinToken{Peer: claims.Subject, TunnelURL: audience(claims.Audience), JWT: strings.TrimSpace(s)}
+	if jt.Peer == "" || jt.TunnelURL == "" {
+		return joinToken{}, fmt.Errorf("token is missing its subject or audience; re-enroll")
+	}
+
 	return jt, nil
+}
+
+// audience reads the "aud" claim, which JWT allows to be a single
+// string or an array of them.
+func audience(v any) string {
+	switch aud := v.(type) {
+	case string:
+		return aud
+	case []any:
+		if len(aud) > 0 {
+			s, _ := aud[0].(string)
+
+			return s
+		}
+	}
+
+	return ""
 }

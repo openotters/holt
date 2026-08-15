@@ -16,7 +16,6 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
 	"github.com/openotters/holt/cmd/holt/internal/peername"
 	"github.com/openotters/holt/cmd/holt/internal/style"
-	"github.com/openotters/holt/cmd/holt/internal/token"
 )
 
 // Enroll mints a join token for a peer. With an admin endpoint
@@ -121,7 +120,7 @@ func (e *Enroll) enrollLocal(tunnelURL string) error {
 	}
 
 	if tunnelURL == "" {
-		tunnelURL = "http://127.0.0.1:7000"
+		tunnelURL = "ws://127.0.0.1:7000"
 	}
 
 	secret, err := hubsecret.Load(e.State)
@@ -129,16 +128,12 @@ func (e *Enroll) enrollLocal(tunnelURL string) error {
 		return err
 	}
 
-	jwtStr, err := jwtauth.Issue(secret, e.Peer, e.TokenTTL)
+	// The signed JWT is the whole token: the peer is its subject, the
+	// tunnel URL its audience.
+	tok, err := jwtauth.Issue(secret, e.Peer, tunnelURL, e.TokenTTL)
 	if err != nil {
 		return err
 	}
-
-	tok := token.JoinToken{
-		Peer:      e.Peer,
-		TunnelURL: tunnelURL,
-		JWT:       jwtStr,
-	}.Encode()
 
 	printToken(e.Peer, tok)
 
