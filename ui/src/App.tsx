@@ -356,13 +356,16 @@ function CallPeerModal({
 	const subdomainURL = peerURL(peer, proxyDomain);
 
 	// A header-routed command needs a base URL the reader can
-	// actually reach. The public URL if the operator set one;
-	// otherwise the loopback address, but only where the console IS
-	// the hub (a port-forward, a local hub) or there is nothing else
-	// to offer — on a real hostname the proxy port is not exposed.
+	// actually reach: the public URL if the operator set one, else
+	// the peer's own hostname (which resolves wherever subdomain
+	// routing is on), else loopback — and loopback only where the
+	// console IS the hub, since elsewhere the proxy port is not
+	// exposed.
 	const onLoopback = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(host);
 	const loopbackBase = `http://${host}:${proxyPort}`;
-	const headerBase = externalURL || (onLoopback || !subdomainURL ? loopbackBase : "");
+	const originBase = subdomainURL.replace(/\/$/, "");
+	const headerBase =
+		externalURL || originBase || (onLoopback || !subdomainURL ? loopbackBase : "");
 
 	const snippets: { label: string; value: string; hint?: string }[] = [];
 
@@ -372,24 +375,25 @@ function CallPeerModal({
 			value: `curl ${subdomainURL}`,
 			hint: "its own hostname, no header needed",
 		});
-		snippets.push({
-			label: "A path on the peer",
-			value: `curl ${subdomainURL}healthz`,
-			hint: "paths and query strings pass through untouched",
-		});
 	}
 
 	if (headerRouted && headerBase) {
 		snippets.push({
 			label: `curl with the ${routeHeader} header`,
 			value: `curl -H '${routeHeader}: ${peer}' ${headerBase}/`,
-			hint: externalURL
-				? "through the public proxy URL"
-				: "from the hub host itself, where the proxy port is reachable",
+			hint: subdomainURL
+				? "the header wins over the hostname, so one base URL reaches any peer"
+				: "names the peer explicitly, from any client that can set a header",
 		});
+	}
+
+	// A body example, addressed the simplest way the hub allows.
+	const postBase = subdomainURL || (headerBase ? `${headerBase}/` : "");
+	if (postBase) {
+		const headerFlag = subdomainURL ? "" : `-H '${routeHeader}: ${peer}' `;
 		snippets.push({
 			label: "POST a body",
-			value: `curl -X POST -H '${routeHeader}: ${peer}' -H 'content-type: application/json' \\\n  -d '{"hello":"peer"}' ${headerBase}/`,
+			value: `curl -X POST ${headerFlag}-H 'content-type: application/json' \\\n  -d '{"hello":"peer"}' ${postBase}`,
 			hint: "any method, headers, and body reach the peer as sent",
 		});
 	}

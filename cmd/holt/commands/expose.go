@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -9,9 +10,13 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
+	"connectrpc.com/connect"
 	c "github.com/merlindorin/go-shared/pkg/cmd"
 	"go.uber.org/zap"
+
+	holtv1 "github.com/openotters/holt/api/v1"
 
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
@@ -24,15 +29,24 @@ import (
 // that arrives over the tunnel to the local address. The local service
 // needs no changes and no public port.
 type Expose struct {
-	Target string   `arg:"" help:"Local address to forward tunneled requests to, e.g. localhost:3000."`
-	Token  string   `help:"Join token from 'holt enroll' (or set HOLT_TOKEN)." required:""`
-	Header []string `help:"Extra header 'Name: Value' sent with the WebSocket handshake (repeatable) — e.g. a Cloudflare Access service token in front of the tunnel hostname." name:"header"`
+	Target string `arg:"" help:"Local address to forward tunneled requests to, e.g. localhost:3000."`
+
+	// Without a token, expose enrolls itself against the configured
+	// hub (--admin-url / --profile, same resolution as every other
+	// command), so the common case is one command with no ceremony.
+	Token string `help:"Join token from 'holt enroll' (or set HOLT_TOKEN). Omit it to enroll automatically."`
+	Peer  string `help:"Peer name to enroll as when no token is given (default: a random UUID)."`
 
 	// Local hop only: appliances (routers, NAS, IPMI) serve HTTPS with
 	// a self-signed certificate no system root will verify, which the
 	// proxy answers with a 502. This turns verification off for that
 	// one hop; it never touches the tunnel or the hub.
 	Insecure bool `help:"Skip TLS verification of an https target (self-signed appliances). Local hop only, never the tunnel." env:"HOLT_EXPOSE_INSECURE"`
+
+	// --admin-url / --header / --profile / --config: where to enroll,
+	// and the headers for whatever authenticates in front of the hub.
+	// The same headers go out with the tunnel handshake.
+	adminConn
 }
 
 // Run attaches to the hub and serves the reverse proxy until the
@@ -40,9 +54,19 @@ type Expose struct {
 func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, out *style.Output) error {
 	logger = logger.Named("expose")
 
-	jt, err := token.Decode(e.Token)
+	rawToken, enrolled, err := e.resolveToken(ctx)
 	if err != nil {
 		return err
+	}
+
+	jt, err := token.Decode(rawToken)
+	if err != nil {
+		return err
+	}
+
+	if enrolled {
+		logger.Info("enrolled automatically; pass --token to reuse an existing identity",
+			zap.String("peer", jt.Peer))
 	}
 
 	proxy, targetURL, err := localProxy(e.Target, e.Insecure)
@@ -67,12 +91,23 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 		return err
 	}
 
+	// With subdomain routing the peer has a URL of its own, which is
+	// the thing an operator actually wants printed. Best effort: a
+	// hub that cannot be asked just means one fewer banner row.
+	peerURL := e.peerURL(ctx, jt.Peer)
+
 	if out.Pretty {
 		rows := []style.BannerRow{
 			{Key: "peer", Value: jt.Peer, Hint: "your identity on the hub"},
 			{Key: "hub", Value: jt.TunnelURL, Hint: "redials automatically"},
-			{Key: "reach", Value: "curl -H 'x-tunnel-peer: " + jt.Peer + "'", Hint: "against the hub proxy address"},
 		}
+		if peerURL != "" {
+			rows = append(rows, style.BannerRow{Key: "url", Value: peerURL, Hint: "reachable now, no header needed"})
+		}
+
+		rows = append(rows, style.BannerRow{
+			Key: "reach", Value: "curl -H 'x-tunnel-peer: " + jt.Peer + "'", Hint: "against the hub proxy address",
+		})
 		if e.Insecure && targetURL.Scheme == "https" {
 			rows = append(rows, style.BannerRow{
 				Key: "tls", Value: "NOT verified", Hint: "--insecure: the target's certificate is trusted blindly",
@@ -106,6 +141,81 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 	}
 
 	return err
+}
+
+// resolveToken returns the join token to attach with: the one given,
+// or a freshly minted one. enrolled reports which, so the caller can
+// say so.
+func (e *Expose) resolveToken(ctx context.Context) (string, bool, error) {
+	if e.Token != "" {
+		return e.Token, false, nil
+	}
+
+	peer := e.Peer
+	if peer == "" {
+		// A random name keeps an ad-hoc tunnel from colliding with an
+		// existing peer (a second attach would evict it), and leaves
+		// the resulting hostname unguessable where the hub routes by
+		// subdomain.
+		generated, err := randomPeerName()
+		if err != nil {
+			return "", false, err
+		}
+
+		peer = generated
+	}
+
+	enroll := &Enroll{Peer: peer, TokenTTL: defaultTokenTTL, adminConn: e.adminConn}
+
+	tok, err := enroll.mint(ctx)
+	if err != nil {
+		return "", false, fmt.Errorf("enrolling %q: %w (pass --token, or point --admin-url/--profile at a hub)", peer, err)
+	}
+
+	return tok, true, nil
+}
+
+// defaultTokenTTL matches the hub's own default; it only applies when
+// expose mints locally, since a remote hub uses its own --token-ttl.
+const defaultTokenTTL = 24 * time.Hour
+
+// randomPeerName is a UUIDv4 in the usual hyphenated form, which is
+// already a valid DNS label (hex and dashes, 36 characters).
+func randomPeerName() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("generating a peer name: %w", err)
+	}
+
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant 10
+
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+}
+
+// peerURL asks the hub how it routes, and returns this peer's own
+// hostname when the answer is by subdomain. Best effort: any failure
+// (no admin endpoint, an older hub, a header-routed hub) yields "".
+func (e *Expose) peerURL(ctx context.Context, peer string) string {
+	client, err := e.client()
+	if err != nil {
+		return ""
+	}
+
+	infoCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := client.Info(infoCtx, connect.NewRequest(&holtv1.InfoRequest{}))
+	if err != nil {
+		return ""
+	}
+
+	domain := resp.Msg.GetProxyDomain()
+	if domain == "" {
+		return ""
+	}
+
+	return "https://" + peer + "." + domain + "/"
 }
 
 // dialHeader assembles the WebSocket upgrade headers: the peer's JWT

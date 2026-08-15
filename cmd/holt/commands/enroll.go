@@ -40,20 +40,33 @@ type Enroll struct {
 
 // Run mints and prints a join token, locally or via a remote hub.
 func (e *Enroll) Run(ctx context.Context, _ *c.Commons) error {
+	tok, err := e.mint(ctx)
+	if err != nil {
+		return err
+	}
+
+	printToken(e.Peer, tok)
+
+	return nil
+}
+
+// mint produces the join token without printing it, so `holt expose`
+// can enroll itself when no token was given.
+func (e *Enroll) mint(ctx context.Context) (string, error) {
 	// A peer id has to work as a DNS label so the hostname routing
 	// strategies can reach it; refuse to mint a name that cannot.
 	if err := peername.Validate(e.Peer); err != nil {
-		return err
+		return "", err
 	}
 
 	ep, err := e.endpoint()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	prof, err := e.profile()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Advertised URL, same precedence as everything else: flag/env
@@ -70,7 +83,7 @@ func (e *Enroll) Run(ctx context.Context, _ *c.Commons) error {
 
 // enrollRemote asks the hub to mint the token. Without a tunnelURL the
 // hub stamps its own advertised URL; with one, it uses the override.
-func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint, tunnelURL string) error {
+func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint, tunnelURL string) (string, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -84,37 +97,35 @@ func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint, tunnelURL string
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost,
 		strings.TrimRight(ep.url, "/")+"/api/enroll", bytes.NewReader(payload))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := ep.httpClient().Do(req)
 	if err != nil {
-		return fmt.Errorf("reaching hub: %w", err)
+		return "", fmt.Errorf("reaching hub: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 
-		return fmt.Errorf("hub enroll failed (%s): %s", resp.Status, strings.TrimSpace(string(body)))
+		return "", fmt.Errorf("hub enroll failed (%s): %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 
 	var out struct {
 		Token string `json:"token"`
 	}
 	if decErr := json.NewDecoder(resp.Body).Decode(&out); decErr != nil {
-		return fmt.Errorf("decoding hub response: %w", decErr)
+		return "", fmt.Errorf("decoding hub response: %w", decErr)
 	}
 
-	printToken(e.Peer, out.Token)
-
-	return nil
+	return out.Token, nil
 }
 
 // enrollLocal signs a token from the on-disk JWT secret.
-func (e *Enroll) enrollLocal(tunnelURL string) error {
+func (e *Enroll) enrollLocal(tunnelURL string) (string, error) {
 	if e.State == "" {
 		e.State = defaultStateDir()
 	}
@@ -125,19 +136,17 @@ func (e *Enroll) enrollLocal(tunnelURL string) error {
 
 	secret, err := hubsecret.Load(e.State)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// The signed JWT is the whole token: the peer is its subject, the
 	// tunnel URL its audience.
 	tok, err := jwtauth.Issue(secret, e.Peer, tunnelURL, e.TokenTTL)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	printToken(e.Peer, tok)
-
-	return nil
+	return tok, nil
 }
 
 // printToken prints the token on its own line (easy to copy or pipe)

@@ -38,12 +38,11 @@ Install it (see [all install methods](docs/install.md)):
 brew install openotters/tap/holt      # or: go install github.com/openotters/holt/cmd/holt@latest
 ```
 
-Expose a local service through a hub in three commands:
+Expose a local service through a hub in two commands:
 
 ```sh
-holt hub --ui &                              # run a hub (web console on 127.0.0.1:7001)
-holt enroll web                              # mint a join token for a peer named "web"
-holt expose localhost:3000 --token <paste>   # on the machine running the service
+holt hub --ui &                  # run a hub (web console on 127.0.0.1:7001)
+holt expose localhost:3000 --peer web   # enrolls itself, then serves the tunnel
 ```
 
 Then reach the peer *through* the hub:
@@ -51,6 +50,11 @@ Then reach the peer *through* the hub:
 ```sh
 curl -H 'x-tunnel-peer: web' http://127.0.0.1:7002/
 ```
+
+Drop `--peer` and it enrolls under a random UUID; from another
+machine, point it at the hub with `--admin-url` or a `--profile`. For
+a long-lived peer, mint the token once with `holt enroll web` and pass
+it with `--token`.
 
 The token bundles the peer's JWT and the hub's tunnel URL. Peers
 authenticate with the JWT and attach over a **WebSocket**, so the

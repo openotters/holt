@@ -145,7 +145,23 @@ managed.
 Two ready-made peers consume the token:
 
 - `holt expose`: tunnel an **existing local HTTP service**
-  (`holt expose localhost:3000 --token …`), ngrok-style.
+  (`holt expose localhost:3000`), ngrok-style.
+
+  The token is optional. Without one, expose enrolls itself against
+  the hub it can reach (`--admin-url` / `--profile`, or the local
+  state folder when run on the hub machine) under a random UUID, so
+  an ad-hoc tunnel is one command:
+
+  ```sh
+  holt expose localhost:3000                  # enrolls itself
+  holt expose localhost:3000 --peer docs      # …under a name you pick
+  holt expose localhost:3000 --token <paste>  # …or reuse an identity
+  ```
+
+  The random name avoids colliding with an existing peer (a second
+  attach for the same id evicts the first) and leaves the resulting
+  hostname unguessable where the hub routes by subdomain. Where it
+  does, the banner prints the peer's URL, reachable immediately.
 
   A bare `host:port` is treated as `http://`. An `https://` target is
   verified against the system roots, which appliances (routers, NAS,
