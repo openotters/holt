@@ -326,7 +326,15 @@ is your business; holt just sends the headers you give it.
 `enroll` reads the same profile: `holt enroll web --profile prod` mints
 remotely, and the advertised tunnel URL resolves `--tunnel-url` >
 `HOLT_TUNNEL_URL` > the profile's `tunnel_url` > (remote) the hub's own
-`--advertise-addr` > (local) `http://127.0.0.1:7000`.
+`--advertise-addr` > (local) `ws://127.0.0.1:7000`.
+
+One exception, because a token has to point at the hub that minted it:
+a profile's `tunnel_url` describes *that profile's* hub, so pointing
+`--admin-url` / `--admin-addr` at a different hub than the profile's
+`admin_url` drops it, and the token carries the advertised URL of the
+hub actually enrolled against. `--tunnel-url` still overrides either
+way, and a profile with no `admin_url` (the "mint locally, advertise
+the public URL" setup) always applies its `tunnel_url`.
 
 ## Output modes
 

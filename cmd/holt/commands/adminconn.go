@@ -51,6 +51,30 @@ func httpAddr(addr string) string {
 	return "http://" + addr
 }
 
+// pointsAtAnotherHub reports that a flag or env aimed this command at a
+// different hub than the one the profile describes. The profile's other
+// hub-specific settings (its tunnel_url) describe ITS hub, so they stop
+// applying when the endpoint is redirected: a token minted at hub B
+// must not advertise hub A's tunnel URL.
+//
+// A profile with no admin_url describes no particular endpoint, so its
+// tunnel_url keeps applying — that is the "mint locally on the hub
+// machine, advertise the public URL" setup.
+func (a adminConn) pointsAtAnotherHub(prof config.Profile) bool {
+	override := coalesce(a.AdminURL, httpAddr(a.AdminAddr))
+	if override == "" || prof.AdminURL == "" {
+		return false
+	}
+
+	return !sameEndpoint(override, prof.AdminURL)
+}
+
+// sameEndpoint compares two admin URLs the way the CLI reaches them, so
+// a trailing slash is not a different hub.
+func sameEndpoint(a, b string) bool {
+	return strings.TrimRight(a, "/") == strings.TrimRight(b, "/")
+}
+
 // client resolves the endpoint and headers and returns an Admin client.
 func (a adminConn) client() (holtv1connect.AdminClient, error) {
 	e, err := a.endpoint()

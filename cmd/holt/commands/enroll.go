@@ -12,6 +12,7 @@ import (
 
 	c "github.com/merlindorin/go-shared/pkg/cmd"
 
+	"github.com/openotters/holt/cmd/holt/internal/config"
 	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
 	"github.com/openotters/holt/cmd/holt/internal/peername"
@@ -27,10 +28,11 @@ type Enroll struct {
 	Peer string `arg:"" help:"Identity to mint the token for (DNS label: lowercase letters, digits, dashes)."`
 
 	// Tunnel URL advertised in the token (its scheme selects the peer
-	// transport). Resolves flag > env > profile tunnel_url; local mode
-	// falls back to http://127.0.0.1:7000, remote mode to the hub's
-	// --advertise-addr.
-	TunnelURL string        `help:"Tunnel URL to advertise, e.g. https://holt.example.com (default: profile tunnel_url, then http://127.0.0.1:7000; the hub's advertised URL when remote)." name:"tunnel-url" env:"HOLT_TUNNEL_URL"`
+	// transport). Resolves flag > env > profile tunnel_url, the profile
+	// applying only while it still describes the hub being enrolled
+	// against; local mode then falls back to ws://127.0.0.1:7000, remote
+	// mode to the hub's --advertise-addr.
+	TunnelURL string        `help:"Tunnel URL to advertise, e.g. https://holt.example.com (default: the profile's tunnel_url for its own hub, then the hub's advertised URL when remote, else ws://127.0.0.1:7000)." name:"tunnel-url" env:"HOLT_TUNNEL_URL"`
 	State     string        `help:"Hub state directory (JWT secret)." type:"path"`
 	TokenTTL  time.Duration `help:"Lifetime of the minted JWT (local mode)." default:"24h"`
 
@@ -69,16 +71,32 @@ func (e *Enroll) mint(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// Advertised URL, same precedence as everything else: flag/env
-	// (folded by kong) then profile. Empty means "let the mode decide"
-	// (loopback default local, hub's advertised URL remote).
-	tunnelURL := coalesce(e.TunnelURL, prof.TunnelURL)
+	tunnelURL := e.advertisedURL(prof)
 
 	if ep.remote {
 		return e.enrollRemote(ctx, ep, tunnelURL)
 	}
 
 	return e.enrollLocal(tunnelURL)
+}
+
+// advertisedURL is the tunnel URL to stamp into the token: the flag or
+// env if given (folded by kong), otherwise the profile's tunnel_url —
+// but only while the profile still describes the hub being enrolled
+// against. Pointing --admin-url / --admin-addr at another hub drops it,
+// so the token advertises the hub that minted it rather than the one
+// the profile happens to name. Empty means "let the mode decide": the
+// hub's own advertised URL when remote, the loopback default locally.
+func (e *Enroll) advertisedURL(prof config.Profile) string {
+	if e.TunnelURL != "" {
+		return e.TunnelURL
+	}
+
+	if e.pointsAtAnotherHub(prof) {
+		return ""
+	}
+
+	return prof.TunnelURL
 }
 
 // enrollRemote asks the hub to mint the token. Without a tunnelURL the
