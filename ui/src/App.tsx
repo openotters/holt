@@ -115,7 +115,11 @@ export function App() {
 
 	return (
 		<div className="flex min-h-screen flex-col font-sans antialiased">
-			<header className="flex h-16 shrink-0 items-center gap-3 border-b border-dashed px-6">
+			{/* Sticky so the status menu and its urls stay reachable while
+			    scrolling a long peer list. Translucent + blur keeps the
+			    content visible as it passes underneath; z-40 sits under the
+			    status popover's z-50. */}
+			<header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-dashed bg-background/80 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
 				<span className="text-xl leading-none" aria-hidden="true">
 					🌀
 				</span>
