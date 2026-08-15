@@ -146,6 +146,21 @@ Two ready-made peers consume the token:
 
 - `holt expose`: tunnel an **existing local HTTP service**
   (`holt expose localhost:3000 --token …`), ngrok-style.
+
+  A bare `host:port` is treated as `http://`. An `https://` target is
+  verified against the system roots, which appliances (routers, NAS,
+  IPMI boards) fail because they serve a self-signed certificate — the
+  proxy answers `502`. `--insecure` (env `HOLT_EXPOSE_INSECURE`) skips
+  verification **for that local hop only**, and says so at startup:
+
+  ```sh
+  holt expose https://192.168.1.1 --token <paste> --insecure
+  ```
+
+  It never touches the tunnel or the hub, which stay verified. Use it
+  for a device on a trusted network whose certificate you cannot fix,
+  not for anything sensitive: an attacker on the path to that target
+  can read and alter the traffic.
 - [`cmd/starter-client`](../cmd/starter-client): a minimal template that
   serves a built-in demo; copy it to write your own. See
   [Examples](examples.md).

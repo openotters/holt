@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,6 +27,12 @@ type Expose struct {
 	Target string   `arg:"" help:"Local address to forward tunneled requests to, e.g. localhost:3000."`
 	Token  string   `help:"Join token from 'holt enroll' (or set HOLT_TOKEN)." required:""`
 	Header []string `help:"Extra header 'Name: Value' sent with the WebSocket handshake (repeatable) — e.g. a Cloudflare Access service token in front of the tunnel hostname." name:"header"`
+
+	// Local hop only: appliances (routers, NAS, IPMI) serve HTTPS with
+	// a self-signed certificate no system root will verify, which the
+	// proxy answers with a 502. This turns verification off for that
+	// one hop; it never touches the tunnel or the hub.
+	Insecure bool `help:"Skip TLS verification of an https target (self-signed appliances). Local hop only, never the tunnel." env:"HOLT_EXPOSE_INSECURE"`
 }
 
 // Run attaches to the hub and serves the reverse proxy until the
@@ -38,9 +45,21 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 		return err
 	}
 
-	proxy, targetURL, err := localProxy(e.Target)
+	proxy, targetURL, err := localProxy(e.Target, e.Insecure)
 	if err != nil {
 		return err
+	}
+
+	// Never let this be a quiet default: say it on every start,
+	// whatever the log format, and say it again in the banner below.
+	if e.Insecure {
+		if targetURL.Scheme == "https" {
+			logger.Warn("TLS verification disabled for the target; anyone on the path to it can read or alter the traffic",
+				zap.String("target", targetURL.String()))
+		} else {
+			logger.Warn("--insecure has no effect on a plaintext target",
+				zap.String("target", targetURL.String()))
+		}
 	}
 
 	header, err := dialHeader(jt, e.Header)
@@ -49,11 +68,18 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 	}
 
 	if out.Pretty {
-		fmt.Print(style.Banner("exposing "+targetURL.String(), []style.BannerRow{
+		rows := []style.BannerRow{
 			{Key: "peer", Value: jt.Peer, Hint: "your identity on the hub"},
 			{Key: "hub", Value: jt.TunnelURL, Hint: "redials automatically"},
 			{Key: "reach", Value: "curl -H 'x-tunnel-peer: " + jt.Peer + "'", Hint: "against the hub proxy address"},
-		}, ""))
+		}
+		if e.Insecure && targetURL.Scheme == "https" {
+			rows = append(rows, style.BannerRow{
+				Key: "tls", Value: "NOT verified", Hint: "--insecure: the target's certificate is trusted blindly",
+			})
+		}
+
+		fmt.Print(style.Banner("exposing "+targetURL.String(), rows, ""))
 	} else {
 		logger.Info("exposing local service over the tunnel",
 			zap.String("peer", jt.Peer), zap.String("target", targetURL.String()))
@@ -102,8 +128,9 @@ func dialHeader(jt token.JoinToken, extra []string) (http.Header, error) {
 }
 
 // localProxy builds a reverse proxy to the local target. A bare
-// host:port is treated as http://host:port.
-func localProxy(target string) (http.Handler, *url.URL, error) {
+// host:port is treated as http://host:port. With insecure set, an
+// https target's certificate is not verified (see insecureTransport).
+func localProxy(target string, insecure bool) (http.Handler, *url.URL, error) {
 	if !strings.Contains(target, "://") {
 		target = "http://" + target
 	}
@@ -122,5 +149,30 @@ func localProxy(target string) (http.Handler, *url.URL, error) {
 		},
 	}
 
+	// Only an https target has a certificate to skip; leaving http
+	// and the verifying path on the default transport keeps the
+	// change to exactly the hop the operator asked for.
+	if insecure && u.Scheme == "https" {
+		proxy.Transport = insecureTransport()
+	}
+
 	return proxy, u, nil
+}
+
+// insecureTransport clones the default transport (keeping its proxy
+// support, timeouts, and pooling) and turns off certificate
+// verification for the target hop. This is the --insecure flag's only
+// effect: the tunnel to the hub, and the hub's own TLS, are dialled
+// elsewhere and stay verified.
+func insecureTransport() *http.Transport {
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		base = &http.Transport{}
+	}
+
+	tr := base.Clone()
+	//nolint:gosec // G402: the point of --insecure, opt-in per invocation and warned about at startup.
+	tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+
+	return tr
 }
