@@ -1,6 +1,8 @@
-// Package jwtauth issues and verifies the HMAC-SHA256 JWTs peers
-// present when attaching to the hub. The token's subject is the peer
-// id the hub uses as the tunnel key.
+// Package jwtauth is the hub's attach-time authentication: it issues
+// and verifies the HMAC-SHA256 JWTs peers present, holds the signing
+// secret so it can be rotated live (Secret), and enforces the whole
+// check in front of the tunnel handler (Guard). The token's subject is
+// the peer id the hub uses as the tunnel key.
 package jwtauth
 
 import (
