@@ -171,7 +171,7 @@
       "id": 5,
       "type": "stat",
       "title": "Build",
-      "description": "The hub's version and commit, from holt_build_info.",
+      "description": "The version running now. Every redeploy adds a series to holt_build_info, so this is an instant query: only what is currently scraped answers, not every version seen during the time range.",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
       "options": {
@@ -184,8 +184,10 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "holt_build_info{job=~\"$job\"}",
-          "legendFormat": "{{version}}"
+          "expr": "max by (version) (holt_build_info{job=~\"$job\"})",
+          "legendFormat": "{{version}}",
+          "instant": true,
+          "range": false
         }
       ]
     },
