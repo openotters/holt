@@ -8,6 +8,7 @@ import {
 	Container,
 	Copy,
 	Download,
+	ExternalLink,
 	Github,
 	RefreshCw,
 	Ship,
@@ -207,9 +208,27 @@ export function App() {
 									{tunnels.map((t) => {
 										const peerMinor = minorVersion(t.peerVersion || "");
 										const skewed = Boolean(hubMinor && peerMinor && hubMinor !== peerMinor);
+										const url = peerURL(t.peer, config.proxyDomain);
 										return (
 											<TableRow key={t.peer}>
-												<TableCell className="font-mono font-medium">{t.peer}</TableCell>
+												<TableCell className="font-mono font-medium">
+													{url ? (
+														// Subdomain routing gives the peer a real URL, so the
+														// name is the way to it.
+														<a
+															className="inline-flex items-center gap-1.5 hover:underline"
+															href={url}
+															rel="noreferrer"
+															target="_blank"
+															title={url}
+														>
+															{t.peer}
+															<ExternalLink className="h-3 w-3 text-muted-foreground" />
+														</a>
+													) : (
+														t.peer
+													)}
+												</TableCell>
 												<TableCell>
 													<StatusBadge status="attached" />
 												</TableCell>
@@ -336,7 +355,14 @@ function CallPeerModal({
 	// the form anything that only takes a URL (a browser, a webhook)
 	// can use, so it leads.
 	const headerRouted = proxyRouting !== "subdomain";
-	const subdomainURL = proxyDomain ? `https://${peer}.${proxyDomain}/` : "";
+	const subdomainURL = peerURL(peer, proxyDomain);
+
+	// The loopback command is only true where the console IS the hub
+	// (a port-forward, a local hub). Served from a real hostname, the
+	// proxy port is not reachable from the reader's browser, so
+	// showing it there is worse than showing nothing.
+	const onLoopback = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(host);
+	const showLoopback = headerRouted && (onLoopback || (!subdomainURL && !externalCurl));
 
 	return (
 		<div
@@ -381,8 +407,16 @@ function CallPeerModal({
 					)}
 				</p>
 				{subdomainURL && (
-					<div className="mb-3">
+					<div className="mb-3 flex flex-col gap-1">
 						<CopyField label="Its own hostname (any client, no header)" value={subdomainURL} multiline />
+						<a
+							className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
+							href={subdomainURL}
+							rel="noreferrer"
+							target="_blank"
+						>
+							<ExternalLink className="h-3 w-3" /> open in a new tab
+						</a>
 					</div>
 				)}
 				{headerRouted && externalCurl && (
@@ -390,11 +424,11 @@ function CallPeerModal({
 						<CopyField label="Through the public URL" value={externalCurl} multiline />
 					</div>
 				)}
-				{headerRouted && (
+				{showLoopback && (
 					<CopyField
 						label={
 							externalCurl || subdomainURL
-								? "From this host (loopback / in-cluster)"
+								? "From the hub host itself (loopback)"
 								: "Reach the peer through the hub"
 						}
 						value={curl}
@@ -604,6 +638,12 @@ function EnrollCard() {
 			</CardContent>
 		</Card>
 	);
+}
+
+// peerURL is the peer's own hostname under subdomain routing, the
+// form any client can use. Empty when the hub routes by header only.
+function peerURL(peer: string, proxyDomain: string): string {
+	return proxyDomain ? `https://${peer}.${proxyDomain}/` : "";
 }
 
 // peerNameError mirrors the hub's peer-name rule (a DNS label) so the
