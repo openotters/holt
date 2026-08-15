@@ -33,12 +33,16 @@ carrier because it passes through what gRPC cannot: CDN public
 hostnames (Cloudflare included), access proxies, and HTTP/1.1-only
 edges. Presence of the tunnel doubles as the peer's liveness signal.
 
-## The four parts
+## The parts
 
 - **`hub`**: server side. `NewRegistry` tracks live tunnels per peer;
   `NewHandler` is the `http.Handler` that accepts attachments, mounted
   behind your auth middleware (the peer's credential arrives on the
   upgrade request).
+- **`hub/proxy`**: the data plane. An `http.Handler` that picks the
+  target peer from the request (`x-tunnel-peer` header, or
+  `<peer>.<domain>` subdomain) and dials it through its tunnel. This is
+  what `holt hub` serves on its proxy port.
 - **`dial`**: client side. `dial.Run` is a persistent attach loop that
   dials the hub's WebSocket endpoint, serves your `http.Handler` over
   the tunnel, and redials with jittered backoff; extra upgrade headers

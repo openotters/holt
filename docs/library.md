@@ -31,6 +31,30 @@ mux.Handle("/", authMiddleware(hub.NewHandler(registry, identityFromCtx, log)))
 client := &http.Client{Transport: registry.RoundTripper(peerID)}
 ```
 
+## Reaching peers over HTTP
+
+`registry.RoundTripper(peer)` dials one peer. To let ordinary HTTP
+clients reach any of them, mount `hub/proxy`: it reads the target peer
+off the request and dials it for you.
+
+```go
+// Header routing needs no configuration: curl -H 'x-tunnel-peer: alice'
+mux.Handle("/", proxy.New(registry))
+
+// Or give every peer its own hostname (alice.peers.example.com), which
+// is what browsers and webhooks can actually use:
+p := proxy.New(registry,
+    proxy.WithRouting(proxy.RoutingBoth, "peers.example.com"),
+    proxy.WithErrorHook(func(ctx context.Context, reason string) { ... }),
+)
+```
+
+Validate the routing pair at boot with `routing.Validate(domain)`. A
+request that names no peer, or names one that is not attached, never
+reaches a backend: it gets a bare page that says nothing about the hub
+(400 and 404 respectively, never a 502), and the error hook sees the
+reason.
+
 ## Operating the hub
 
 The `Registry` is the operational surface over live tunnels:
