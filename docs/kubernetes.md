@@ -154,8 +154,30 @@ ingress:
 render otherwise. With a wildcard proxy ingress host the chart skips
 the auto-derived `--external-url` (a wildcard is not a URL) and the
 console shows each peer's own hostname in its Call command instead.
-Cloudflare's universal certificate covers one wildcard level, so
-`*.peers.example.com` works but `*.a.peers.example.com` does not.
+
+### Pick the domain depth before the certificate
+
+A wildcard certificate matches exactly **one** label, so
+`*.example.com` covers `alice.example.com` but never
+`alice.peers.example.com`. Behind Cloudflare this bites immediately:
+free Universal SSL covers the apex and first-level subdomains only, so
+a `peers.` prefix needs [Advanced Certificate
+Manager](https://developers.cloudflare.com/ssl/edge-certificates/advanced-certificate-manager/)
+(paid) to add `*.peers.example.com`. Three ways out, cheapest first:
+
+- **put peers at the first level** — `proxyDomain: example.com`, so
+  `alice.example.com` is covered by the free wildcard. Costs nothing,
+  but every peer id now shares the namespace with your other records.
+- **give peers their own domain** — `proxyDomain: peers.example` with
+  its own zone. First-level again, free certificate, and tunneled
+  content no longer shares a registrable domain with your console
+  (a peer cannot set a cookie on your admin hostname).
+- **pay for the deeper wildcard** — keep `peers.example.com` and add
+  the certificate through ACM.
+
+Outside Cloudflare this is less painful: cert-manager with a DNS-01
+solver issues `*.peers.example.com` from Let's Encrypt without a
+paid tier.
 
 ## Metrics
 

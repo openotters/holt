@@ -52,7 +52,11 @@ hub:
   #   both      header first, subdomain as the fallback
   # subdomain and both require proxyDomain, and a wildcard DNS record
   # plus a wildcard certificate at the edge (set the proxy ingress
-  # host to "*.peers.example.com").
+  # host to the matching wildcard). A wildcard certificate matches one
+  # label only, so prefer a first-level domain here ("example.com",
+  # covered by "*.example.com"); a deeper "peers.example.com" needs a
+  # certificate that explicitly includes "*.peers.example.com", which
+  # Cloudflare's free Universal SSL does NOT.
   proxyRouting: header
   proxyDomain: ""
 

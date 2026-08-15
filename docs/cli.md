@@ -167,9 +167,14 @@ curl https://alice.peers.example.com/     # no header needed
 
 Subdomain routing is what makes a tunneled service reachable by
 anything that only takes a **URL**: a browser, a webhook sender, an
-OAuth callback, a DoH client. Point a wildcard record
-(`*.peers.example.com`) at the proxy and terminate a wildcard
-certificate at your edge.
+OAuth callback, a DoH client. Point a wildcard record at the proxy and
+terminate a wildcard certificate at your edge.
+
+Mind the depth: a wildcard certificate matches exactly one label, so
+`*.example.com` covers `alice.example.com` but never
+`alice.peers.example.com`. Keeping peers at the first level of a zone
+(or giving them their own domain) is what makes the free certificate
+work — see [Kubernetes](kubernetes.md#pick-the-domain-depth-before-the-certificate).
 
 Two details worth knowing: hostnames are case-insensitive while peer
 ids are not, so subdomain routing only reaches **lowercase** peer ids;
