@@ -32,6 +32,7 @@ import (
 	holtv1connect "github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
+	"github.com/openotters/holt/cmd/holt/internal/peername"
 	"github.com/openotters/holt/cmd/holt/internal/store"
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
@@ -684,8 +685,16 @@ func (h *Hub) mountEnroll(mux *http.ServeMux, secrets *secretState) {
 			Peer      string `json:"peer"`
 			TunnelURL string `json:"tunnel_url"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Peer == "" {
-			http.Error(w, "peer is required", http.StatusBadRequest)
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+
+			return
+		}
+
+		// The peer id doubles as a DNS label under subdomain routing,
+		// so an unroutable name is refused at mint time.
+		if err := peername.Validate(body.Peer); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 
 			return
 		}
@@ -867,6 +876,17 @@ func jwtMiddleware(secrets *secretState, blocks *blockList, metrics *hubMetrics,
 		if err != nil {
 			metrics.recordReject(r.Context(), "unauthorized")
 			http.Error(w, "unauthorized: "+err.Error(), http.StatusUnauthorized)
+
+			return
+		}
+
+		// Tokens minted before peer names were constrained (or by
+		// another issuer) can carry a name no hostname strategy could
+		// route. Refuse it here so a peer is never attached under a
+		// name the proxy cannot address; re-enroll fixes it.
+		if nameErr := peername.Validate(peer); nameErr != nil {
+			metrics.recordReject(r.Context(), "invalid-peer-name")
+			http.Error(w, "forbidden: "+nameErr.Error(), http.StatusForbidden)
 
 			return
 		}

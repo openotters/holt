@@ -114,6 +114,21 @@ authenticates the client; encryption comes from whatever fronts the hub
 (a TLS edge, ingress, or mesh), which the `wss` URL tells the peer to
 dial over, verified with the system roots.
 
+### Peer names
+
+A peer id is a **DNS label**: lowercase letters, digits and dashes,
+starting and ending with a letter or digit, at most 63 characters
+(`web`, `api-gateway-eu-west-1`). The id doubles as a hostname
+wherever the proxy [routes by subdomain](#routing-strategies), so a
+name that cannot be a label would be a peer some deployments cannot
+reach.
+
+Enroll refuses a non-compliant name, and the hub refuses an attach
+carrying one (a token minted by an older hub, say) with a `403` naming
+the problem. `kill`, `block`, and `unblock` are deliberately not
+validated, so an existing peer with a legacy name can still be
+managed.
+
 Two ready-made peers consume the token:
 
 - `holt expose`: tunnel an **existing local HTTP service**

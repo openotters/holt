@@ -538,9 +538,11 @@ function EnrollCard() {
 	const [peer, setPeer] = useState("");
 	const [result, setResult] = useState<{ token: string; command: string } | null>(null);
 
+	const name = peer.trim();
+	const nameError = name ? peerNameError(name) : null;
+
 	async function enroll() {
-		const name = peer.trim();
-		if (!name) return;
+		if (!name || nameError) return;
 
 		const res = await fetch("/api/enroll", {
 			method: "POST",
@@ -566,10 +568,19 @@ function EnrollCard() {
 						onChange={(e) => setPeer(e.target.value)}
 						onKeyDown={(e) => e.key === "Enter" && enroll()}
 						placeholder="peer id, e.g. alice"
-						className="h-9 flex-1 rounded-md border bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+						aria-invalid={Boolean(nameError)}
+						className={`h-9 flex-1 rounded-md border bg-transparent px-3 text-sm outline-none focus-visible:ring-[3px] ${
+							nameError
+								? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/40"
+								: "focus-visible:border-ring focus-visible:ring-ring/50"
+						}`}
 					/>
-					<Button onClick={enroll}>Generate token</Button>
+					<Button onClick={enroll} disabled={!name || Boolean(nameError)}>
+						Generate token
+					</Button>
 				</div>
+
+				{nameError && <p className="text-destructive text-xs">{nameError}</p>}
 
 				{result && (
 					<div className="flex flex-col gap-3">
@@ -587,11 +598,27 @@ function EnrollCard() {
 
 				<p className="text-muted-foreground text-xs">
 					The token carries a short-lived JWT and the hub's tunnel URL to dial. Run the expose command on
-					the machine you want to reach.
+					the machine you want to reach. A peer id is a DNS label (lowercase letters, digits, dashes), so
+					it can also be addressed as a hostname where the proxy routes by subdomain.
 				</p>
 			</CardContent>
 		</Card>
 	);
+}
+
+// peerNameError mirrors the hub's peer-name rule (a DNS label) so the
+// console can say what is wrong before the request, in the same terms
+// the API would answer with. The hub validates again regardless; this
+// is feedback, not enforcement.
+function peerNameError(name: string): string | null {
+	if (name.length > 63) return "too long: a peer id is at most 63 characters";
+	if (/[A-Z]/.test(name)) {
+		return `hostnames are case-insensitive, use "${name.toLowerCase()}" instead`;
+	}
+	if (name.includes(".")) return "no dots: that would nest another level under the proxy domain";
+	if (!/^[a-z0-9-]+$/.test(name)) return "only lowercase letters, digits and dashes";
+	if (name.startsWith("-") || name.endsWith("-")) return "cannot start or end with a dash";
+	return null;
 }
 
 // ActivityCard lists the attaches and detaches seen by this browser's

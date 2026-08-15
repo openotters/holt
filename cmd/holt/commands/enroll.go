@@ -14,6 +14,7 @@ import (
 
 	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
+	"github.com/openotters/holt/cmd/holt/internal/peername"
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
 )
@@ -24,7 +25,7 @@ import (
 // --tunnel-url is needed. Otherwise it works locally, signing with the
 // JWT secret in the state folder — offline, on the hub machine.
 type Enroll struct {
-	Peer string `arg:"" help:"Identity to mint the token for."`
+	Peer string `arg:"" help:"Identity to mint the token for (DNS label: lowercase letters, digits, dashes)."`
 
 	// Tunnel URL advertised in the token (its scheme selects the peer
 	// transport). Resolves flag > env > profile tunnel_url; local mode
@@ -40,6 +41,12 @@ type Enroll struct {
 
 // Run mints and prints a join token, locally or via a remote hub.
 func (e *Enroll) Run(ctx context.Context, _ *c.Commons) error {
+	// A peer id has to work as a DNS label so the hostname routing
+	// strategies can reach it; refuse to mint a name that cannot.
+	if err := peername.Validate(e.Peer); err != nil {
+		return err
+	}
+
 	ep, err := e.endpoint()
 	if err != nil {
 		return err
