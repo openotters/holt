@@ -77,7 +77,7 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 	// Never let this be a quiet default: say it on every start,
 	// whatever the log format, and say it again in the banner below.
 	if e.Insecure {
-		if targetURL.Scheme == "https" {
+		if targetURL.Scheme == schemeHTTPS {
 			logger.Warn("TLS verification disabled for the target; anyone on the path to it can read or alter the traffic",
 				zap.String("target", targetURL.String()))
 		} else {
@@ -108,7 +108,7 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 		rows = append(rows, style.BannerRow{
 			Key: "reach", Value: "curl -H 'x-tunnel-peer: " + jt.Peer + "'", Hint: "against the hub proxy address",
 		})
-		if e.Insecure && targetURL.Scheme == "https" {
+		if e.Insecure && targetURL.Scheme == schemeHTTPS {
 			rows = append(rows, style.BannerRow{
 				Key: "tls", Value: "NOT verified", Hint: "--insecure: the target's certificate is trusted blindly",
 			})
@@ -178,6 +178,10 @@ func (e *Expose) resolveToken(ctx context.Context) (string, bool, error) {
 // expose mints locally, since a remote hub uses its own --token-ttl.
 const defaultTokenTTL = 24 * time.Hour
 
+// schemeHTTPS is the target scheme that has a certificate to verify,
+// which is what --insecure turns off.
+const schemeHTTPS = "https"
+
 // peerURL asks the hub how it routes, and returns this peer's own
 // hostname when the answer is by subdomain. Best effort: any failure
 // (no admin endpoint, an older hub, a header-routed hub) yields "".
@@ -200,7 +204,7 @@ func (e *Expose) peerURL(ctx context.Context, peer string) string {
 		return ""
 	}
 
-	return "https://" + peer + "." + domain + "/"
+	return schemeHTTPS + "://" + peer + "." + domain + "/"
 }
 
 // dialHeader assembles the WebSocket upgrade headers: the peer's JWT
@@ -247,7 +251,7 @@ func localProxy(target string, insecure bool) (http.Handler, *url.URL, error) {
 	// Only an https target has a certificate to skip; leaving http
 	// and the verifying path on the default transport keeps the
 	// change to exactly the hop the operator asked for.
-	if insecure && u.Scheme == "https" {
+	if insecure && u.Scheme == schemeHTTPS {
 		proxy.Transport = insecureTransport()
 	}
 
