@@ -348,8 +348,6 @@ function CallPeerModal({
 	}, [onClose]);
 
 	const host = window.location.hostname || "127.0.0.1";
-	const curl = `curl -H '${routeHeader}: ${peer}' http://${host}:${proxyPort}/`;
-	const externalCurl = externalURL ? `curl -H '${routeHeader}: ${peer}' ${externalURL}/` : "";
 
 	// With subdomain routing the peer has its own hostname, which is
 	// the form anything that only takes a URL (a browser, a webhook)
@@ -357,12 +355,44 @@ function CallPeerModal({
 	const headerRouted = proxyRouting !== "subdomain";
 	const subdomainURL = peerURL(peer, proxyDomain);
 
-	// The loopback command is only true where the console IS the hub
-	// (a port-forward, a local hub). Served from a real hostname, the
-	// proxy port is not reachable from the reader's browser, so
-	// showing it there is worse than showing nothing.
+	// A header-routed command needs a base URL the reader can
+	// actually reach. The public URL if the operator set one;
+	// otherwise the loopback address, but only where the console IS
+	// the hub (a port-forward, a local hub) or there is nothing else
+	// to offer — on a real hostname the proxy port is not exposed.
 	const onLoopback = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(host);
-	const showLoopback = headerRouted && (onLoopback || (!subdomainURL && !externalCurl));
+	const loopbackBase = `http://${host}:${proxyPort}`;
+	const headerBase = externalURL || (onLoopback || !subdomainURL ? loopbackBase : "");
+
+	const snippets: { label: string; value: string; hint?: string }[] = [];
+
+	if (subdomainURL) {
+		snippets.push({
+			label: "curl",
+			value: `curl ${subdomainURL}`,
+			hint: "its own hostname, no header needed",
+		});
+		snippets.push({
+			label: "A path on the peer",
+			value: `curl ${subdomainURL}healthz`,
+			hint: "paths and query strings pass through untouched",
+		});
+	}
+
+	if (headerRouted && headerBase) {
+		snippets.push({
+			label: `curl with the ${routeHeader} header`,
+			value: `curl -H '${routeHeader}: ${peer}' ${headerBase}/`,
+			hint: externalURL
+				? "through the public proxy URL"
+				: "from the hub host itself, where the proxy port is reachable",
+		});
+		snippets.push({
+			label: "POST a body",
+			value: `curl -X POST -H '${routeHeader}: ${peer}' -H 'content-type: application/json' \\\n  -d '{"hello":"peer"}' ${headerBase}/`,
+			hint: "any method, headers, and body reach the peer as sent",
+		});
+	}
 
 	return (
 		<div
@@ -372,69 +402,67 @@ function CallPeerModal({
 			role="presentation"
 		>
 			<div
-				className="w-full max-w-lg rounded-lg border bg-background p-5 shadow-lg"
+				className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-lg border bg-background shadow-lg"
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={() => {}}
 				role="dialog"
 				aria-modal="true"
 			>
-				<div className="mb-3 flex items-center justify-between">
-					<h2 className="flex items-center gap-2 font-semibold">
-						<Terminal className="h-4 w-4" /> Call{" "}
-						<span className="font-mono text-sm">{peer}</span>
-					</h2>
-					<Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClose}>
+				<div className="flex items-start justify-between border-b px-5 py-4">
+					<div>
+						<h2 className="flex items-center gap-2 font-semibold">
+							<Terminal className="h-4 w-4" /> Call <span className="font-mono text-sm">{peer}</span>
+						</h2>
+						<p className="mt-1 text-muted-foreground text-sm">
+							Everything below reaches the handler this peer attached with, through the hub.
+						</p>
+					</div>
+					<Button size="icon" variant="ghost" className="-mr-2 h-7 w-7 shrink-0" onClick={onClose}>
 						<X className="h-4 w-4" />
 					</Button>
 				</div>
-				<p className="mb-3 text-muted-foreground text-sm">
-					{subdomainURL ? (
+
+				<div className="flex flex-col gap-4 overflow-auto px-5 py-4">
+					{subdomainURL && (
+						<div className="flex flex-col gap-2">
+							<div className="flex items-center justify-between gap-3">
+								<code className="truncate font-mono text-sm">{subdomainURL}</code>
+								<Button asChild size="sm" variant="outline" className="shrink-0">
+									<a href={subdomainURL} rel="noreferrer" target="_blank">
+										<ExternalLink className="h-3.5 w-3.5" /> Open
+									</a>
+								</Button>
+							</div>
+							<p className="text-muted-foreground text-xs">
+								This peer's own hostname. Any client that takes a URL works: a browser, a webhook
+								sender, an OAuth callback.
+							</p>
+						</div>
+					)}
+
+					{snippets.map((s) => (
+						<div className="flex flex-col gap-1" key={s.label}>
+							<CopyField label={s.label} value={s.value} multiline />
+							{s.hint && <span className="text-muted-foreground text-xs">{s.hint}</span>}
+						</div>
+					))}
+				</div>
+
+				<div className="border-t px-5 py-3 text-muted-foreground text-xs">
+					{subdomainURL && headerRouted ? (
 						<>
-							Requests to the hub proxy are routed to this peer by its own hostname
-							{headerRouted && (
-								<>
-									, or by the <code className="font-mono text-xs">{routeHeader}</code> header
-								</>
-							)}
-							. The peer serves whatever handler it attached with.
+							This hub routes both ways: by hostname, and by the{" "}
+							<code className="font-mono">{routeHeader}</code> header when a client sets it.
 						</>
+					) : subdomainURL ? (
+						<>This hub routes by hostname only.</>
 					) : (
 						<>
-							Requests to the hub proxy are routed to this peer by the{" "}
-							<code className="font-mono text-xs">{routeHeader}</code> header. The peer serves whatever
-							handler it attached with.
+							This hub routes by the <code className="font-mono">{routeHeader}</code> header. Configure a
+							peer domain on the hub to give each peer its own hostname.
 						</>
 					)}
-				</p>
-				{subdomainURL && (
-					<div className="mb-3 flex flex-col gap-1">
-						<CopyField label="Its own hostname (any client, no header)" value={subdomainURL} multiline />
-						<a
-							className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground"
-							href={subdomainURL}
-							rel="noreferrer"
-							target="_blank"
-						>
-							<ExternalLink className="h-3 w-3" /> open in a new tab
-						</a>
-					</div>
-				)}
-				{headerRouted && externalCurl && (
-					<div className="mb-3">
-						<CopyField label="Through the public URL" value={externalCurl} multiline />
-					</div>
-				)}
-				{showLoopback && (
-					<CopyField
-						label={
-							externalCurl || subdomainURL
-								? "From the hub host itself (loopback)"
-								: "Reach the peer through the hub"
-						}
-						value={curl}
-						multiline
-					/>
-				)}
+				</div>
 			</div>
 		</div>
 	);
@@ -742,7 +770,11 @@ function CopyField({ label, value, multiline = false }: { label: string; value: 
 			<div
 				className={`flex gap-2 rounded-md border bg-muted/50 py-1 pr-1 pl-3 font-mono text-xs ${multiline ? "items-start" : "items-center"}`}
 			>
-				<code className={multiline ? "max-h-32 flex-1 overflow-auto whitespace-pre-wrap break-all py-1" : "truncate"}>
+				{/* break-words, not break-all: a curl command wraps at its
+				    spaces, while a token (one unbroken string) still wraps. */}
+				<code
+					className={multiline ? "max-h-32 flex-1 overflow-auto whitespace-pre-wrap break-words py-1" : "truncate"}
+				>
 					{value}
 				</code>
 				<Button
