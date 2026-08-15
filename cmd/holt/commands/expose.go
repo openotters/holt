@@ -21,6 +21,7 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
 	"github.com/openotters/holt/dial"
+	"github.com/openotters/holt/hub/proxy"
 )
 
 // Expose tunnels a LOCAL HTTP service through the hub — the
@@ -69,7 +70,7 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 			zap.String("peer", jt.Peer))
 	}
 
-	proxy, targetURL, err := localProxy(e.Target, e.Insecure)
+	local, targetURL, err := localProxy(e.Target, e.Insecure)
 	if err != nil {
 		return err
 	}
@@ -106,7 +107,9 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 		}
 
 		rows = append(rows, style.BannerRow{
-			Key: "reach", Value: "curl -H 'x-tunnel-peer: " + jt.Peer + "'", Hint: "against the hub proxy address",
+			Key:   "reach",
+			Value: "curl -H '" + proxy.RouteHeader + ": " + jt.Peer + "'",
+			Hint:  "against the hub proxy address",
 		})
 		if e.Insecure && targetURL.Scheme == schemeHTTPS {
 			rows = append(rows, style.BannerRow{
@@ -130,7 +133,7 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 	err = dial.Run(ctx, dial.Options{
 		URL:     wsURL,
 		Header:  header,
-		Handler: proxy,
+		Handler: local,
 		Version: "holt-expose " + commons.Version.Version(),
 		Logger:  logger,
 	})
@@ -241,7 +244,7 @@ func localProxy(target string, insecure bool) (http.Handler, *url.URL, error) {
 
 	// Forward tunneled requests to the local target, keeping the
 	// inbound path/query; the local server sees its own Host.
-	proxy := &httputil.ReverseProxy{
+	local := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(u)
 			pr.Out.Host = u.Host
@@ -252,10 +255,10 @@ func localProxy(target string, insecure bool) (http.Handler, *url.URL, error) {
 	// and the verifying path on the default transport keeps the
 	// change to exactly the hop the operator asked for.
 	if insecure && u.Scheme == schemeHTTPS {
-		proxy.Transport = insecureTransport()
+		local.Transport = insecureTransport()
 	}
 
-	return proxy, u, nil
+	return local, u, nil
 }
 
 // insecureTransport clones the default transport (keeping its proxy

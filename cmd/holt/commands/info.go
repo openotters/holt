@@ -10,6 +10,7 @@ import (
 
 	holtv1 "github.com/openotters/holt/api/v1"
 	"github.com/openotters/holt/cmd/holt/internal/style"
+	"github.com/openotters/holt/hub/proxy"
 )
 
 // Info prints a snapshot of a hub: build, live counts, and the
@@ -100,11 +101,13 @@ func infoBanner(endpoint string, m *holtv1.InfoResponse) string {
 func routingHint(routing, domain, header string) string {
 	byHeader := fmt.Sprintf("reach peers via the %s header", header)
 
-	switch routing {
-	case routingSubdomain:
+	switch proxy.Routing(routing) {
+	case proxy.RoutingSubdomain:
 		return "reach peers via <peer>." + domain
-	case routingBoth:
+	case proxy.RoutingBoth:
 		return byHeader + ", or <peer>." + domain
+	case proxy.RoutingHeader:
+		return byHeader
 	default:
 		return byHeader
 	}
