@@ -20,7 +20,7 @@ The `holt` CLI can expose the instruments as Prometheus metrics with
 | `holt_tunnels_active` | gauge | |
 | `holt_tunnels_attaches_total` | counter | |
 | `holt_tunnels_detaches_total` | counter | `reason` |
-| `holt_tunnels_rejected_total` | counter | `reason` (unauthorized, blocked) |
+| `holt_tunnels_rejected_total` | counter | `reason` (unauthorized, blocked, invalid-peer-name) |
 | `holt_proxy_requests_total` | counter | `code` |
 | `holt_proxy_request_duration_seconds` | histogram | `code` |
 | `holt_proxy_inflight` | gauge | |
@@ -41,6 +41,48 @@ when it is enabled.
 The Helm chart wires this up with `metrics.enabled` and an optional
 Prometheus Operator `ServiceMonitor` (`metrics.serviceMonitor.enabled`).
 See [Kubernetes](kubernetes.md).
+
+## Grafana dashboard
+
+The chart ships a dashboard for exactly these metrics, off by default:
+
+```yaml
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+  dashboard:
+    enabled: true
+    mode: operator        # or sidecar
+    folder: holt
+    instanceSelector:     # operator mode: which Grafana gets it
+      matchLabels:
+        dashboards: grafana
+```
+
+Two ways in, because deployments differ:
+
+- **`operator`** emits a `GrafanaDashboard`
+  (`grafana.integreatly.org/v1beta1`) with the JSON inlined, for
+  [grafana-operator](https://grafana.github.io/grafana-operator/) v5.
+  `instanceSelector` picks the Grafana instances,
+  `allowCrossNamespaceImport` lets one in another namespace take it.
+- **`sidecar`** writes a ConfigMap labelled `grafana_dashboard: "1"`
+  (override with `sidecarLabel` / `sidecarLabelValue`) and annotated
+  with the folder, which is how kube-prometheus-stack's Grafana
+  imports dashboards. No CRD required.
+
+What it shows: attached peers now and over time, attach and detach
+rates with the **reason** each tunnel dropped (`superseded` means a
+peer reattached, `connection-lost` is the network), rejected attaches
+by reason, proxied request rate coloured by status class, p50/p90/p99
+latency on one axis, routing errors, and in-flight requests. A `job`
+variable scopes it to one hub when several report to the same
+Prometheus.
+
+The JSON lives at
+[`charts/holt/dashboards/holt.json`](../charts/holt/dashboards/holt.json)
+if you would rather import it by hand.
 
 ## As a library
 

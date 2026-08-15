@@ -102,6 +102,29 @@ metrics:
     # Extra labels for the ServiceMonitor (e.g. release: kube-prometheus-stack
     # so your Prometheus selects it).
     labels: {}
+  # A ready-made Grafana dashboard for the metrics above (attached
+  # peers, attach/detach reasons, proxy rate, latency, errors).
+  dashboard:
+    enabled: false
+    # How Grafana gets it:
+    #   sidecar   a ConfigMap labelled for the Grafana sidecar, the
+    #             kube-prometheus-stack way (no CRD needed)
+    #   operator  a GrafanaDashboard (grafana.integreatly.org/v1beta1)
+    #             for grafana-operator v5
+    mode: sidecar
+    # The folder Grafana files it under, in either mode.
+    folder: holt
+    labels: {}
+    annotations: {}
+    # sidecar mode: the label the Grafana sidecar watches for.
+    sidecarLabel: grafana_dashboard
+    sidecarLabelValue: "1"
+    # operator mode: which Grafana instances get it.
+    instanceSelector:
+      matchLabels:
+        dashboards: grafana
+    allowCrossNamespaceImport: false
+    resyncPeriod: 5m
 
 service:
   # Tunnel listener: peers dial this from OUTSIDE the cluster, so it

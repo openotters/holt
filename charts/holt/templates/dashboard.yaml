@@ -1,0 +1,55 @@
+{{- if .Values.metrics.dashboard.enabled }}
+{{- $dashboard := .Files.Get "dashboards/holt.json" }}
+{{- if eq .Values.metrics.dashboard.mode "operator" }}
+# grafana-operator picks this up through its instance selector; the
+# dashboard JSON is inlined so there is no ConfigMap to keep in sync.
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: {{ include "holt.fullname" . }}
+  labels:
+    {{- include "holt.labels" . | nindent 4 }}
+    {{- with .Values.metrics.dashboard.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.metrics.dashboard.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.metrics.dashboard.folder }}
+  folder: {{ . | quote }}
+  {{- end }}
+  allowCrossNamespaceImport: {{ .Values.metrics.dashboard.allowCrossNamespaceImport }}
+  {{- with .Values.metrics.dashboard.resyncPeriod }}
+  resyncPeriod: {{ . }}
+  {{- end }}
+  instanceSelector:
+    {{- toYaml .Values.metrics.dashboard.instanceSelector | nindent 4 }}
+  json: |
+    {{- $dashboard | nindent 4 }}
+{{- else }}
+# The Grafana sidecar (kube-prometheus-stack and friends) imports every
+# ConfigMap carrying its label, and reads the folder from an annotation.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "holt.fullname" . }}-dashboard
+  labels:
+    {{- include "holt.labels" . | nindent 4 }}
+    {{ .Values.metrics.dashboard.sidecarLabel }}: {{ .Values.metrics.dashboard.sidecarLabelValue | quote }}
+    {{- with .Values.metrics.dashboard.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- with .Values.metrics.dashboard.folder }}
+    grafana_folder: {{ . | quote }}
+    {{- end }}
+    {{- with .Values.metrics.dashboard.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  holt.json: |
+    {{- $dashboard | nindent 4 }}
+{{- end }}
+{{- end }}

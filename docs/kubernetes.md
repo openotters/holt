@@ -192,7 +192,14 @@ metrics:
 
 `metrics.enabled` opens `/metrics` on `metrics.port` (7003) and adds it
 to the private service; the `ServiceMonitor` needs the Prometheus
-Operator CRD. See [Observability](observability.md) for the metrics.
+Operator CRD.
+
+Add `metrics.dashboard.enabled` for the bundled Grafana dashboard,
+either as a `GrafanaDashboard` for grafana-operator
+(`mode: operator`) or as a sidecar-labelled ConfigMap
+(`mode: sidecar`, the default). See
+[Observability](observability.md#grafana-dashboard) for the panels and
+the rest of the knobs.
 
 ## Other knobs
 
