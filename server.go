@@ -13,16 +13,16 @@ import (
 //
 //	srv := holt.NewServer(
 //		holt.WithLogger(logger),
-//		holt.WithTunnel(holt.NewTunnel(":7000",
+//		holt.WithTunnel(holt.NewTunnel(":7200",
 //			holt.WithAuthBearer(peerForToken), // token → peer id
 //		)),
-//		holt.WithProxy(holt.NewProxy(":7002")), // reach peers: x-tunnel-peer
+//		holt.WithProxy(holt.NewProxy(":7202")), // reach peers: x-tunnel-peer
 //	)
 //
 //	err := srv.Run(ctx) // binds, serves, blocks; cancel ctx to drain
 //
 // Zero configuration works: holt.NewServer().Run(ctx) serves a tunnel
-// on 127.0.0.1:7000 and a proxy on 127.0.0.1:7002 with the
+// on 127.0.0.1:7200 and a proxy on 127.0.0.1:7202 with the
 // development identity — peers name themselves with the x-holt-peer
 // header (or get a generated name) and nothing verifies the claim.
 // That identity is loopback-only by construction: a tunnel bound to

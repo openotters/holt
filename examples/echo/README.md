@@ -6,7 +6,7 @@ reaches that handler by dialing back through the tunnel the peer
 opened.
 
 - [`server/`](server) — the hub half: `holt.NewServer()` with zero
-  configuration (tunnel on `127.0.0.1:7000`, proxy on `:7002`).
+  configuration (tunnel on `127.0.0.1:7200`, proxy on `:7202`).
 - [`client/`](client) — the peer half: `holt.NewClient` serving
   `/whoami` back over the tunnel.
 
@@ -27,7 +27,7 @@ go run ./examples/echo/client
 Terminal 3 — reach the listenerless peer through the hub's proxy:
 
 ```bash
-curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7002/whoami
+curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7202/whoami
 # I am the peer; the hub reached me through the tunnel
 ```
 

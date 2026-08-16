@@ -11,8 +11,8 @@
 //
 // Then run one or more peers (see ../client) and:
 //
-//	curl -H 'x-tunnel-peer: alice' localhost:7002/hello      # reach alice through her tunnel
-//	curl -H 'x-tunnel-peer: bob'   localhost:7002/time
+//	curl -H 'x-tunnel-peer: alice' localhost:7202/hello      # reach alice through her tunnel
+//	curl -H 'x-tunnel-peer: bob'   localhost:7202/time
 package main
 
 import (
@@ -49,8 +49,8 @@ func peerForToken(_ context.Context, token string) (string, error) {
 }
 
 func main() {
-	tunnelAddr := flag.String("addr", "127.0.0.1:7000", "tunnel (WebSocket) listen address for peers")
-	proxyAddr := flag.String("proxy", "127.0.0.1:7002", "proxy listen address (reach peers here)")
+	tunnelAddr := flag.String("addr", "127.0.0.1:7200", "tunnel (WebSocket) listen address for peers")
+	proxyAddr := flag.String("proxy", "127.0.0.1:7202", "proxy listen address (reach peers here)")
 	flag.Parse()
 
 	if err := run(*tunnelAddr, *proxyAddr); err != nil {

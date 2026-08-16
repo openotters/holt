@@ -12,7 +12,7 @@ the listenerless peer through the hub's proxy with `curl`.
 ```sh
 go run ./examples/echo/server           # terminal 1
 go run ./examples/echo/client           # terminal 2
-curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7002/whoami
+curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7202/whoami
 ```
 
 The tunnel's carrier is a **WebSocket**, so a peer names the hub by

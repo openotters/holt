@@ -22,7 +22,7 @@ import (
 // admin API is and how to authenticate to whatever sits in front of it.
 // Embed it in a command to get the flags and the client() helper.
 type adminConn struct {
-	AdminAddr string   `help:"Hub admin address (host:port, plaintext; default 127.0.0.1:7001)." env:"HOLT_ADMIN_ADDR"`
+	AdminAddr string   `help:"Hub admin address (host:port, plaintext; default 127.0.0.1:7201)." env:"HOLT_ADMIN_ADDR"`
 	AdminURL  string   `help:"Full admin URL, e.g. https://holt.example.com (overrides --admin-addr)." name:"admin-url" env:"HOLT_ADMIN_URL"`
 	Header    []string `help:"Extra request header 'Name: Value' (repeatable); overrides the profile's." name:"header" env:"HOLT_HEADER"`
 	Profile   string   `help:"Config profile to use (default: the file's default_profile)." env:"HOLT_PROFILE"`
@@ -111,7 +111,7 @@ func (a adminConn) endpoint() (endpoint, error) {
 	remote := url != ""
 
 	if url == "" {
-		url = "http://127.0.0.1:7001"
+		url = "http://127.0.0.1:7201"
 	}
 
 	// The profile's headers authenticate the profile's hub: an Access

@@ -35,7 +35,7 @@ func TestEndpointHeadersFollowTheirHub(t *testing.T) {
 
 	const (
 		profileHub = "https://holt.example.com"
-		otherHub   = "http://127.0.0.1:17001"
+		otherHub   = "http://127.0.0.1:17201"
 	)
 
 	cases := []struct {
@@ -69,7 +69,7 @@ func TestEndpointHeadersFollowTheirHub(t *testing.T) {
 		{
 			name:           "another hub by address does not",
 			profileAdmin:   profileHub,
-			conn:           adminConn{AdminAddr: "127.0.0.1:17001"},
+			conn:           adminConn{AdminAddr: "127.0.0.1:17201"},
 			wantURL:        otherHub,
 			wantCredential: false,
 		},
@@ -114,7 +114,7 @@ func TestEndpointExplicitHeaderAlwaysApplies(t *testing.T) {
 	t.Parallel()
 
 	conn := adminConn{
-		AdminURL: "http://127.0.0.1:17001",
+		AdminURL: "http://127.0.0.1:17201",
 		Header:   []string{"Authorization: Bearer mine"},
 		Config:   writeConfig(t, "https://holt.example.com"),
 	}

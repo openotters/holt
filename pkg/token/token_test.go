@@ -52,7 +52,7 @@ func TestDecodeCompactJWS(t *testing.T) {
 func TestDecodedJWTIsTheTokenItself(t *testing.T) {
 	t.Parallel()
 
-	tok := mint(t, "web", "ws://127.0.0.1:7000")
+	tok := mint(t, "web", "ws://127.0.0.1:7200")
 
 	jt, err := token.Decode(tok)
 	if err != nil {
@@ -132,9 +132,9 @@ func TestWSURL(t *testing.T) {
 		want string
 	}{
 		{"wss passes through", "wss://holt.example.com", "wss://holt.example.com"},
-		{"ws passes through", "ws://127.0.0.1:7000", "ws://127.0.0.1:7000"},
+		{"ws passes through", "ws://127.0.0.1:7200", "ws://127.0.0.1:7200"},
 		{"https aliases wss", "https://holt.example.com:8443", "wss://holt.example.com:8443"},
-		{"http aliases ws", "http://127.0.0.1:7000", "ws://127.0.0.1:7000"},
+		{"http aliases ws", "http://127.0.0.1:7200", "ws://127.0.0.1:7200"},
 		{"path survives", "wss://holt.example.com/tunnel", "wss://holt.example.com/tunnel"},
 	}
 

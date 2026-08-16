@@ -24,9 +24,9 @@ import (
 // All three are plaintext: transport encryption is the deployment's job
 // (a TLS edge, ingress, or mesh in front of the hub).
 type Hub struct {
-	TunnelAddr string `help:"JWT-auth listener where peers attach over a WebSocket (plaintext; front with TLS)." default:"127.0.0.1:7000"`
-	AdminAddr  string `help:"Admin gRPC listener (list/stop/block); also serves the console with --ui." default:"127.0.0.1:7001"`
-	ProxyAddr  string `help:"Header-routed proxy to reach peer services (x-tunnel-peer)." default:"127.0.0.1:7002"`
+	TunnelAddr string `help:"JWT-auth listener where peers attach over a WebSocket (plaintext; front with TLS)." default:"127.0.0.1:7200"`
+	AdminAddr  string `help:"Admin gRPC listener (list/stop/block); also serves the console with --ui." default:"127.0.0.1:7201"`
+	ProxyAddr  string `help:"Header-routed proxy to reach peer services (x-tunnel-peer)." default:"127.0.0.1:7202"`
 	State      string `help:"Directory for the hub JWT secret + state (default: ~/.holt)." type:"path"`
 
 	// Storage backend for tunnel presence AND the peer denylist: by
@@ -69,7 +69,7 @@ type Hub struct {
 	// (holt.tunnels.active / .attaches / .detaches); this exposes them
 	// on a /metrics endpoint via an OTel Prometheus exporter.
 	Metrics     bool   `help:"Serve Prometheus metrics on /metrics."`
-	MetricsAddr string `help:"Metrics listener address." default:"127.0.0.1:7003"`
+	MetricsAddr string `help:"Metrics listener address." default:"127.0.0.1:7203"`
 }
 
 // gracePeriod bounds how long shutdown waits for tunnels and listeners

@@ -17,7 +17,7 @@ func TestEnrollAdvertisedURL(t *testing.T) {
 	const (
 		profileAdmin  = "https://holt.example.com"
 		profileTunnel = "wss://tunnel.example.com"
-		otherHub      = "http://127.0.0.1:17001"
+		otherHub      = "http://127.0.0.1:17201"
 	)
 
 	profiled := config.Profile{AdminURL: profileAdmin, TunnelURL: profileTunnel}
@@ -54,7 +54,7 @@ func TestEnrollAdvertisedURL(t *testing.T) {
 		},
 		{
 			name:    "another hub by address drops it",
-			enroll:  Enroll{adminConn: adminConn{AdminAddr: "127.0.0.1:17001"}},
+			enroll:  Enroll{adminConn: adminConn{AdminAddr: "127.0.0.1:17201"}},
 			profile: profiled,
 			want:    "",
 		},
@@ -69,7 +69,7 @@ func TestEnrollAdvertisedURL(t *testing.T) {
 			// endpoint: minting locally on the hub machine while
 			// advertising the public URL stays supported.
 			name:    "profile without an admin url still applies",
-			enroll:  Enroll{adminConn: adminConn{AdminAddr: "127.0.0.1:7001"}},
+			enroll:  Enroll{adminConn: adminConn{AdminAddr: "127.0.0.1:7201"}},
 			profile: config.Profile{TunnelURL: profileTunnel},
 			want:    profileTunnel,
 		},

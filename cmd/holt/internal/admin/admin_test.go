@@ -204,8 +204,8 @@ func TestInfo(t *testing.T) {
 
 	svc := admin.NewService(reg, admin.WithInfo(admin.HubInfo{
 		Version:       "1.2.3",
-		AdvertiseAddr: "10.0.0.5:7000",
-		ProxyAddr:     "127.0.0.1:7002",
+		AdvertiseAddr: "10.0.0.5:7200",
+		ProxyAddr:     "127.0.0.1:7202",
 		RouteHeader:   "x-tunnel-peer",
 	}))
 
@@ -215,7 +215,7 @@ func TestInfo(t *testing.T) {
 	}
 
 	msg := resp.Msg
-	if msg.GetVersion() != "1.2.3" || msg.GetAdvertiseAddr() != "10.0.0.5:7000" {
+	if msg.GetVersion() != "1.2.3" || msg.GetAdvertiseAddr() != "10.0.0.5:7200" {
 		t.Fatalf("static fields not reported: %+v", msg)
 	}
 

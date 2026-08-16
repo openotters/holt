@@ -1,6 +1,6 @@
 // Command server is the hub half of the echo example, with zero
-// configuration: holt.NewServer() serves the tunnel on 127.0.0.1:7000
-// and a proxy on :7002.
+// configuration: holt.NewServer() serves the tunnel on 127.0.0.1:7200
+// and a proxy on :7202.
 //
 // No identity is configured, so the development identity applies:
 // peers name themselves with the x-holt-peer header, nothing verifies
@@ -12,7 +12,7 @@
 //
 // Then run the peer (see ../client) and reach it through the proxy:
 //
-//	curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7002/whoami
+//	curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7202/whoami
 package main
 
 import (

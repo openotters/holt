@@ -5,7 +5,7 @@
 // handler through the tunnel.
 //
 //	go run ./examples/authenticated/client --token tok-alice
-//	go run ./examples/authenticated/client --token tok-bob --hub ws://127.0.0.1:7000
+//	go run ./examples/authenticated/client --token tok-bob --hub ws://127.0.0.1:7200
 //
 // The peer keeps running until Ctrl-C; it redials automatically if the
 // hub restarts. Try an unknown token: the hub answers 401 at the
@@ -29,7 +29,7 @@ import (
 )
 
 func main() {
-	hubURL := flag.String("hub", "ws://127.0.0.1:7000", "hub tunnel URL (ws or wss)")
+	hubURL := flag.String("hub", "ws://127.0.0.1:7200", "hub tunnel URL (ws or wss)")
 	token := flag.String("token", "tok-alice", "bearer token identifying this peer to the hub")
 	flag.Parse()
 

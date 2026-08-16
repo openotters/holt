@@ -31,7 +31,7 @@ the cluster must advertise the reachable tunnel URL. The scheme picks
 the peer transport: `wss://holt.example.com` dials TLS under the
 WebSocket (verified with the system roots, so it works through an
 ingress, a LoadBalancer with TLS, or Cloudflare), while
-`ws://192.168.8.193:7000` dials plaintext straight to a bare
+`ws://192.168.8.193:7200` dials plaintext straight to a bare
 LoadBalancer IP (`https`/`http` are accepted as aliases).
 
 ```yaml
@@ -190,7 +190,7 @@ metrics:
       release: kube-prometheus-stack   # so your Prometheus selects it
 ```
 
-`metrics.enabled` opens `/metrics` on `metrics.port` (7003) and adds it
+`metrics.enabled` opens `/metrics` on `metrics.port` (7203) and adds it
 to the private service; the `ServiceMonitor` needs the Prometheus
 Operator CRD.
 

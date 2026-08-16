@@ -20,9 +20,9 @@ func TestHostGuard(t *testing.T) {
 		path    string
 		want    int
 	}{
-		{"loopback ip always allowed", nil, "127.0.0.1:7001", "/", http.StatusOK},
+		{"loopback ip always allowed", nil, "127.0.0.1:7201", "/", http.StatusOK},
 		{"localhost always allowed", nil, "localhost", "/", http.StatusOK},
-		{"ipv6 loopback allowed", nil, "[::1]:7001", "/", http.StatusOK},
+		{"ipv6 loopback allowed", nil, "[::1]:7201", "/", http.StatusOK},
 		{"unknown host rejected", nil, "evil.example.com", "/", http.StatusForbidden},
 		{"rebinding to loopback via foreign host rejected", nil, "attacker.test", "/", http.StatusForbidden},
 		{"configured host allowed", []string{"holt.example.com"}, "holt.example.com", "/", http.StatusOK},
@@ -30,7 +30,7 @@ func TestHostGuard(t *testing.T) {
 		{"wildcard disables the check", []string{"*"}, "anything.at.all", "/", http.StatusOK},
 		{"case insensitive", []string{"Holt.Example.com"}, "holt.EXAMPLE.com", "/", http.StatusOK},
 		// Probes reach the pod by IP, which no allow-list can predict.
-		{"health check exempt", nil, "10.42.0.7:7001", "/healthz", http.StatusOK},
+		{"health check exempt", nil, "10.42.0.7:7201", "/healthz", http.StatusOK},
 	}
 
 	for _, tc := range cases {

@@ -30,9 +30,9 @@ type Enroll struct {
 	// Tunnel URL advertised in the token (its scheme selects the peer
 	// transport). Resolves flag > env > profile tunnel_url, the profile
 	// applying only while it still describes the hub being enrolled
-	// against; local mode then falls back to ws://127.0.0.1:7000, remote
+	// against; local mode then falls back to ws://127.0.0.1:7200, remote
 	// mode to the hub's --advertise-addr.
-	TunnelURL string        `help:"Tunnel URL to advertise, e.g. https://holt.example.com (default: the profile's tunnel_url for its own hub, then the hub's advertised URL when remote, else ws://127.0.0.1:7000)." name:"tunnel-url" env:"HOLT_TUNNEL_URL"`
+	TunnelURL string        `help:"Tunnel URL to advertise, e.g. https://holt.example.com (default: the profile's tunnel_url for its own hub, then the hub's advertised URL when remote, else ws://127.0.0.1:7200)." name:"tunnel-url" env:"HOLT_TUNNEL_URL"`
 	State     string        `help:"Hub state directory (JWT secret)." type:"path"`
 	TokenTTL  time.Duration `help:"Lifetime of the minted JWT (local mode)." default:"24h"`
 
@@ -149,7 +149,7 @@ func (e *Enroll) enrollLocal(tunnelURL string) (string, error) {
 	}
 
 	if tunnelURL == "" {
-		tunnelURL = "ws://127.0.0.1:7000"
+		tunnelURL = "ws://127.0.0.1:7200"
 	}
 
 	secret, err := hubsecret.Load(e.State)

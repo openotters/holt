@@ -13,7 +13,7 @@ when unconfigured.
 ## Prometheus metrics
 
 The `holt` CLI can expose the instruments as Prometheus metrics with
-`--metrics` (on `--metrics-addr`, default `127.0.0.1:7003`):
+`--metrics` (on `--metrics-addr`, default `127.0.0.1:7203`):
 
 | Metric | Type | Labels |
 |--------|------|--------|
@@ -90,7 +90,7 @@ Point the hub at your own providers:
 
 ```go
 registry.NewRegistry(log, registry.WithMeterProvider(mp)) // pkg/registry
-holt.NewTunnel(":7000", holt.WithHandlerOptions(holt.WithTracerProvider(tp)))
+holt.NewTunnel(":7200", holt.WithHandlerOptions(holt.WithTracerProvider(tp)))
 ```
 
 ---

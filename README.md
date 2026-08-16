@@ -41,14 +41,14 @@ brew install openotters/tap/holt      # or: go install github.com/openotters/hol
 Expose a local service through a hub in two commands:
 
 ```sh
-holt hub --ui &                  # run a hub (web console on 127.0.0.1:7001)
+holt hub --ui &                  # run a hub (web console on 127.0.0.1:7201)
 holt expose localhost:3000 --peer web   # enrolls itself, then serves the tunnel
 ```
 
 Then reach the peer *through* the hub:
 
 ```sh
-curl -H 'x-tunnel-peer: web' http://127.0.0.1:7002/
+curl -H 'x-tunnel-peer: web' http://127.0.0.1:7202/
 ```
 
 Drop `--peer` and it enrolls under a generated name (`cosy-eddy-aec23e`); from another

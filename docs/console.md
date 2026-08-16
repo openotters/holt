@@ -9,7 +9,7 @@
 </p>
 
 `holt hub --ui` serves a small React console on the admin listener
-(`http://127.0.0.1:7001/`):
+(`http://127.0.0.1:7201/`):
 
 - the live tunnel list, updated over a server stream (no polling), with
   per-peer **Kill**, **Block**, and a **Call** button that shows the

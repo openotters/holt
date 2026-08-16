@@ -30,12 +30,12 @@ go run ./examples/authenticated/client --token tok-bob
 Terminal 4 — reach the listenerless peers through the hub:
 
 ```bash
-curl -H 'x-tunnel-peer: alice' localhost:7002/hello
+curl -H 'x-tunnel-peer: alice' localhost:7202/hello
 # hello from tok-alice (pid 18450)
 
-curl -H 'x-tunnel-peer: bob' localhost:7002/time
+curl -H 'x-tunnel-peer: bob' localhost:7202/time
 
-curl -i -H 'x-tunnel-peer: carol' localhost:7002/hello   # 404 — carol isn't
+curl -i -H 'x-tunnel-peer: carol' localhost:7202/hello   # 404 — carol isn't
                                     # attached (an absent peer is not a
                                     # failing upstream), and the body
                                     # says nothing about the hub

@@ -16,7 +16,7 @@
 //	go run ./cmd/starter-client --token <paste>
 //
 //	# reach it through the hub:
-//	curl -H 'x-tunnel-peer: myservice' http://localhost:7002/
+//	curl -H 'x-tunnel-peer: myservice' http://localhost:7202/
 package main
 
 import (

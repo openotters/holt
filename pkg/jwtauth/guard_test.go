@@ -75,7 +75,7 @@ func TestGuardRejectsUnroutablePeerName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			token, err := jwtauth.Issue(secret, tc.peer, "ws://127.0.0.1:7000", time.Hour)
+			token, err := jwtauth.Issue(secret, tc.peer, "ws://127.0.0.1:7200", time.Hour)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -108,7 +108,7 @@ func TestGuardRejectsBlockedPeer(t *testing.T) {
 		Blocked: blockedPeers{"alice": true},
 	}
 
-	token, err := jwtauth.Issue(secret, "alice", "ws://127.0.0.1:7000", time.Hour)
+	token, err := jwtauth.Issue(secret, "alice", "ws://127.0.0.1:7200", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,13 +125,13 @@ func TestGuardRejectsBadTokens(t *testing.T) {
 
 	secret := []byte(testSecret)
 
-	expired, err := jwtauth.Issue(secret, "alice", "ws://127.0.0.1:7000", -time.Hour)
+	expired, err := jwtauth.Issue(secret, "alice", "ws://127.0.0.1:7200", -time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	otherIssuer, err := jwtauth.Issue([]byte("a-completely-different-signing-secret"),
-		"alice", "ws://127.0.0.1:7000", time.Hour)
+		"alice", "ws://127.0.0.1:7200", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestSecretRotationInvalidatesTokens(t *testing.T) {
 	secret := jwtauth.NewSecret([]byte(testSecret))
 	guard := jwtauth.Guard{Secret: secret}
 
-	token, err := jwtauth.Issue(secret.Get(), "alice", "ws://127.0.0.1:7000", time.Hour)
+	token, err := jwtauth.Issue(secret.Get(), "alice", "ws://127.0.0.1:7200", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}

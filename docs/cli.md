@@ -56,14 +56,14 @@ local, and only the owning hub can proxy to a peer's live tunnel.
 
 ```sh
 holt hub
-# hub up   tunnel=127.0.0.1:7000  admin=127.0.0.1:7001  proxy=127.0.0.1:7002
+# hub up   tunnel=127.0.0.1:7200  admin=127.0.0.1:7201  proxy=127.0.0.1:7202
 ```
 
 | Listener | Default | Purpose |
 |---|---|---|
-| `--tunnel-addr` | `127.0.0.1:7000` | JWT auth (WebSocket, plaintext); peers attach here |
-| `--admin-addr`  | `127.0.0.1:7001` | the Admin service (list / stop / block / enroll), serves the console with `--ui` |
-| `--proxy-addr`  | `127.0.0.1:7002` | reach a peer's service via the `x-tunnel-peer` header |
+| `--tunnel-addr` | `127.0.0.1:7200` | JWT auth (WebSocket, plaintext); peers attach here |
+| `--admin-addr`  | `127.0.0.1:7201` | the Admin service (list / stop / block / enroll), serves the console with `--ui` |
+| `--proxy-addr`  | `127.0.0.1:7202` | reach a peer's service via the `x-tunnel-peer` header |
 
 All three listeners are plaintext: put your own TLS in front (a TLS
 edge, ingress, LoadBalancer, or mesh) for anything beyond loopback. See
@@ -191,7 +191,7 @@ Address a peer's service by its id in the `x-tunnel-peer` header; the
 hub proxies the request down that peer's tunnel:
 
 ```sh
-curl -H 'x-tunnel-peer: alice' http://localhost:7002/
+curl -H 'x-tunnel-peer: alice' http://localhost:7202/
 ```
 
 Whatever the peer serves over the tunnel is reachable this way.
@@ -244,12 +244,12 @@ console's status card:
 ```sh
 holt info
 # 🌀 holt 0.8.0 (532632e)
-#   endpoint   http://127.0.0.1:7001
+#   endpoint   http://127.0.0.1:7201
 #   tunnels    3                          live
 #   blocked    1                          banned peer ids
 #   advertise  wss://holt.example.com   URL stamped into tokens
-#   proxy      127.0.0.1:7002             reach peers via the x-tunnel-peer header
-#   metrics    127.0.0.1:7003/metrics     prometheus
+#   proxy      127.0.0.1:7202             reach peers via the x-tunnel-peer header
+#   metrics    127.0.0.1:7203/metrics     prometheus
 #   token ttl  24h0m0s                    lifetime of minted tokens
 ```
 
@@ -279,7 +279,7 @@ client.
 ## Remote hubs and profiles
 
 The management commands default to the hub's admin listener on
-`127.0.0.1:7001`. To reach a remote hub, point them at its URL and, if
+`127.0.0.1:7201`. To reach a remote hub, point them at its URL and, if
 it sits behind an authenticating proxy, add the headers that proxy
 expects:
 
@@ -297,7 +297,7 @@ default_profile: prod
 
 profiles:
   local:
-    admin_url: http://127.0.0.1:7001
+    admin_url: http://127.0.0.1:7201
 
   prod:
     admin_url: https://holt.example.com
@@ -313,7 +313,7 @@ profiles:
 holt ls                          # uses default_profile (prod)
 holt ls --profile local          # switch profile
 HOLT_PROFILE=local holt kill x   # or via env
-holt ls --admin-url http://127.0.0.1:7001   # explicit flag wins over the profile
+holt ls --admin-url http://127.0.0.1:7201   # explicit flag wins over the profile
 ```
 
 Every value follows one precedence: **flag > env (`HOLT_*`) > profile >
@@ -326,7 +326,7 @@ is your business; holt just sends the headers you give it.
 `enroll` reads the same profile: `holt enroll web --profile prod` mints
 remotely, and the advertised tunnel URL resolves `--tunnel-url` >
 `HOLT_TUNNEL_URL` > the profile's `tunnel_url` > (remote) the hub's own
-`--advertise-addr` > (local) `ws://127.0.0.1:7000`.
+`--advertise-addr` > (local) `ws://127.0.0.1:7200`.
 
 One exception, because a profile describes *one hub*: its `tunnel_url`
 and its `headers` belong to the hub its `admin_url` names. Pointing

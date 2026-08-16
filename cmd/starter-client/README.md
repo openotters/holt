@@ -15,7 +15,7 @@ holt enroll myservice        # prints a token
 go run ./cmd/starter-client --token eyJ...
 
 # reach it through the hub
-curl -H 'x-tunnel-peer: myservice' http://localhost:7002/
+curl -H 'x-tunnel-peer: myservice' http://localhost:7202/
 #   hello from myservice — reached through the tunnel
 ```
 

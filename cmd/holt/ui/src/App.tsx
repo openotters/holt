@@ -54,7 +54,7 @@ function useHubConfig() {
 		proxyDomain: string;
 	}>({
 		routeHeader: "x-tunnel-peer",
-		proxyPort: "7002",
+		proxyPort: "7202",
 		externalURL: "",
 		tunnelURL: "",
 		metricsPort: "",

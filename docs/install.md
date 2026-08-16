@@ -29,9 +29,9 @@ docker run --rm ghcr.io/openotters/holt:latest --version
 
 # run a hub (bind to 0.0.0.0 so the ports are reachable from outside
 # the container). --tmpfs keeps state in memory for a quick try.
-docker run --rm -p 7000:7000 -p 7001:7001 -p 7002:7002 --tmpfs /data \
+docker run --rm -p 7200:7200 -p 7201:7201 -p 7202:7202 --tmpfs /data \
   ghcr.io/openotters/holt:latest hub --state /data \
-  --tunnel-addr 0.0.0.0:7000 --admin-addr 0.0.0.0:7001 --proxy-addr 0.0.0.0:7002
+  --tunnel-addr 0.0.0.0:7200 --admin-addr 0.0.0.0:7201 --proxy-addr 0.0.0.0:7202
 ```
 
 The image runs as a non-root user, so state on `--tmpfs` is lost on

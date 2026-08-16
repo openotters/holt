@@ -33,4 +33,4 @@ task ui:dev                 # Vite dev server on :5173, proxying to the hub
 ```
 
 `vite.config.ts` proxies `/openotters.holt.v1.Admin` and `/api` to
-`http://127.0.0.1:7001` (override with `HOLT_ADMIN`).
+`http://127.0.0.1:7201` (override with `HOLT_ADMIN`).

@@ -25,7 +25,7 @@ hub:
   # reachable URL. The scheme picks the peer transport:
   # "wss://holt.example.com" dials TLS under the WebSocket through a
   # TLS edge (ingress, LoadBalancer with TLS, or Cloudflare, verified
-  # with the system roots), "ws://192.168.8.193:7000" dials plaintext
+  # with the system roots), "ws://192.168.8.193:7200" dials plaintext
   # to a bare LoadBalancer IP (https/http accepted as aliases). Empty
   # falls back to ws://<bind address>.
   advertiseAddr: ""
@@ -92,7 +92,7 @@ postgres:
 # OTel Prometheus exporter.
 metrics:
   enabled: false
-  port: 7003
+  port: 7203
   # A Prometheus Operator ServiceMonitor to scrape /metrics. Needs the
   # ServiceMonitor CRD (kube-prometheus-stack); enable metrics too.
   serviceMonitor:
@@ -135,7 +135,7 @@ service:
   # its wss:// URL.
   tunnel:
     type: LoadBalancer
-    port: 7000
+    port: 7200
     # Set when peers reach the hub through a fixed address; used only
     # for documentation in NOTES.txt.
     annotations: {}
@@ -143,11 +143,11 @@ service:
   # authenticated ingress).
   admin:
     type: ClusterIP
-    port: 7001
+    port: 7201
   # Header-routed proxy (x-tunnel-peer) to reach peer services.
   proxy:
     type: ClusterIP
-    port: 7002
+    port: 7202
 
 # Ingresses are DISABLED by default. Admin and proxy should stay that
 # way unless an authenticating layer sits in front: the admin API mints

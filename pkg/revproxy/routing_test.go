@@ -45,7 +45,7 @@ func TestRoutingResolverPeer(t *testing.T) {
 
 		// subdomain strategy
 		{"subdomain routes", revproxy.RoutingSubdomain, domain, "alice." + domain, "", "alice"},
-		{"subdomain with port", revproxy.RoutingSubdomain, domain, "alice." + domain + ":7002", "", "alice"},
+		{"subdomain with port", revproxy.RoutingSubdomain, domain, "alice." + domain + ":7202", "", "alice"},
 		{"subdomain uppercased host", revproxy.RoutingSubdomain, domain, "ALICE." + domain, "", "alice"},
 		{"subdomain trailing dot", revproxy.RoutingSubdomain, domain, "alice." + domain + ".", "", "alice"},
 		{"apex is not a peer", revproxy.RoutingSubdomain, domain, domain, "", ""},

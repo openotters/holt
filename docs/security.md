@@ -47,7 +47,7 @@ peers dial). It defaults to `ws://` + `--tunnel-addr`, the **bind**
 address, which is wrong behind a LoadBalancer, NAT, or TLS edge (a peer
 cannot dial `0.0.0.0`, and a plaintext URL skips your edge's TLS). Set
 it to the reachable URL, for example `wss://holt.example.com` for a
-hub behind a TLS ingress, or `ws://<lb-ip>:7000` for a plain
+hub behind a TLS ingress, or `ws://<lb-ip>:7200` for a plain
 LoadBalancer on a trusted network. Its scheme selects the peer
 transport. The Helm chart exposes it as `hub.advertiseAddr`.
 

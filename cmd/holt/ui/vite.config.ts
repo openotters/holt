@@ -16,7 +16,7 @@ try {
 // The console is served by the hub from a fixed origin, so build to a
 // plain relative-asset SPA. In dev, proxy the Admin gRPC service and
 // the enroll endpoint to a locally-running hub (`holt hub --ui`).
-const HUB_ADMIN = process.env.HOLT_ADMIN ?? "http://127.0.0.1:7001";
+const HUB_ADMIN = process.env.HOLT_ADMIN ?? "http://127.0.0.1:7201";
 
 export default defineConfig({
   define: { __APP_COMMIT__: JSON.stringify(commit) },

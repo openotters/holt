@@ -16,7 +16,7 @@ import (
 	"github.com/openotters/holt/pkg/token"
 )
 
-const advertised = "ws://hub.example.com:7000"
+const advertised = "ws://hub.example.com:7200"
 
 func post(t *testing.T, mux *http.ServeMux, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -224,10 +224,10 @@ func TestConsoleConfigKeys(t *testing.T) {
 		Logger: zap.NewNop(),
 		Settings: hubapi.Config{
 			RouteHeader:  "x-tunnel-peer",
-			ProxyPort:    "7002",
+			ProxyPort:    "7202",
 			ExternalURL:  "https://peers.example.com",
 			TunnelURL:    advertised,
-			MetricsPort:  "7003",
+			MetricsPort:  "7203",
 			ProxyRouting: "both",
 			ProxyDomain:  "peers.example.com",
 		},
@@ -248,10 +248,10 @@ func TestConsoleConfigKeys(t *testing.T) {
 
 	want := map[string]string{
 		"routeHeader":  "x-tunnel-peer",
-		"proxyPort":    "7002",
+		"proxyPort":    "7202",
 		"externalURL":  "https://peers.example.com",
 		"tunnelURL":    advertised,
-		"metricsPort":  "7003",
+		"metricsPort":  "7203",
 		"proxyRouting": "both",
 		"proxyDomain":  "peers.example.com",
 	}

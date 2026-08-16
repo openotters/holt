@@ -26,7 +26,7 @@ import (
 // is the one-call counterpart of client.New for the server side.
 //
 // Zero configuration works: New().Run(ctx) serves a tunnel on
-// 127.0.0.1:7000 and a proxy on 127.0.0.1:7002 with the development
+// 127.0.0.1:7200 and a proxy on 127.0.0.1:7202 with the development
 // identity — peers name themselves with the x-holt-peer header (or
 // get a generated name) and nothing verifies the claim. That identity
 // is loopback-only by construction: a tunnel bound to anything other
@@ -47,8 +47,8 @@ type Server struct {
 // The addresses New serves on when WithTunnel / WithProxy are not
 // given — holt's canonical loopback ports.
 const (
-	DefaultTunnelAddr = "127.0.0.1:7000"
-	DefaultProxyAddr  = "127.0.0.1:7002"
+	DefaultTunnelAddr = "127.0.0.1:7200"
+	DefaultProxyAddr  = "127.0.0.1:7202"
 )
 
 // Option configures a Server; every SharedOption is one too.

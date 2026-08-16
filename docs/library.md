@@ -29,10 +29,10 @@ server in one call:
 ```go
 srv := holt.NewServer(
     holt.WithLogger(log),
-    holt.WithTunnel(holt.NewTunnel(":7000",     // where peers attach
+    holt.WithTunnel(holt.NewTunnel(":7200",     // where peers attach
         holt.WithAuthBearer(peerForToken),      // token → peer id, 401s the rest
     )),
-    holt.WithProxy(holt.NewProxy(":7002")),     // reach peers: x-tunnel-peer header
+    holt.WithProxy(holt.NewProxy(":7202")),     // reach peers: x-tunnel-peer header
 )
 
 err := srv.Run(ctx) // binds (fail fast), serves, blocks; cancel to drain
@@ -42,7 +42,7 @@ client := &http.Client{Transport: srv.Registry().RoundTripper(peerID)}
 ```
 
 Zero configuration works too: `holt.NewServer().Run(ctx)` serves a
-tunnel on `127.0.0.1:7000` and a proxy on `127.0.0.1:7002` with the
+tunnel on `127.0.0.1:7200` and a proxy on `127.0.0.1:7202` with the
 **development identity** — peers name themselves with the
 `x-holt-peer` header (or get a generated name), nothing verifies the
 claim. It is loopback-only by construction: a tunnel bound anywhere
@@ -62,7 +62,7 @@ come from something verified — never from what the peer asserts:
 ```go
 // Bearer tokens: one func from token to peer id does middleware and
 // identity both.
-holt.NewTunnel(":7000", holt.WithAuthBearer(peerForToken))
+holt.NewTunnel(":7200", holt.WithAuthBearer(peerForToken))
 
 // Any other scheme: middleware stamps the context, identity reads it
 // back (a client-cert CN, a session cookie, any verified source).
@@ -70,7 +70,7 @@ holt.NewTunnel("", holt.WithListener(tlsLis),
     holt.WithMiddleware(certIdentity), holt.WithIdentity(cnFromCtx))
 
 // Inner TLS and tracing pass through to the attach handler:
-holt.NewTunnel(":7000", holt.WithHandlerOptions(holt.WithPeerTLS(cfg)))
+holt.NewTunnel(":7200", holt.WithHandlerOptions(holt.WithPeerTLS(cfg)))
 ```
 
 The proxy routes on the `x-tunnel-peer` header by default;
@@ -171,7 +171,7 @@ Point the hub at your own OTel providers:
 
 ```go
 registry.NewRegistry(log, registry.WithMeterProvider(mp)) // pkg/registry
-holt.NewTunnel(":7000", holt.WithHandlerOptions(holt.WithTracerProvider(tp)))
+holt.NewTunnel(":7200", holt.WithHandlerOptions(holt.WithTracerProvider(tp)))
 ```
 
 See [Observability](observability.md) for the instruments and the
