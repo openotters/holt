@@ -2,22 +2,24 @@
 
 # Examples
 
-*Three runnable demos, in learning order.*
+*Two runnable demos, in learning order.*
 
-Every example under [`examples/`](../examples) is runnable with
-`go run`:
+Each example under [`examples/`](../examples) is a hub and a peer as
+separate programs — run the server, run the client, `curl` through
+the proxy:
 
 | Example         | What it shows                                              |
 |-----------------|------------------------------------------------------------|
-| `echo`          | Smallest end-to-end demo, hub and peer in one process      |
+| `echo`          | The minimal pair: zero-config hub, listenerless peer       |
 | `authenticated` | The identity seam: bearer-token auth on the attach         |
-| `client-server` | Standalone hub and peer as two programs                    |
 
 For example:
 
 ```sh
-go run ./examples/echo
-# hub → peer GET /whoami  ⇒  200  "I am the peer; the hub reached me through the tunnel"
+go run ./examples/echo/server    # terminal 1
+go run ./examples/echo/client    # terminal 2
+curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7002/whoami
+# I am the peer; the hub reached me through the tunnel
 ```
 
 The [examples README](../examples/README.md) has the exact commands;

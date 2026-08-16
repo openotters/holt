@@ -1,18 +1,18 @@
-// Command server is a standalone holt hub. It accepts reverse
-// tunnels from peers on one port and reaches those peers on another
-// by dialing back THROUGH their tunnels — so you can curl a peer that
-// has no listener of its own.
+// Command server is a standalone holt hub with a real identity: it
+// accepts reverse tunnels from peers on one port and reaches those
+// peers on another by dialing back THROUGH their tunnels.
 //
-//	go run ./examples/client-server/server
+// Peers authenticate with a bearer token that maps to their identity;
+// the hub keys tunnels by that authenticated id, never by anything
+// the peer asserts in the handshake. A peer with an unknown token is
+// rejected at the upgrade and never lands in the registry.
+//
+//	go run ./examples/authenticated/server
 //
 // Then run one or more peers (see ../client) and:
 //
 //	curl -H 'x-tunnel-peer: alice' localhost:7002/hello      # reach alice through her tunnel
-//	curl -H 'x-tunnel-peer: alice' localhost:7002/time
-//
-// Peers authenticate with a bearer token that maps to their identity;
-// the hub keys tunnels by that authenticated id, never by anything the
-// peer asserts in the handshake.
+//	curl -H 'x-tunnel-peer: bob'   localhost:7002/time
 package main
 
 import (
@@ -32,7 +32,8 @@ import (
 
 // peerForToken maps a demo bearer token to the peer identity it
 // proves. A real hub validates a JWT signature or an mTLS certificate
-// here.
+// here. This func is the whole identity seam: WithAuthBearer wires it
+// as both the upgrade guard and the registry key.
 func peerForToken(_ context.Context, token string) (string, error) {
 	peers := map[string]string{
 		"tok-alice": "alice",

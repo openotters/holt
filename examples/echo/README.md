@@ -1,45 +1,46 @@
-# echo — minimal reverse-tunnel demo
+# echo — minimal reverse-tunnel pair
 
-Stands up a hub and a peer in one process. The peer serves an HTTP
-handler and **never listens**; the hub reaches that handler by dialing
-back through the tunnel the peer opened.
+The smallest holt deployment: a hub and a peer as **two programs**.
+The peer serves an HTTP handler and **never listens**; the hub
+reaches that handler by dialing back through the tunnel the peer
+opened.
+
+- [`server/`](server) — the hub half: `holt.NewServer()` with zero
+  configuration (tunnel on `127.0.0.1:7000`, proxy on `:7002`).
+- [`client/`](client) — the peer half: `holt.NewClient` serving
+  `/whoami` back over the tunnel.
+
+## Run it
+
+Terminal 1 — the hub:
 
 ```bash
-go run ./examples/echo
+go run ./examples/echo/server
 ```
 
-Output:
+Terminal 2 — the peer:
 
+```bash
+go run ./examples/echo/client
 ```
-hub → peer GET /whoami  ⇒  200  "I am the peer; the hub reached me through the tunnel"
-```
 
-The only inbound listener in the program is the hub's. That is the
-whole point: the peer is reachable without a port, a public address, or
-a hole in its firewall.
-
-The code is split the way a real deployment is: [`server.go`](server.go)
-is the hub half, [`client.go`](client.go) the peer half, and
-[`main.go`](main.go) only wires the demo together.
-
-Key calls, in order:
-
-1. `holt.NewServer()` + `srv.Run(ctx)` — the whole hub with zero
-   configuration: tunnel on `127.0.0.1:7000`, proxy on `:7002`. No
-   identity is configured, so the **development identity** applies:
-   the peer names itself with the `x-holt-peer` header, nothing
-   verifies the claim, and the tunnel must stay on loopback (a wider
-   bind refuses to start).
-2. `holt.NewClient(url, handler, ...)` + `c.Run(ctx)` — the peer
-   attaches over a `ws://` WebSocket and serves its handler back.
-3. `srv.Registry().RoundTripper(peer)` wrapped in an `http.Client` —
-   the hub dials the peer through the tunnel like any other backend.
-
-While it runs, the proxy reaches the peer from a shell too:
+Terminal 3 — reach the listenerless peer through the hub's proxy:
 
 ```bash
 curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7002/whoami
+# I am the peer; the hub reached me through the tunnel
 ```
+
+The only inbound listeners anywhere are the hub's. That is the whole
+point: the peer is reachable without a port, a public address, or a
+hole in its firewall — `curl` reaches it purely because the peer
+dialed out and the hub proxies back down that tunnel. Kill and
+restart the hub: the peer redials with backoff and reappears.
+
+No identity is configured, so the **development identity** applies:
+the peer names itself with the `x-holt-peer` header, nothing verifies
+the claim, and the tunnel refuses to bind anywhere another machine
+could reach.
 
 Next: [`../authenticated`](../authenticated) replaces the development
 identity with a real one.

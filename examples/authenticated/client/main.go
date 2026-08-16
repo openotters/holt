@@ -1,14 +1,15 @@
 // Command client is a standalone holt peer. It dials the hub,
 // authenticates with a bearer token, and serves an HTTP handler back
 // over the reverse tunnel — while listening on nothing itself. The
-// hub (and anyone using the hub's operator API) can then reach this
-// peer's handler through the tunnel.
+// hub (and anyone curling its proxy) can then reach this peer's
+// handler through the tunnel.
 //
-//	go run ./examples/client-server/client --token tok-alice
-//	go run ./examples/client-server/client --token tok-bob --hub ws://127.0.0.1:7000
+//	go run ./examples/authenticated/client --token tok-alice
+//	go run ./examples/authenticated/client --token tok-bob --hub ws://127.0.0.1:7000
 //
 // The peer keeps running until Ctrl-C; it redials automatically if the
-// hub restarts.
+// hub restarts. Try an unknown token: the hub answers 401 at the
+// upgrade and the peer never attaches.
 package main
 
 import (
@@ -46,7 +47,6 @@ func run(hubURL, token string, logger *zap.Logger) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/hello", helloHandler(token))
 	mux.HandleFunc("/time", timeHandler)
-	mux.HandleFunc("/env", envHandler)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -63,7 +63,7 @@ func run(hubURL, token string, logger *zap.Logger) error {
 		hubURL,
 		mux,
 		holt.WithBearerToken(token),
-		holt.WithVersion("client-server-demo"),
+		holt.WithVersion("authenticated-demo"),
 		holt.WithLogger(logger),
 	).Run(ctx); err != nil && ctx.Err() == nil {
 		return err
@@ -72,10 +72,6 @@ func run(hubURL, token string, logger *zap.Logger) error {
 	logger.Info("peer stopped")
 
 	return nil
-}
-
-func envHandler(w http.ResponseWriter, r *http.Request) {
-	_, _ = fmt.Fprintf(w, "requested-path: %s\n", r.URL.Path)
 }
 
 func timeHandler(w http.ResponseWriter, _ *http.Request) {
