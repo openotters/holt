@@ -184,7 +184,7 @@ linters:
       - linters:
           - revive
         text: "meaningless package names"
-        path: pkg/utils/
+        path: (pkg|internal)/utils/
       - linters:
           - gomoddirectives
         text: "local replacement"
