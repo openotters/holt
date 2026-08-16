@@ -7,7 +7,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/openotters/holt.svg)](https://pkg.go.dev/github.com/openotters/holt)
 [![Go Report Card](https://goreportcard.com/badge/github.com/openotters/holt)](https://goreportcard.com/report/github.com/openotters/holt)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
-[![Status: experimental](https://img.shields.io/badge/status-experimental-orange.svg)](#)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#)
 
 </div>
 
@@ -29,6 +29,28 @@ No listener, no inbound port, no published container port on the peer.
   <br />
   <sub>The built-in web console (<code>holt hub --ui</code>). See <a href="docs/console.md">Web console</a>.</sub>
 </div>
+
+## Where holt fits
+
+frp, ngrok and inlets do much more than holt, and at a bigger scale. If
+you need TCP or UDP forwarding, load balancing, teams and quotas, or a
+hosted service with support, look at them first.
+
+holt is for simpler needs. You have an HTTP service that can only dial
+out, you have a domain and a small server (or a Kubernetes cluster), and
+you want to reach that service without giving your traffic to somebody
+else. One binary for the hub, one command on the peer, and everything
+stays yours.
+
+What you get:
+
+- HTTP and gRPC through the tunnel, the peer serving an ordinary handler
+- a hostname per peer, so a browser, a webhook or an OAuth callback can
+  reach it directly
+- a WebSocket transport, so the tunnel passes through Cloudflare,
+  ingresses and access proxies (gRPC does not pass there)
+- a web console, Prometheus metrics and a Grafana dashboard
+- a Helm chart, and a shared PostgreSQL when you run several hubs
 
 ## Quickstart (local)
 
@@ -73,6 +95,60 @@ holt enroll web                                      # token now carries the wss
 ```
 
 See [Security](docs/security.md) for exposing a hub safely.
+
+## Examples
+
+Give a peer its own hostname, for a webhook, an OAuth callback, or just
+a browser. Point a wildcard record at the proxy first (keep the peers at
+the first level of the domain, a wildcard certificate covers only one
+level):
+
+```sh
+holt hub --advertise-addr wss://holt.example.com \
+  --proxy-routing both --proxy-domain example.com
+
+holt expose localhost:3000 --peer checkout
+# https://checkout.example.com/ now reaches the service
+```
+
+Expose an appliance that serves HTTPS with a self signed certificate (a
+router, a NAS, an IPMI card):
+
+```sh
+holt expose https://192.168.1.1 --insecure --peer router
+```
+
+Open a quick tunnel without choosing a name:
+
+```sh
+holt expose localhost:8080
+# it enrolls itself, as something like cosy-eddy-aec23e
+```
+
+From another machine, say where the hub is (or put it in a
+[profile](docs/cli.md#remote-hubs-and-profiles)):
+
+```sh
+holt expose localhost:3000 --admin-url https://holt.example.com
+```
+
+Then operate the hub:
+
+```sh
+holt ls           # who is attached
+holt kill web     # close a tunnel, the peer may come back
+holt block web    # ban the peer id until you unblock it
+```
+
+On Kubernetes, the chart runs the hub, and several hubs can share one
+PostgreSQL for presence, blocklist and signing identity:
+
+```sh
+helm install holt oci://ghcr.io/openotters/charts/holt
+```
+
+See [Kubernetes](docs/kubernetes.md) for the fleet setup, the ingresses
+and the Grafana dashboard.
 
 ## Documentation
 
