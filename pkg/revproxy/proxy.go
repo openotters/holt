@@ -31,6 +31,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httputil"
+
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Peers is the live-tunnel half of the hub the proxy dials through.
@@ -66,6 +68,7 @@ type Proxy struct {
 	peers     Peers
 	resolvers []Resolver
 	onError   ErrorHook
+	metrics   *metrics
 	reverse   *httputil.ReverseProxy
 }
 
@@ -83,9 +86,18 @@ func WithResolvers(resolvers ...Resolver) Option {
 }
 
 // WithErrorHook registers an observer for requests that could not be
-// proxied. See ErrorHook.
+// proxied. See ErrorHook. The proxy counts them either way; the hook
+// is for anything else the application wants to do with them.
 func WithErrorHook(hook ErrorHook) Option {
 	return func(p *Proxy) { p.onError = hook }
+}
+
+// WithMeterProvider sets the OTel MeterProvider the data-plane
+// instruments are built from (holt.proxy.requests, .request.duration,
+// .inflight, .errors). Optional: without it the global provider is
+// used, which is a no-op until the application installs an SDK.
+func WithMeterProvider(mp metric.MeterProvider) Option {
+	return func(p *Proxy) { p.metrics = newMetrics(mp) }
 }
 
 // New builds a proxy over the given peers. Without options it routes on
@@ -95,6 +107,7 @@ func New(peers Peers, opts ...Option) *Proxy {
 		peers:     peers,
 		resolvers: nil, // defaulted below, after the options ran
 		onError:   nil,
+		metrics:   nil,
 		reverse:   nil,
 	}
 
@@ -104,6 +117,10 @@ func New(peers Peers, opts ...Option) *Proxy {
 
 	if len(p.resolvers) == 0 {
 		p.resolvers = []Resolver{ResolveByHeader()}
+	}
+
+	if p.metrics == nil {
+		p.metrics = newMetrics(nil)
 	}
 
 	p.reverse = &httputil.ReverseProxy{
@@ -130,6 +147,11 @@ const peerHost = "peer.invalid"
 // names none gets the landing page rather than a proxied request, so
 // hitting the proxy root never turns into a 502.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p.metrics.observe(w, r, p.serve)
+}
+
+// serve is the routing itself, wrapped by the instruments above.
+func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
 	peer := p.peer(r)
 	if peer == "" {
 		p.record(r.Context(), ReasonNoPeer)
@@ -158,6 +180,8 @@ func (p *Proxy) peer(r *http.Request) string {
 
 // record notifies the error hook, if one is registered.
 func (p *Proxy) record(ctx context.Context, reason string) {
+	p.metrics.recordError(ctx, reason)
+
 	if p.onError != nil {
 		p.onError(ctx, reason)
 	}

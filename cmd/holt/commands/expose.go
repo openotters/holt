@@ -13,10 +13,13 @@ import (
 
 	"connectrpc.com/connect"
 	c "github.com/merlindorin/go-shared/pkg/cmd"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
 	holtv1 "github.com/openotters/holt/api/v1"
 
+	"github.com/openotters/holt/cmd/holt/internal/httpsrv"
+	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/pkg/dial"
 	"github.com/openotters/holt/pkg/peername"
@@ -43,6 +46,13 @@ type Expose struct {
 	// proxy answers with a 502. This turns verification off for that
 	// one hop; it never touches the tunnel or the hub.
 	Insecure bool `help:"Skip TLS verification of an https target (self-signed appliances). Local hop only, never the tunnel." env:"HOLT_EXPOSE_INSECURE"`
+
+	// The peer keeps its own instruments (attaches, failed attempts by
+	// reason, session duration, attached gauge). They answer "is this
+	// peer flapping" from the side that knows, which the hub cannot:
+	// it only ever sees the attempts that reached it.
+	Metrics     bool   `help:"Serve this peer's Prometheus metrics on /metrics."`
+	MetricsAddr string `help:"Metrics listener address." default:"127.0.0.1:7210"`
 
 	// --admin-url / --header / --profile / --config: where to enroll,
 	// and the headers for whatever authenticates in front of the hub.
@@ -128,6 +138,15 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 		return err
 	}
 
+	if e.Metrics {
+		stop, mErr := e.serveMetrics(ctx, logger)
+		if mErr != nil {
+			return mErr
+		}
+
+		defer stop()
+	}
+
 	// The build version rides along so the console can flag peers
 	// lagging behind the hub (plain "holt-expose" told it nothing).
 	err = dial.Run(ctx, dial.Options{
@@ -145,6 +164,39 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 
 	return err
 }
+
+// serveMetrics installs the OTel SDK provider and serves the peer's
+// instruments, so a peer is observable on its own rather than only
+// through whichever hub it reached.
+func (e *Expose) serveMetrics(ctx context.Context, logger *zap.Logger) (func(), error) {
+	mp, err := hubmetrics.Provider()
+	if err != nil {
+		return nil, err
+	}
+
+	// Installed before dial.Run builds its instruments, so they bind
+	// to this provider rather than the global no-op.
+	otel.SetMeterProvider(mp)
+
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", hubmetrics.Handler())
+
+	listeners := httpsrv.NewGroup(logger)
+	if startErr := listeners.Start(ctx, "metrics", e.MetricsAddr, mux); startErr != nil {
+		return nil, startErr
+	}
+
+	logger.Info("serving peer metrics", zap.String("addr", e.MetricsAddr))
+
+	return func() {
+		listeners.Drain(metricsDrain)
+		_ = mp.Shutdown(context.Background())
+	}, nil
+}
+
+// metricsDrain bounds how long the metrics listener gets to finish a
+// scrape on shutdown.
+const metricsDrain = 2 * time.Second
 
 // resolveToken returns the join token to attach with: the one given,
 // or a freshly minted one. enrolled reports which, so the caller can

@@ -190,6 +190,10 @@ Two ready-made peers consume the token:
   for a device on a trusted network whose certificate you cannot fix,
   not for anything sensitive: an attacker on the path to that target
   can read and alter the traffic.
+
+  `--metrics` serves the peer's own instruments on `127.0.0.1:7210`
+  (attaches, failed attempts by reason, session duration), which is
+  how a flapping peer shows itself from the side that knows.
 - [`cmd/starter-client`](../cmd/starter-client): a minimal template that
   serves a built-in demo; copy it to write your own. See
   [Examples](examples.md).

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 
@@ -72,6 +73,12 @@ type Options struct {
 	// Version is the peer build version, sent in Hello (observability).
 	Version string
 	Logger  *zap.Logger
+
+	// MeterProvider builds the peer's own instruments (attaches,
+	// failed attempts by reason, session duration, and a gauge that
+	// is 1 while a tunnel is up). Optional: without it the global
+	// provider is used, a no-op until an SDK is installed.
+	MeterProvider metric.MeterProvider
 
 	// TLSConfig, when set, encrypts the payload end-to-end INSIDE the
 	// tunnel: after the plaintext holt handshake the peer runs a
@@ -130,10 +137,11 @@ func Run(ctx context.Context, opts Options) error {
 		opts.HTTPClient = &http.Client{Transport: newTransport()}
 	}
 
+	obs := newMetrics(opts.MeterProvider)
 	backoff := backoffBase
 
 	for {
-		attached, err := attachOnce(ctx, wsURL, opts, logger)
+		attached, err := attachOnce(ctx, wsURL, opts, obs, logger)
 
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -184,7 +192,9 @@ func newTransport() *http.Transport {
 // attachOnce performs one attach: WebSocket dial, handshake, then
 // serves Handler over the stream until it ends. attached reports
 // whether the handshake completed (used to reset backoff).
-func attachOnce(ctx context.Context, wsURL string, opts Options, logger *zap.Logger) (bool, error) {
+func attachOnce(
+	ctx context.Context, wsURL string, opts Options, obs *metrics, logger *zap.Logger,
+) (bool, error) {
 	c, resp, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
 		HTTPHeader: opts.Header,
 		HTTPClient: opts.HTTPClient,
@@ -198,8 +208,12 @@ func attachOnce(ctx context.Context, wsURL string, opts Options, logger *zap.Log
 			// The status is the story: 401/403 is the hub (or the
 			// access layer in front) refusing the credential, 3xx is
 			// usually an auth wall bouncing to a login page.
+			obs.recordFailure(ctx, reasonDial)
+
 			return false, fmt.Errorf("holt: websocket dial: %w (http %d)", err, resp.StatusCode)
 		}
+
+		obs.recordFailure(ctx, reasonDial)
 
 		return false, fmt.Errorf("holt: websocket dial: %w", err)
 	}
@@ -208,8 +222,18 @@ func attachOnce(ctx context.Context, wsURL string, opts Options, logger *zap.Log
 	fs := wire.NewWSStream(ctx, c)
 
 	if hsErr := wire.ClientHandshake(fs, opts.Version); hsErr != nil {
+		obs.recordFailure(ctx, reasonHandshake)
+
 		return false, hsErr
 	}
+
+	// Attached: mark it up, and record how long it lasts, whichever
+	// way the session ends below.
+	attachedAt := time.Now()
+
+	obs.recordAttach(ctx)
+
+	defer func() { obs.recordDetach(ctx, attachedAt) }()
 
 	logger.Info("tunnel attached")
 

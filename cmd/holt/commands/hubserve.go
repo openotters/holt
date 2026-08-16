@@ -126,12 +126,12 @@ func (h *Hub) startProxy(ctx context.Context, listeners *httpsrv.Group, rt *hubR
 		return err
 	}
 
-	peers := revproxy.New(rt.registry,
-		revproxy.WithResolvers(resolvers...),
-		revproxy.WithErrorHook(rt.metrics.RecordProxyError),
-	)
+	// The proxy records its own data-plane metrics (requests, duration,
+	// in-flight, routing errors) against the global provider --metrics
+	// installed above, so the CLI adds no instrumentation of its own.
+	peers := revproxy.New(rt.registry, revproxy.WithResolvers(resolvers...))
 
-	return listeners.Start(ctx, "proxy", h.ProxyAddr, rt.metrics.Instrument(peers))
+	return listeners.Start(ctx, "proxy", h.ProxyAddr, peers)
 }
 
 // startMetrics serves the OTel Prometheus exporter on /metrics.
