@@ -5,6 +5,7 @@ import {
 	Ban,
 	Beer,
 	Check,
+	ChevronDown,
 	Container,
 	Copy,
 	Download,
@@ -188,10 +189,13 @@ export function App() {
 						) : tunnels.length === 0 ? (
 							<div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12 text-muted-foreground text-sm">
 								<span>no peers attached</span>
-								<span>mint a token above, then on the machine to expose:</span>
+								<span>on the machine you want to expose, run:</span>
 								<code className="rounded-md border bg-muted/50 px-3 py-1 font-mono text-xs">
-									holt expose localhost:3000 --token &lt;paste&gt;
+									holt expose localhost:3000
 								</code>
+								<span className="text-xs">
+									it enrolls itself, or pass a token from above with --token
+								</span>
 							</div>
 						) : (
 							<Table>
@@ -515,31 +519,48 @@ const INSTALL_METHODS: InstallMethod[] = [
 	},
 ];
 
+// InstallCard is collapsed by default: installing holt is a one time
+// step per peer, so it should not take space above the tunnels the
+// operator came to look at.
 function InstallCard() {
 	const [selected, setSelected] = useState<InstallMethod | null>(null);
+	const [open, setOpen] = useState(false);
 
 	return (
 		<Card>
-			<CardHeader>
-				<CardTitle className="flex items-center gap-2">
-					<Download className="h-4 w-4 text-muted-foreground" /> Install holt on a peer
+			<CardHeader className={open ? undefined : "pb-6"}>
+				<CardTitle className="flex items-center justify-between gap-3">
+					<span className="flex items-center gap-2">
+						<Download className="h-4 w-4 text-muted-foreground" /> Install holt on a peer
+					</span>
+					<Button
+						size="sm"
+						variant="outline"
+						aria-expanded={open}
+						onClick={() => setOpen((o) => !o)}
+					>
+						{open ? "Hide" : "Install"}
+						<ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+					</Button>
 				</CardTitle>
 			</CardHeader>
-			<CardContent>
-				<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-					{INSTALL_METHODS.map((m) => (
-						<button
-							key={m.key}
-							className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground"
-							type="button"
-							onClick={() => setSelected(m)}
-						>
-							<m.icon className="h-6 w-6" />
-							<span className="font-medium text-sm">{m.label}</span>
-						</button>
-					))}
-				</div>
-			</CardContent>
+			{open && (
+				<CardContent>
+					<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+						{INSTALL_METHODS.map((m) => (
+							<button
+								key={m.key}
+								className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground"
+								type="button"
+								onClick={() => setSelected(m)}
+							>
+								<m.icon className="h-6 w-6" />
+								<span className="font-medium text-sm">{m.label}</span>
+							</button>
+						))}
+					</div>
+				</CardContent>
+			)}
 			{selected && <InstallModal method={selected} onClose={() => setSelected(null)} />}
 		</Card>
 	);
