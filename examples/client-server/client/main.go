@@ -55,7 +55,7 @@ func run(hubURL, token string, logger *zap.Logger) error {
 
 	// The peer owns its connection to the hub, here a plaintext ws://
 	// WebSocket with the bearer token on the upgrade request. For
-	// transport TLS, dial wss:// instead (see ../../transport-tls).
+	// transport TLS, dial wss:// instead.
 	//
 	// Run blocks, redialing with backoff, until ctx ends or the
 	// hub sends a terminal GoAway.

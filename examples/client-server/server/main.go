@@ -7,7 +7,6 @@
 //
 // Then run one or more peers (see ../client) and:
 //
-//	curl localhost:7001/peers                                # who is attached
 //	curl -H 'x-tunnel-peer: alice' localhost:7002/hello      # reach alice through her tunnel
 //	curl -H 'x-tunnel-peer: alice' localhost:7002/time
 //
@@ -20,15 +19,10 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
-	"io"
 	"log"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -55,16 +49,15 @@ func peerForToken(_ context.Context, token string) (string, error) {
 
 func main() {
 	tunnelAddr := flag.String("addr", "127.0.0.1:7000", "tunnel (WebSocket) listen address for peers")
-	rosterAddr := flag.String("http", "127.0.0.1:7001", "roster HTTP listen address")
 	proxyAddr := flag.String("proxy", "127.0.0.1:7002", "proxy listen address (reach peers here)")
 	flag.Parse()
 
-	if err := run(*tunnelAddr, *rosterAddr, *proxyAddr); err != nil {
+	if err := run(*tunnelAddr, *proxyAddr); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(tunnelAddr, rosterAddr, proxyAddr string) error {
+func run(tunnelAddr, proxyAddr string) error {
 	logger, _ := zap.NewDevelopment()
 	defer func() { _ = logger.Sync() }()
 
@@ -86,47 +79,7 @@ func run(tunnelAddr, rosterAddr, proxyAddr string) error {
 
 	logAttachEvents(ctx, srv.Registry(), logger)
 
-	// A tiny operator extra the facade does not own: the peer roster,
-	// read straight off the registry.
-	rosterSrv, err := serveRoster(srv.Registry(), rosterAddr)
-	if err != nil {
-		return err
-	}
-
-	defer func() { _ = rosterSrv.Close() }()
-
 	return srv.Run(ctx)
-}
-
-// serveRoster exposes GET /peers: every live tunnel this hub owns.
-func serveRoster(reg *registry.Registry, addr string) (*http.Server, error) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /peers", func(w http.ResponseWriter, _ *http.Request) {
-		tunnels := reg.ListTunnels()
-		if len(tunnels) == 0 {
-			_, _ = io.WriteString(w, "no peers attached\n")
-
-			return
-		}
-
-		for _, tunnel := range tunnels {
-			_, _ = fmt.Fprintf(w, "%-12s version=%-12s attached=%s\n",
-				tunnel.Peer, tunnel.PeerVersion, tunnel.AttachedAt.Format(time.RFC3339))
-		}
-	})
-
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-
-	var lc net.ListenConfig
-
-	lis, err := lc.Listen(context.Background(), "tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() { _ = srv.Serve(lis) }()
-
-	return srv, nil
 }
 
 // logAttachEvents narrates attach/detach to the log.

@@ -65,7 +65,7 @@ come from something verified — never from what the peer asserts:
 holt.NewTunnel(":7000", holt.WithAuthBearer(peerForToken))
 
 // Any other scheme: middleware stamps the context, identity reads it
-// back (a client-cert CN here; see examples/transport-tls).
+// back (a client-cert CN, a session cookie, any verified source).
 holt.NewTunnel("", holt.WithListener(tlsLis),
     holt.WithMiddleware(certIdentity), holt.WithIdentity(cnFromCtx))
 

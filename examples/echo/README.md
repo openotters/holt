@@ -20,17 +20,22 @@ a hole in its firewall.
 
 Key calls, in order:
 
-1. `hub.NewServer(hub.WithTunnel(...))` + `srv.Run(ctx)`, the whole
-   hub side in one call. No identity is configured, so the
-   **development identity** applies: the peer names itself with the
-   `x-holt-peer` header, nothing verifies the claim, and the tunnel
-   must stay on loopback (a wider bind refuses to start).
-2. `dial.Run(ctx, dial.Options{URL, Header, Handler})`, the peer
-   attaches over a `ws://` WebSocket and serves.
+1. `holt.NewServer()` + `srv.Run(ctx)` — the whole hub with zero
+   configuration: tunnel on `127.0.0.1:7000`, proxy on `:7002`. No
+   identity is configured, so the **development identity** applies:
+   the peer names itself with the `x-holt-peer` header, nothing
+   verifies the claim, and the tunnel must stay on loopback (a wider
+   bind refuses to start).
+2. `holt.NewClient(url, handler, ...)` + `c.Run(ctx)` — the peer
+   attaches over a `ws://` WebSocket and serves its handler back.
 3. `srv.Registry().RoundTripper(peer)` wrapped in an `http.Client` —
-   the hub dials through.
+   the hub dials the peer through the tunnel like any other backend.
 
-For a hub that authenticates peers and derives their identity from a
-token, see [`../authenticated`](../authenticated). To mount the hub's
-pieces on your own router instead of `NewServer`, see
-[Library](../../docs/library.md).
+While it runs, the proxy reaches the peer from a shell too:
+
+```bash
+curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7002/whoami
+```
+
+Next: [`../authenticated`](../authenticated) replaces the development
+identity with a real one.

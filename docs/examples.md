@@ -2,7 +2,7 @@
 
 # Examples
 
-*Runnable demos of every mode.*
+*Three runnable demos, in learning order.*
 
 Every example under [`examples/`](../examples) is runnable with
 `go run`:
@@ -10,10 +10,8 @@ Every example under [`examples/`](../examples) is runnable with
 | Example         | What it shows                                              |
 |-----------------|------------------------------------------------------------|
 | `echo`          | Smallest end-to-end demo, hub and peer in one process      |
+| `authenticated` | The identity seam: bearer-token auth on the attach         |
 | `client-server` | Standalone hub and peer as two programs                    |
-| `authenticated` | Bearer-token auth on the attach, both sides                |
-| `transport-tls` | TLS on the outer WebSocket hop (wss with a private CA)     |
-| `encrypted`     | Plaintext outer hop, mutual TLS inside the tunnel          |
 
 For example:
 
@@ -22,7 +20,9 @@ go run ./examples/echo
 # hub → peer GET /whoami  ⇒  200  "I am the peer; the hub reached me through the tunnel"
 ```
 
-Each example directory has its own README with the exact commands.
+The [examples README](../examples/README.md) has the exact commands;
+TLS wiring (a TLS listener on the tunnel, or end-to-end TLS inside
+it) is documented in [Library](library.md).
 
 There is also [`cmd/starter-client`](../cmd/starter-client), a minimal
 peer meant to be copied as the starting point of your own.

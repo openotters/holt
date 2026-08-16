@@ -1,16 +1,13 @@
-// Command echo is the smallest end-to-end holt demo: it stands up
-// a hub and a peer in one process, the peer serves an HTTP handler
-// that only it could serve, and the hub reaches that handler by
-// dialing back THROUGH the tunnel the peer opened.
+// Command echo is the smallest end-to-end holt demo: a hub and a
+// peer in one process. The peer serves an HTTP handler while
+// listening on nothing; the hub reaches that handler by dialing back
+// THROUGH the tunnel the peer opened.
 //
-// Nothing listens on the peer. The only inbound listener in the whole
-// program is the hub's — exactly the point of a reverse tunnel.
-//
-// The hub is holt.New with no identity configured, so the
-// development identity applies: the peer names itself with the
-// x-holt-peer header, nothing verifies the claim, and the tunnel must
-// stay on loopback (see the `authenticated` example for a real
-// identity).
+// Both halves run with zero configuration: holt.NewServer() serves
+// the tunnel on 127.0.0.1:7000 (and a proxy on :7002) with the
+// development identity — the peer names itself with the x-holt-peer
+// header, nothing verifies the claim, loopback only. See the
+// `authenticated` example for a real identity.
 //
 // Run:
 //
@@ -19,6 +16,11 @@
 // Expected output:
 //
 //	hub → peer GET /whoami  ⇒  200  "I am the peer; the hub reached me through the tunnel"
+//
+// While it runs you can also reach the peer from a shell, through the
+// hub's proxy:
+//
+//	curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7002/whoami
 package main
 
 import (
@@ -26,14 +28,10 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/openotters/holt"
-	"github.com/openotters/holt/pkg/registry"
 )
 
 func main() {
@@ -43,49 +41,28 @@ func main() {
 }
 
 func run() error {
-	logger := zap.NewNop()
-
-	// ── Hub ────────────────────────────────────────────────────────
-	// One call: the tunnel endpoint on a loopback listener, no proxy.
-	// No identity is configured, so peers name themselves (development
-	// identity, loopback only).
-	var lc net.ListenConfig
-
-	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		return err
-	}
-
-	srv := holt.NewServer(
-		holt.WithLogger(logger),
-		holt.WithTunnel(holt.NewTunnel("", holt.WithListener(lis))),
-		holt.WithProxy(nil),
-	)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	runDone := make(chan error, 1)
-	go func() { runDone <- srv.Run(ctx) }()
+	// ── Hub ── one call, zero configuration.
+	srv := holt.NewServer()
+	go func() { _ = srv.Run(ctx) }()
 
-	// ── Peer ───────────────────────────────────────────────────────
-	// Dials the hub and serves its handler back over that connection.
-	// The peer never listens.
-	peerMux := http.NewServeMux()
-	peerMux.HandleFunc("/whoami", func(w http.ResponseWriter, _ *http.Request) {
+	// ── Peer ── serves a handler back over the tunnel, listens on
+	// nothing.
+	handler := http.NewServeMux()
+	handler.HandleFunc("/whoami", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("I am the peer; the hub reached me through the tunnel"))
 	})
 
 	go func() {
-		_ = holt.NewClient("ws://"+lis.Addr().String(), peerMux,
+		_ = holt.NewClient("ws://"+holt.DefaultTunnelAddr, handler,
 			holt.WithHeader(holt.DevPeerHeader, "peer"),
-			holt.WithVersion("echo-demo"),
-			holt.WithLogger(logger),
 		).Run(ctx)
 	}()
 
-	// ── Wait for attach, then dial the peer through the tunnel ──────
-	if err := waitAttached(ctx, srv.Registry(), "peer"); err != nil {
+	// ── Reach the peer THROUGH the tunnel. ──
+	if err := waitAttached(ctx, srv); err != nil {
 		return err
 	}
 
@@ -93,34 +70,28 @@ func run() error {
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://peer.invalid/whoami", nil)
 
-	resp, doErr := client.Do(req)
-	if doErr != nil {
-		return doErr
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 	fmt.Printf("hub → peer GET /whoami  ⇒  %d  %q\n", resp.StatusCode, body)
 
-	cancel()
-	<-runDone
-
 	return nil
 }
 
-func waitAttached(ctx context.Context, r *registry.Registry, peer string) error {
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		if r.Attached(peer) {
-			return nil
-		}
-
+// waitAttached polls until the peer's tunnel is up (attaching takes a
+// few milliseconds).
+func waitAttached(ctx context.Context, srv *holt.Server) error {
+	for !srv.Registry().Attached("peer") {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("peer %q never attached: %w", peer, ctx.Err())
-		case <-ticker.C:
+			return fmt.Errorf("peer never attached: %w", ctx.Err())
+		case <-time.After(10 * time.Millisecond):
 		}
 	}
+
+	return nil
 }
