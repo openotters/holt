@@ -106,12 +106,11 @@ latency on one axis, routing errors, and in-flight requests. A `job`
 variable scopes it to one hub when several report to the same
 Prometheus.
 
-A last row covers what the **peers** report about themselves, when
-they run with `--metrics`: how many say they are attached, the
-attempts that failed before becoming a tunnel, and how long sessions
-last. It is separated from the rest because it comes from other
-processes: a peer that never reaches the hub appears there and
-nowhere else.
+The dashboard is the **hub's**: every panel reads a series the hub
+exports, so it works wherever the chart's `ServiceMonitor` is
+scraping. The peer metrics below are not on it, since the peers are
+other processes on other machines and the Prometheus watching your
+hub has no route to them.
 
 The JSON lives at
 [`charts/holt/dashboards/holt.json`](../charts/holt/dashboards/holt.json)
