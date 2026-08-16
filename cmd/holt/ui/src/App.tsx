@@ -643,53 +643,55 @@ function EnrollCard() {
 		setResult((await res.json()) as { token: string; command: string });
 	}
 
+	// No card around this one: adding a peer is what the page is for,
+	// so it reads as the page's own action rather than one panel among
+	// the others.
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Add a peer</CardTitle>
-			</CardHeader>
-			<CardContent className="flex flex-col gap-3">
-				<div className="flex gap-2">
-					<input
-						value={peer}
-						onChange={(e) => setPeer(e.target.value)}
-						onKeyDown={(e) => e.key === "Enter" && enroll()}
-						placeholder="peer id, e.g. alice"
-						aria-invalid={Boolean(nameError)}
-						className={`h-9 flex-1 rounded-md border bg-transparent px-3 text-sm outline-none focus-visible:ring-[3px] ${
-							nameError
-								? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/40"
-								: "focus-visible:border-ring focus-visible:ring-ring/50"
-						}`}
-					/>
-					<Button onClick={enroll} disabled={!name || Boolean(nameError)}>
-						Generate token
-					</Button>
-				</div>
-
-				{nameError && <p className="text-destructive text-xs">{nameError}</p>}
-
-				{result && (
-					<div className="flex flex-col gap-3">
-						<CopyField
-							label="Token (for any client: starter-client, your own)"
-							value={result.token}
-							multiline
-						/>
-						<CopyField
-							label="Expose a local endpoint"
-							value={result.command}
-						/>
-					</div>
-				)}
-
-				<p className="text-muted-foreground text-xs">
-					The token carries a short-lived JWT and the hub's tunnel URL to dial. Run the expose command on
-					the machine you want to reach. A peer id is a DNS label (lowercase letters, digits, dashes), so
-					it can also be addressed as a hostname where the proxy routes by subdomain.
+		<section className="flex flex-col gap-3">
+			<div>
+				<h2 className="font-semibold text-lg tracking-tight">Add a peer</h2>
+				<p className="text-muted-foreground text-sm">
+					Name it, take the token, and run the command on the machine you want to reach.
 				</p>
-			</CardContent>
-		</Card>
+			</div>
+
+			<div className="flex flex-col gap-2 sm:flex-row">
+				<input
+					value={peer}
+					onChange={(e) => setPeer(e.target.value)}
+					onKeyDown={(e) => e.key === "Enter" && enroll()}
+					placeholder="peer id, e.g. alice"
+					aria-invalid={Boolean(nameError)}
+					className={`h-11 w-full flex-1 rounded-md border bg-transparent px-4 text-base outline-none focus-visible:ring-[3px] ${
+						nameError
+							? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/40"
+							: "focus-visible:border-ring focus-visible:ring-ring/50"
+					}`}
+				/>
+				<Button
+					className="h-11 shrink-0 px-6 text-base"
+					onClick={enroll}
+					disabled={!name || Boolean(nameError)}
+				>
+					Generate token
+				</Button>
+			</div>
+
+			{nameError && <p className="text-destructive text-xs">{nameError}</p>}
+
+			{result && (
+				<div className="flex flex-col gap-3">
+					<CopyField label="Token (for any client: starter-client, your own)" value={result.token} multiline />
+					<CopyField label="Expose a local endpoint" value={result.command} />
+				</div>
+			)}
+
+			<p className="text-muted-foreground text-xs">
+				The token carries a short-lived JWT and the hub's tunnel URL to dial. A peer id is a DNS label
+				(lowercase letters, digits, dashes), so it can also be addressed as a hostname where the proxy
+				routes by subdomain.
+			</p>
+		</section>
 	);
 }
 
