@@ -6,6 +6,12 @@
 // Nothing listens on the peer. The only inbound listener in the whole
 // program is the hub's — exactly the point of a reverse tunnel.
 //
+// The hub is hub.NewServer with no identity configured, so the
+// development identity applies: the peer names itself with the
+// x-holt-peer header, nothing verifies the claim, and the tunnel must
+// stay on loopback (see the `authenticated` example for a real
+// identity).
+//
 // Run:
 //
 //	go run ./examples/echo
@@ -40,24 +46,27 @@ func run() error {
 	logger := zap.NewNop()
 
 	// ── Hub ────────────────────────────────────────────────────────
-	// The registry tracks live peers; the handler accepts WebSocket
-	// attachments. This demo trusts every caller and labels it "peer"
-	// (see the `authenticated` example for a real identity func).
-	registry := hub.NewRegistry(logger)
-	identity := func(context.Context) (string, error) { return "peer", nil }
-
-	mux := http.NewServeMux()
-	mux.Handle("/", hub.NewHandler(registry, identity, logger))
-
+	// One call: the tunnel endpoint on a loopback listener, no proxy.
+	// No identity is configured, so peers name themselves (development
+	// identity, loopback only).
 	var lc net.ListenConfig
+
 	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		return err
 	}
 
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-	go func() { _ = srv.Serve(lis) }()
-	defer func() { _ = srv.Close() }()
+	srv := hub.NewServer(
+		hub.WithLogger(logger),
+		hub.WithTunnel(hub.NewTunnel("", hub.WithListener(lis))),
+		hub.WithProxy(nil),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	runDone := make(chan error, 1)
+	go func() { runDone <- srv.Run(ctx) }()
 
 	// ── Peer ───────────────────────────────────────────────────────
 	// Dials the hub and serves its handler back over that connection.
@@ -67,12 +76,10 @@ func run() error {
 		_, _ = w.Write([]byte("I am the peer; the hub reached me through the tunnel"))
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	go func() {
 		_ = dial.Run(ctx, dial.Options{
 			URL:     "ws://" + lis.Addr().String(),
+			Header:  http.Header{hub.DevPeerHeader: {"peer"}},
 			Handler: peerMux,
 			Version: "echo-demo",
 			Logger:  logger,
@@ -80,11 +87,11 @@ func run() error {
 	}()
 
 	// ── Wait for attach, then dial the peer through the tunnel ──────
-	if err := waitAttached(ctx, registry, "peer"); err != nil {
+	if err := waitAttached(ctx, srv.Registry(), "peer"); err != nil {
 		return err
 	}
 
-	client := &http.Client{Transport: registry.RoundTripper("peer")}
+	client := &http.Client{Transport: srv.Registry().RoundTripper("peer")}
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://peer.invalid/whoami", nil)
 
@@ -96,6 +103,9 @@ func run() error {
 
 	body, _ := io.ReadAll(resp.Body)
 	fmt.Printf("hub → peer GET /whoami  ⇒  %d  %q\n", resp.StatusCode, body)
+
+	cancel()
+	<-runDone
 
 	return nil
 }

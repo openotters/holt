@@ -72,40 +72,11 @@ func run(addr, certsDir string) error {
 		return err
 	}
 
-	registry := hub.NewRegistry(logger, hub.WithHubID("hub"))
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// On attach, reach back through the tunnel to prove the secure
-	// path works end-to-end.
-	greetOnAttach(ctx, registry, logger)
-
-	identity := func(ctx context.Context) (string, error) {
-		peer, _ := ctx.Value(peerCtxKey{}).(string)
-		if peer == "" {
-			return "", errors.New("no client-certificate identity")
-		}
-
-		return peer, nil
-	}
-
-	mux := http.NewServeMux()
-	// certIdentity runs before the attach handler and lifts the
-	// verified client-cert CN into the request context.
-	mux.Handle("/", certIdentity(hub.NewHandler(registry, identity, logger)))
-
-	srv := &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		TLSConfig: &tls.Config{
-			Certificates: []tls.Certificate{hubCert},
-			ClientAuth:   tls.RequireAndVerifyClientCert,
-			ClientCAs:    caPool,
-			MinVersion:   tls.VersionTLS13,
-		},
-	}
-
+	// The listener terminates mutual TLS: the hub presents the "hub"
+	// cert and REQUIRES a client cert signed by the shared CA.
 	var lc net.ListenConfig
 
 	lis, err := lc.Listen(ctx, "tcp", addr)
@@ -113,21 +84,44 @@ func run(addr, certsDir string) error {
 		return err
 	}
 
-	go func() {
-		if serveErr := srv.ServeTLS(lis, "", ""); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			logger.Error("serve", zap.Error(serveErr))
-		}
-	}()
+	tlsLis := tls.NewListener(lis, &tls.Config{
+		Certificates: []tls.Certificate{hubCert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    caPool,
+		MinVersion:   tls.VersionTLS13,
+	})
+
+	// certIdentity runs before the attach handler and lifts the
+	// verified client-cert CN into the request context, where
+	// identityFromCtx reads it back as the registry key.
+	srv := hub.NewServer(
+		hub.WithLogger(logger),
+		hub.WithTunnel(hub.NewTunnel("",
+			hub.WithListener(tlsLis),
+			hub.WithMiddleware(certIdentity),
+			hub.WithIdentity(identityFromCtx),
+		)),
+		hub.WithProxy(nil),
+	)
+
+	// On attach, reach back through the tunnel to prove the secure
+	// path works end-to-end.
+	greetOnAttach(ctx, srv.Registry(), logger)
 
 	logger.Info("hub up (mutual TLS)", zap.String("addr", addr))
 
-	<-ctx.Done()
-	registry.StopAllTunnels("shutting-down")
+	return srv.Run(ctx)
+}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+// identityFromCtx reads the peer id certIdentity stamped: the client
+// certificate's Common Name, cryptographically verified.
+func identityFromCtx(ctx context.Context) (string, error) {
+	peer, _ := ctx.Value(peerCtxKey{}).(string)
+	if peer == "" {
+		return "", errors.New("no client-certificate identity")
+	}
 
-	return srv.Shutdown(shutdownCtx)
+	return peer, nil
 }
 
 // certIdentity requires a verified client certificate and stamps its

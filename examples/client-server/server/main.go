@@ -1,15 +1,15 @@
 // Command server is a standalone holt hub. It accepts reverse
-// tunnels from peers on one port and exposes an operator HTTP API on
-// another that reaches those peers by dialing back THROUGH their
-// tunnels — so you can curl a peer that has no listener of its own.
+// tunnels from peers on one port and reaches those peers on another
+// by dialing back THROUGH their tunnels — so you can curl a peer that
+// has no listener of its own.
 //
 //	go run ./examples/client-server/server
 //
 // Then run one or more peers (see ../client) and:
 //
-//	curl localhost:7001/peers                 # who is attached
-//	curl localhost:7001/peers/alice/hello     # reach alice through her tunnel
-//	curl localhost:7001/peers/alice/time
+//	curl localhost:7001/peers                                # who is attached
+//	curl -H 'x-tunnel-peer: alice' localhost:7002/hello      # reach alice through her tunnel
+//	curl -H 'x-tunnel-peer: alice' localhost:7002/time
 //
 // Peers authenticate with a bearer token that maps to their identity;
 // the hub keys tunnels by that authenticated id, never by anything the
@@ -35,99 +35,74 @@ import (
 	"github.com/openotters/holt/hub"
 )
 
-// tokens maps a demo bearer token to the peer identity it proves. A
-// real hub validates a JWT signature or an mTLS certificate here.
-var tokens = map[string]string{
-	"tok-alice": "alice",
-	"tok-bob":   "bob",
-}
+// peerForToken maps a demo bearer token to the peer identity it
+// proves. A real hub validates a JWT signature or an mTLS certificate
+// here.
+func peerForToken(_ context.Context, token string) (string, error) {
+	peers := map[string]string{
+		"tok-alice": "alice",
+		"tok-bob":   "bob",
+	}
 
-type peerCtxKey struct{}
+	peer, ok := peers[token]
+	if !ok {
+		return "", errors.New("unknown token")
+	}
+
+	return peer, nil
+}
 
 func main() {
 	tunnelAddr := flag.String("addr", "127.0.0.1:7000", "tunnel (WebSocket) listen address for peers")
-	httpAddr := flag.String("http", "127.0.0.1:7001", "operator HTTP API listen address")
+	rosterAddr := flag.String("http", "127.0.0.1:7001", "roster HTTP listen address")
+	proxyAddr := flag.String("proxy", "127.0.0.1:7002", "proxy listen address (reach peers here)")
 	flag.Parse()
 
-	if err := run(*tunnelAddr, *httpAddr); err != nil {
+	if err := run(*tunnelAddr, *rosterAddr, *proxyAddr); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(tunnelAddr, httpAddr string) error {
+func run(tunnelAddr, rosterAddr, proxyAddr string) error {
 	logger, _ := zap.NewDevelopment()
 	defer func() { _ = logger.Sync() }()
-
-	registry := hub.NewRegistry(logger, hub.WithHubID(hostname()))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	logAttachEvents(ctx, registry, logger)
+	// The whole hub: a bearer-guarded tunnel endpoint peers attach to,
+	// and a proxy that reaches them. Run binds, serves, and drains on
+	// Ctrl-C.
+	srv := hub.NewServer(
+		hub.WithLogger(logger),
+		hub.WithTunnel(hub.NewTunnel(tunnelAddr,
+			hub.WithAuthBearer(peerForToken),
+		)),
+		hub.WithProxy(hub.NewProxy(proxyAddr,
+			hub.WithErrorHook(func(_ context.Context, reason string) {
+				logger.Info("proxy miss", zap.String("reason", reason))
+			}),
+		)),
+	)
 
-	tunnelSrv, err := serveTunnels(registry, tunnelAddr, logger)
+	logAttachEvents(ctx, srv.Registry(), logger)
+
+	// A tiny operator extra the facade does not own: the peer roster,
+	// read straight off the registry.
+	rosterSrv, err := serveRoster(srv.Registry(), rosterAddr)
 	if err != nil {
 		return err
 	}
 
-	httpSrv, err := serveOperatorAPI(registry, httpAddr)
-	if err != nil {
-		return err
-	}
+	defer func() { _ = rosterSrv.Close() }()
 
-	logger.Info("hub up",
-		zap.String("tunnels", tunnelAddr),
-		zap.String("operator_api", httpAddr))
-
-	<-ctx.Done()
-	logger.Info("draining")
-
-	registry.StopAllTunnels("shutting-down")
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_ = tunnelSrv.Shutdown(shutdownCtx)
-	_ = httpSrv.Shutdown(shutdownCtx)
-
-	return nil
+	return srv.Run(ctx)
 }
 
-// serveTunnels stands up the WebSocket attach handler on a plaintext
-// listener, behind bearer-token auth middleware.
-func serveTunnels(registry *hub.Registry, addr string, logger *zap.Logger) (*http.Server, error) {
-	identity := func(ctx context.Context) (string, error) {
-		peer, _ := ctx.Value(peerCtxKey{}).(string)
-		if peer == "" {
-			return "", errors.New("no authenticated peer")
-		}
-
-		return peer, nil
-	}
-
+// serveRoster exposes GET /peers: every live tunnel this hub owns.
+func serveRoster(registry *hub.Registry, addr string) (*http.Server, error) {
 	mux := http.NewServeMux()
-	mux.Handle("/", requireBearer(hub.NewHandler(registry, identity, logger)))
-
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-
-	return listenAndServe(srv, addr)
-}
-
-// serveOperatorAPI exposes the peer roster and a reverse proxy that
-// reaches each peer through its tunnel.
-func serveOperatorAPI(registry *hub.Registry, addr string) (*http.Server, error) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /peers", listPeers(registry))
-	mux.HandleFunc("/peers/{id}/{path...}", proxyToPeer(registry))
-
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-
-	return listenAndServe(srv, addr)
-}
-
-// listPeers reports every live tunnel this hub owns.
-func listPeers(registry *hub.Registry) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /peers", func(w http.ResponseWriter, _ *http.Request) {
 		tunnels := registry.ListTunnels()
 		if len(tunnels) == 0 {
 			_, _ = io.WriteString(w, "no peers attached\n")
@@ -139,54 +114,20 @@ func listPeers(registry *hub.Registry) http.HandlerFunc {
 			_, _ = fmt.Fprintf(w, "%-12s version=%-12s attached=%s\n",
 				tunnel.Peer, tunnel.PeerVersion, tunnel.AttachedAt.Format(time.RFC3339))
 		}
+	})
+
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+
+	var lc net.ListenConfig
+
+	lis, err := lc.Listen(context.Background(), "tcp", addr)
+	if err != nil {
+		return nil, err
 	}
-}
 
-// proxyToPeer forwards /peers/{id}/{path...} through the named peer's
-// tunnel — the operator reaches a listenerless peer as if it were a
-// normal upstream.
-func proxyToPeer(registry *hub.Registry) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id := r.PathValue("id")
-		if !registry.Attached(id) {
-			http.Error(w, fmt.Sprintf("peer %q not attached", id), http.StatusBadGateway)
+	go func() { _ = srv.Serve(lis) }()
 
-			return
-		}
-
-		// The host is a placeholder the tunnel RoundTripper ignores;
-		// only the path matters, forwarded to the peer's own handler.
-		outURL := "http://peer.invalid/" + r.PathValue("path")
-		if r.URL.RawQuery != "" {
-			outURL += "?" + r.URL.RawQuery
-		}
-
-		out, err := http.NewRequestWithContext(r.Context(), r.Method, outURL, r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		out.Header = r.Header.Clone()
-
-		client := &http.Client{Transport: registry.RoundTripper(id)}
-
-		resp, err := client.Do(out)
-		if err != nil {
-			http.Error(w, "tunnel: "+err.Error(), http.StatusBadGateway)
-
-			return
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		for k, vs := range resp.Header {
-			w.Header()[k] = vs
-		}
-
-		w.WriteHeader(resp.StatusCode)
-		_, _ = io.Copy(w, resp.Body)
-	}
+	return srv, nil
 }
 
 // logAttachEvents narrates attach/detach to the log.
@@ -203,53 +144,4 @@ func logAttachEvents(ctx context.Context, registry *hub.Registry, logger *zap.Lo
 			}
 		}
 	}()
-}
-
-// requireBearer validates the bearer token on the WebSocket upgrade
-// request and stamps the resolved peer id onto the context.
-func requireBearer(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		peer, ok := tokens[bearer(r.Header.Get("Authorization"))]
-		if !ok {
-			http.Error(w, "invalid or missing bearer token", http.StatusUnauthorized)
-
-			return
-		}
-
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), peerCtxKey{}, peer)))
-	})
-}
-
-func bearer(h string) string {
-	const prefix = "Bearer "
-	if len(h) > len(prefix) && h[:len(prefix)] == prefix {
-		return h[len(prefix):]
-	}
-
-	return ""
-}
-
-func listenAndServe(srv *http.Server, addr string) (*http.Server, error) {
-	var lc net.ListenConfig
-
-	lis, err := lc.Listen(context.Background(), "tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		if err := srv.Serve(lis); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("serve %s: %v", addr, err)
-		}
-	}()
-
-	return srv, nil
-}
-
-func hostname() string {
-	if h, err := os.Hostname(); err == nil && h != "" {
-		return h
-	}
-
-	return "hub"
 }

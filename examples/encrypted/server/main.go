@@ -17,11 +17,9 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"flag"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -64,16 +62,8 @@ func run(addr, certsDir string) error {
 		return err
 	}
 
-	registry := hub.NewRegistry(logger, hub.WithHubID("hub"))
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	greetOnAttach(ctx, registry, logger)
-
-	// Single-peer demo: the routing identity is fixed. The security
-	// here is the inner mutual TLS, not identity routing.
-	identity := func(context.Context) (string, error) { return "peer", nil }
 
 	// WithPeerTLS makes the hub the INNER TLS client: present the hub
 	// cert, verify the peer's inner server cert ("peer") via the CA.
@@ -84,35 +74,24 @@ func run(addr, certsDir string) error {
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	mux := http.NewServeMux()
-	mux.Handle("/", hub.NewHandler(registry, identity, logger, hub.WithPeerTLS(innerTLS)))
+	// Outer transport is a plaintext WebSocket; the inner TLS protects
+	// the payload regardless. Single-peer demo, so the routing
+	// identity is fixed — the security here is the inner mutual TLS,
+	// not identity routing.
+	srv := hub.NewServer(
+		hub.WithLogger(logger),
+		hub.WithTunnel(hub.NewTunnel(addr,
+			hub.WithIdentity(func(context.Context) (string, error) { return "peer", nil }),
+			hub.WithHandlerOptions(hub.WithPeerTLS(innerTLS)),
+		)),
+		hub.WithProxy(nil),
+	)
 
-	// Outer transport is a plaintext WebSocket, the point is that the
-	// inner TLS protects the payload regardless.
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-
-	var lc net.ListenConfig
-
-	lis, err := lc.Listen(ctx, "tcp", addr)
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		if serveErr := srv.Serve(lis); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			logger.Error("serve", zap.Error(serveErr))
-		}
-	}()
+	greetOnAttach(ctx, srv.Registry(), logger)
 
 	logger.Info("hub up (plaintext transport, inner mutual TLS)", zap.String("addr", addr))
 
-	<-ctx.Done()
-	registry.StopAllTunnels("shutting-down")
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	return srv.Shutdown(shutdownCtx)
+	return srv.Run(ctx)
 }
 
 // greetOnAttach reaches the peer through the (inner-encrypted) tunnel

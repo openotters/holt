@@ -44,10 +44,10 @@ the **hub is the TLS client** — so mutual auth is:
 
 ```go
 // hub (inner TLS client)
-hub.NewHandler(reg, id, log, hub.WithPeerTLS(&tls.Config{
+hub.NewTunnel(addr, hub.WithHandlerOptions(hub.WithPeerTLS(&tls.Config{
     RootCAs:      caPool, ServerName: "peer",
     Certificates: []tls.Certificate{hubCert},   // proves the hub
-}))
+})))
 
 // peer (inner TLS server)
 dial.Run(ctx, dial.Options{URL: "ws://...", Handler: mux, TLSConfig: &tls.Config{

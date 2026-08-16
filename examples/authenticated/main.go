@@ -3,6 +3,12 @@
 // SAN), so the RoundTripper is keyed by an authenticated identity the
 // peer cannot spoof (the attach upgrade carries no identity at all).
 //
+// WithAuthBearer is the whole seam for bearer tokens: the middleware
+// that guards the upgrade, and the identity that keys the registry,
+// both from one token-verifying func. Any other scheme is
+// WithMiddleware (stamp the context) + WithIdentity (read it back) —
+// see the `transport-tls` example for a client-certificate one.
+//
 // Two peers attach with different tokens; the hub reaches each by the
 // identity its token established, and an unauthenticated attach is
 // rejected.
@@ -26,7 +32,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -35,16 +40,22 @@ import (
 	"github.com/openotters/holt/hub"
 )
 
-// tokens maps a demo bearer token to the peer identity it proves. A
-// real hub validates a JWT signature or an mTLS certificate here.
-var tokens = map[string]string{
-	"tok-alice": "alice",
-	"tok-bob":   "bob",
-}
+// peerForToken maps a demo bearer token to the peer identity it
+// proves. A real hub validates a JWT signature or an mTLS certificate
+// here.
+func peerForToken(_ context.Context, token string) (string, error) {
+	peers := map[string]string{
+		"tok-alice": "alice",
+		"tok-bob":   "bob",
+	}
 
-// peerCtxKey carries the authenticated peer ID from the auth
-// middleware to the hub's Identity func.
-type peerCtxKey struct{}
+	peer, ok := peers[token]
+	if !ok {
+		return "", errors.New("unknown token")
+	}
+
+	return peer, nil
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -54,35 +65,31 @@ func main() {
 
 func run() error {
 	logger := zap.NewNop()
-	registry := hub.NewRegistry(logger)
-
-	// The hub reads the peer ID the auth middleware stamped on the
-	// context. This is the whole identity seam: the handshake never
-	// carries an ID, so a peer cannot claim to be someone else.
-	identity := func(ctx context.Context) (string, error) {
-		peer, _ := ctx.Value(peerCtxKey{}).(string)
-		if peer == "" {
-			return "", errors.New("no authenticated peer")
-		}
-
-		return peer, nil
-	}
-
-	mux := http.NewServeMux()
-	mux.Handle("/", authMiddleware(hub.NewHandler(registry, identity, logger)))
 
 	var lc net.ListenConfig
+
 	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		return err
 	}
 
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-	go func() { _ = srv.Serve(lis) }()
-	defer func() { _ = srv.Close() }()
+	// The whole identity seam is the one option: WithAuthBearer guards
+	// the upgrade with the token check and keys each tunnel by the
+	// peer id the token proves.
+	srv := hub.NewServer(
+		hub.WithLogger(logger),
+		hub.WithTunnel(hub.NewTunnel("",
+			hub.WithListener(lis),
+			hub.WithAuthBearer(peerForToken),
+		)),
+		hub.WithProxy(nil),
+	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	runDone := make(chan error, 1)
+	go func() { runDone <- srv.Run(ctx) }()
 
 	// Two authenticated peers, each serving a handler that greets in
 	// its own name.
@@ -91,11 +98,11 @@ func run() error {
 	}
 
 	for _, name := range []string{"alice", "bob"} {
-		if waitErr := waitAttached(ctx, registry, name); waitErr != nil {
+		if waitErr := waitAttached(ctx, srv.Registry(), name); waitErr != nil {
 			return waitErr
 		}
 
-		body, getErr := getThroughTunnel(ctx, registry, name)
+		body, getErr := getThroughTunnel(ctx, srv.Registry(), name)
 		if getErr != nil {
 			return getErr
 		}
@@ -107,25 +114,12 @@ func run() error {
 	// it never lands in the registry.
 	startPeer(ctx, lis.Addr().String(), "", "unknown", logger)
 	time.Sleep(200 * time.Millisecond)
-	fmt.Printf("hub → unknown ⇒  attached=%v (rejected at the upgrade)\n", registry.Attached("unknown"))
+	fmt.Printf("hub → unknown ⇒  attached=%v (rejected at the upgrade)\n", srv.Registry().Attached("unknown"))
+
+	cancel()
+	<-runDone
 
 	return nil
-}
-
-// authMiddleware validates the bearer token on the WebSocket upgrade
-// request and stamps the resolved peer ID onto the request context,
-// so the hub's Identity func can read it.
-func authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		peer, ok := tokenFromHeader(r.Header.Get("Authorization"))
-		if !ok {
-			http.Error(w, "invalid or missing bearer token", http.StatusUnauthorized)
-
-			return
-		}
-
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), peerCtxKey{}, peer)))
-	})
 }
 
 // startPeer dials the hub with a bearer token on the upgrade request
@@ -182,12 +176,4 @@ func waitAttached(ctx context.Context, r *hub.Registry, peer string) error {
 		case <-ticker.C:
 		}
 	}
-}
-
-// tokenFromHeader resolves a bearer token to a peer ID.
-func tokenFromHeader(h string) (string, bool) {
-	tok := strings.TrimPrefix(h, "Bearer ")
-	peer, ok := tokens[tok]
-
-	return peer, ok
 }

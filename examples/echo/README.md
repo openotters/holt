@@ -20,9 +20,17 @@ a hole in its firewall.
 
 Key calls, in order:
 
-1. `hub.NewRegistry` + `hub.NewHandler` mounted on a plain HTTP server, the hub side (the handler accepts the WebSocket upgrade itself).
-2. `dial.Run(ctx, dial.Options{URL, Handler})`, the peer attaches over a `ws://` WebSocket and serves.
-3. `registry.RoundTripper(peer)` wrapped in an `http.Client` — the hub dials through.
+1. `hub.NewServer(hub.WithTunnel(...))` + `srv.Run(ctx)`, the whole
+   hub side in one call. No identity is configured, so the
+   **development identity** applies: the peer names itself with the
+   `x-holt-peer` header, nothing verifies the claim, and the tunnel
+   must stay on loopback (a wider bind refuses to start).
+2. `dial.Run(ctx, dial.Options{URL, Header, Handler})`, the peer
+   attaches over a `ws://` WebSocket and serves.
+3. `srv.Registry().RoundTripper(peer)` wrapped in an `http.Client` —
+   the hub dials through.
 
 For a hub that authenticates peers and derives their identity from a
-token, see [`../authenticated`](../authenticated).
+token, see [`../authenticated`](../authenticated). To mount the hub's
+pieces on your own router instead of `NewServer`, see
+[Library](../../docs/library.md).

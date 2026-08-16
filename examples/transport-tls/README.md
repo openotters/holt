@@ -63,8 +63,8 @@ dial.Options{
 ```
 
 This needs no holt-specific TLS code — the peer hands `dial.Run` a
-plain `*http.Client` carrying its TLS config, and the hub is a normal
-TLS `http.Server`. For end-to-end confidentiality past a TLS-terminating
+plain `*http.Client` carrying its TLS config, and the hub serves its
+tunnel on a plain `tls.NewListener` (`hub.WithListener(tlsLis)`). For end-to-end confidentiality past a TLS-terminating
 proxy, add inner TLS on top — see [`../encrypted`](../encrypted), which
 mirrors this pair but does the mutual TLS *inside* the tunnel.
 
