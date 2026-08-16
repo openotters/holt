@@ -18,6 +18,10 @@ The only inbound listener in the program is the hub's. That is the
 whole point: the peer is reachable without a port, a public address, or
 a hole in its firewall.
 
+The code is split the way a real deployment is: [`server.go`](server.go)
+is the hub half, [`client.go`](client.go) the peer half, and
+[`main.go`](main.go) only wires the demo together.
+
 Key calls, in order:
 
 1. `holt.NewServer()` + `srv.Run(ctx)` — the whole hub with zero

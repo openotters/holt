@@ -3,6 +3,10 @@
 // listening on nothing; the hub reaches that handler by dialing back
 // THROUGH the tunnel the peer opened.
 //
+// The code is split the way a real deployment is: server.go is the
+// hub half, client.go the peer half, and this file only wires the
+// demo together.
+//
 // Both halves run with zero configuration: holt.NewServer() serves
 // the tunnel on 127.0.0.1:7000 (and a proxy on :7002) with the
 // development identity — the peer names itself with the x-holt-peer
@@ -44,22 +48,8 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// ── Hub ── one call, zero configuration.
-	srv := holt.NewServer()
-	go func() { _ = srv.Run(ctx) }()
-
-	// ── Peer ── serves a handler back over the tunnel, listens on
-	// nothing.
-	handler := http.NewServeMux()
-	handler.HandleFunc("/whoami", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("I am the peer; the hub reached me through the tunnel"))
-	})
-
-	go func() {
-		_ = holt.NewClient("ws://"+holt.DefaultTunnelAddr, handler,
-			holt.WithHeader(holt.DevPeerHeader, "peer"),
-		).Run(ctx)
-	}()
+	srv := startHub(ctx) // server.go
+	startPeer(ctx)       // client.go
 
 	// ── Reach the peer THROUGH the tunnel. ──
 	if err := waitAttached(ctx, srv); err != nil {

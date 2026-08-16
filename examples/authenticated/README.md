@@ -16,6 +16,11 @@ hub → alice   ⇒  "hello from alice"
 hub → mallory ⇒  attached=false (rejected at the upgrade)
 ```
 
+The code is split the way a real deployment is: [`server.go`](server.go)
+is the hub half (`WithAuthBearer` and the token check),
+[`client.go`](client.go) the peer half (`WithBearerToken`), and
+[`main.go`](main.go) only wires the demo together.
+
 The mechanism:
 
 1. **`holt.WithAuthBearer(verify)`** is the whole seam for bearer
