@@ -20,6 +20,16 @@ gets an `http.RoundTripper` per peer, and a presence signal for free.
 
 No listener, no inbound port, no published container port on the peer.
 
+Useful when something needs a public address and cannot have one:
+
+- show a local website to a client or a colleague, without deploying it
+- debug webhooks (Stripe, GitHub, Slack) that need a real URL to call
+- test an OAuth callback that must be reachable from outside
+- reach a machine at home or on a customer network: a NAS, a router, a
+  Raspberry Pi
+- give an agent or a device an address, without opening a port on its
+  side
+
 > ⚠️ Alpha, extracted from [openotters](https://github.com/openotters/openotters)
 > where it is the sole daemon-to-agent-runtime channel. The wire protocol
 > may still change.

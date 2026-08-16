@@ -2,6 +2,8 @@
 /bin/
 /dist/
 coverage.out
+# `go build` at the root drops the binary here, named after the module
+/holt
 
 # web console
 cmd/holt/ui/node_modules/
