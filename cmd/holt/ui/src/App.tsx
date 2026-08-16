@@ -3,14 +3,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
 	Activity,
 	Ban,
+	BookOpen,
 	Beer,
 	Check,
-	ChevronDown,
 	Container,
 	Copy,
 	Download,
 	ExternalLink,
 	Github,
+	Plus,
 	RefreshCw,
 	Ship,
 	ShieldAlert,
@@ -28,7 +29,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { StatusMenu } from "@/components/status-menu";
 import { useLiveTunnels } from "@/lib/use-tunnel-stream";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { blockPeer, info, listBlocked, listTunnels, stopTunnel, unblockPeer } from "@/gen/v1/admin-Admin_connectquery";
 import type { TunnelActivity } from "@/lib/use-tunnel-stream";
@@ -40,6 +41,7 @@ import type { TunnelActivity } from "@/lib/use-tunnel-stream";
 const BLOCKED_KEY = createConnectQueryKey({ cardinality: undefined, schema: listBlocked });
 
 const REPO_URL = "https://github.com/openotters/holt";
+const DOCS_URL = `${REPO_URL}/blob/main/docs/README.md`;
 
 // useHubConfig fetches the proxy port + routing header once, so the
 // "call this peer" command points at the right address (the console is
@@ -76,6 +78,7 @@ export function App() {
 	const config = useHubConfig();
 	const [callPeer, setCallPeer] = useState<string | null>(null);
 	const [confirmBlock, setConfirmBlock] = useState<string | null>(null);
+	const [addPeer, setAddPeer] = useState(false);
 
 	const { data, error, isLoading } = useQuery(listTunnels, {});
 	const { data: hubInfo } = useQuery(info, {});
@@ -133,6 +136,15 @@ export function App() {
 				<div className="ml-auto flex items-center gap-1.5">
 					<a
 						className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+						href={DOCS_URL}
+						rel="noreferrer"
+						target="_blank"
+						title="holt documentation"
+					>
+						<BookOpen className="h-3.5 w-3.5" /> Docs
+					</a>
+					<a
+						className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
 						href={`${REPO_URL}/stargazers`}
 						rel="noreferrer"
 						target="_blank"
@@ -166,18 +178,21 @@ export function App() {
 					</p>
 				</div>
 
-				<EnrollCard />
-
-				<InstallCard />
-
 				<Card>
 					<CardHeader>
-						<CardTitle>
-							Attached peers
-							<span className="ml-2 font-normal text-muted-foreground text-sm">
-								{tunnels.length > 0 ? `${tunnels.length}` : ""}
-							</span>
-						</CardTitle>
+						{/* The panel owns its action: adding a peer belongs to
+						    the list it lands in, not to a form above it. */}
+						<div className="flex items-center justify-between gap-3">
+							<CardTitle>
+								Attached peers
+								<span className="ml-2 font-normal text-muted-foreground text-sm">
+									{tunnels.length > 0 ? `${tunnels.length}` : ""}
+								</span>
+							</CardTitle>
+							<Button size="sm" onClick={() => setAddPeer(true)}>
+								<Plus className="h-3.5 w-3.5" /> Add peer
+							</Button>
+						</div>
 					</CardHeader>
 					<CardContent>
 						{error ? (
@@ -193,9 +208,7 @@ export function App() {
 								<code className="rounded-md border bg-muted/50 px-3 py-1 font-mono text-xs">
 									holt expose localhost:3000
 								</code>
-								<span className="text-xs">
-									it enrolls itself, or pass a token from above with --token
-								</span>
+								<span className="text-xs">it enrolls itself, or take a token with Add peer</span>
 							</div>
 						) : (
 							<Table>
@@ -304,10 +317,14 @@ export function App() {
 
 				<BlockedCard onUnblock={(peer) => unblock.mutate({ peer })} />
 
+				<InstallCard />
+
 				<DangerZone />
 			</main>
 
 			<Footer />
+
+			{addPeer && <AddPeerModal onClose={() => setAddPeer(false)} />}
 
 			{callPeer && (
 				<CallPeerModal
@@ -522,45 +539,39 @@ const INSTALL_METHODS: InstallMethod[] = [
 // InstallCard is collapsed by default: installing holt is a one time
 // step per peer, so it should not take space above the tunnels the
 // operator came to look at.
+// InstallCard is reference material rather than an action: how to get
+// holt on a machine, whichever role it plays there (a peer to expose,
+// or a hub to run). It sits low on the page and stays open, since a
+// collapsed card of four tiles is mostly padding.
 function InstallCard() {
 	const [selected, setSelected] = useState<InstallMethod | null>(null);
-	const [open, setOpen] = useState(false);
 
 	return (
 		<Card>
-			<CardHeader className={open ? undefined : "pb-6"}>
-				<CardTitle className="flex items-center justify-between gap-3">
-					<span className="flex items-center gap-2">
-						<Download className="h-4 w-4 text-muted-foreground" /> Install holt on a peer
-					</span>
-					<Button
-						size="sm"
-						variant="outline"
-						aria-expanded={open}
-						onClick={() => setOpen((o) => !o)}
-					>
-						{open ? "Hide" : "Install"}
-						<ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
-					</Button>
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2">
+					<Download className="h-4 w-4 text-muted-foreground" /> Install holt
 				</CardTitle>
+				<CardDescription>
+					The same binary is the hub and the peer. Pick how to get it on the machine.
+				</CardDescription>
 			</CardHeader>
-			{open && (
-				<CardContent>
-					<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-						{INSTALL_METHODS.map((m) => (
-							<button
-								key={m.key}
-								className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground"
-								type="button"
-								onClick={() => setSelected(m)}
-							>
-								<m.icon className="h-6 w-6" />
-								<span className="font-medium text-sm">{m.label}</span>
-							</button>
-						))}
-					</div>
-				</CardContent>
-			)}
+			<CardContent>
+				<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+					{INSTALL_METHODS.map((m) => (
+						<button
+							key={m.key}
+							className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground"
+							type="button"
+							onClick={() => setSelected(m)}
+						>
+							<m.icon className="h-6 w-6" />
+							<span className="font-medium text-sm">{m.label}</span>
+						</button>
+					))}
+				</div>
+			</CardContent>
+
 			{selected && <InstallModal method={selected} onClose={() => setSelected(null)} />}
 		</Card>
 	);
@@ -621,12 +632,22 @@ function InstallModal({ method, onClose }: { method: InstallMethod; onClose: () 
 // EnrollCard mints a join token via the hub's /api/enroll endpoint and
 // shows both the raw token (for any client) and the ready-to-run
 // expose command (to tunnel a local endpoint).
-function EnrollCard() {
+// AddPeerModal is the whole "add a peer" flow: name it, take the
+// token, and see how to install holt on the machine. It lives in a
+// modal because enrolling is an action taken now and then, not a panel
+// the operator needs on screen while watching tunnels.
+function AddPeerModal({ onClose }: { onClose: () => void }) {
 	const [peer, setPeer] = useState("");
 	const [result, setResult] = useState<{ token: string; command: string } | null>(null);
 
 	const name = peer.trim();
 	const nameError = name ? peerNameError(name) : null;
+
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, [onClose]);
 
 	async function enroll() {
 		if (!name || nameError) return;
@@ -643,55 +664,77 @@ function EnrollCard() {
 		setResult((await res.json()) as { token: string; command: string });
 	}
 
-	// No card around this one: adding a peer is what the page is for,
-	// so it reads as the page's own action rather than one panel among
-	// the others.
 	return (
-		<section className="flex flex-col gap-3">
-			<div>
-				<h2 className="font-semibold text-lg tracking-tight">Add a peer</h2>
-				<p className="text-muted-foreground text-sm">
-					Name it, take the token, and run the command on the machine you want to reach.
-				</p>
-			</div>
-
-			<div className="flex flex-col gap-2 sm:flex-row">
-				<input
-					value={peer}
-					onChange={(e) => setPeer(e.target.value)}
-					onKeyDown={(e) => e.key === "Enter" && enroll()}
-					placeholder="peer id, e.g. alice"
-					aria-invalid={Boolean(nameError)}
-					className={`h-11 w-full flex-1 rounded-md border bg-transparent px-4 text-base outline-none focus-visible:ring-[3px] ${
-						nameError
-							? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/40"
-							: "focus-visible:border-ring focus-visible:ring-ring/50"
-					}`}
-				/>
-				<Button
-					className="h-11 shrink-0 px-6 text-base"
-					onClick={enroll}
-					disabled={!name || Boolean(nameError)}
-				>
-					Generate token
-				</Button>
-			</div>
-
-			{nameError && <p className="text-destructive text-xs">{nameError}</p>}
-
-			{result && (
-				<div className="flex flex-col gap-3">
-					<CopyField label="Token (for any client: starter-client, your own)" value={result.token} multiline />
-					<CopyField label="Expose a local endpoint" value={result.command} />
+		<div
+			className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+			onClick={onClose}
+			onKeyDown={() => {}}
+			role="presentation"
+		>
+			<div
+				className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-lg border bg-background shadow-lg"
+				onClick={(e) => e.stopPropagation()}
+				onKeyDown={() => {}}
+				role="dialog"
+				aria-modal="true"
+			>
+				<div className="flex items-start justify-between border-b px-5 py-4">
+					<div>
+						<h2 className="font-semibold">Add a peer</h2>
+						<p className="mt-1 text-muted-foreground text-sm">
+							Name it, then run the command it gives you on the machine you want to reach.
+						</p>
+					</div>
+					<Button size="icon" variant="ghost" className="-mr-2 h-7 w-7 shrink-0" onClick={onClose}>
+						<X className="h-4 w-4" />
+					</Button>
 				</div>
-			)}
 
-			<p className="text-muted-foreground text-xs">
-				The token carries a short-lived JWT and the hub's tunnel URL to dial. A peer id is a DNS label
-				(lowercase letters, digits, dashes), so it can also be addressed as a hostname where the proxy
-				routes by subdomain.
-			</p>
-		</section>
+				<div className="flex flex-col gap-4 overflow-auto px-5 py-4">
+					<div className="flex flex-col gap-2">
+						<div className="flex gap-2">
+							{/* biome-ignore lint/a11y/noAutofocus: the modal exists to type a name */}
+							<input
+								autoFocus
+								value={peer}
+								onChange={(e) => setPeer(e.target.value)}
+								onKeyDown={(e) => e.key === "Enter" && enroll()}
+								placeholder="peer id, e.g. alice"
+								aria-invalid={Boolean(nameError)}
+								className={`h-10 flex-1 rounded-md border bg-transparent px-3 text-sm outline-none focus-visible:ring-[3px] ${
+									nameError
+										? "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/40"
+										: "focus-visible:border-ring focus-visible:ring-ring/50"
+								}`}
+							/>
+							<Button className="h-10" onClick={enroll} disabled={!name || Boolean(nameError)}>
+								Generate token
+							</Button>
+						</div>
+
+						{nameError ? (
+							<p className="text-destructive text-xs">{nameError}</p>
+						) : (
+							<p className="text-muted-foreground text-xs">
+								A peer id is a DNS label (lowercase letters, digits, dashes), so it can also be
+								addressed as a hostname where the proxy routes by subdomain.
+							</p>
+						)}
+					</div>
+
+					{result && (
+						<div className="flex flex-col gap-3">
+							<CopyField
+								label="Token (for any client: starter-client, your own)"
+								value={result.token}
+								multiline
+							/>
+							<CopyField label="Expose a local endpoint" value={result.command} />
+						</div>
+					)}
+				</div>
+			</div>
+		</div>
 	);
 }
 
