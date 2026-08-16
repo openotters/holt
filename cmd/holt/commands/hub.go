@@ -91,16 +91,8 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 		return fmt.Errorf("%w (--proxy-routing / --proxy-domain)", err)
 	}
 
-	// The JWT signing secret persists as a file in the state folder,
-	// held behind an atomic so the console's rotate-secret can swap it
-	// live (invalidating every issued JWT) without a restart.
-	secret, err := hubsecret.LoadOrCreate(h.State)
-	if err != nil {
-		return err
-	}
-
-	// The local SQLite DB alongside it is the default backend for
-	// tunnel presence and the blocklist (see openBackends).
+	// The local SQLite DB is the default backend for tunnel presence,
+	// the blocklist, and the signing secret (see openBackends).
 	st, err := store.Open(h.State)
 	if err != nil {
 		return err
@@ -112,16 +104,18 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 	// already tells the operator where state lives.
 	logger.Debug("hub state ready", zap.String("dir", h.State))
 
-	// Tunnel presence and the peer denylist live in the same SQL
-	// backend: the local SQLite DB by default, or a shared PostgreSQL
-	// with --directory-dsn (so a fleet of hubs sees each other's peers
-	// and each other's blocks).
-	dir, blockStore, closeBackends, err := h.openBackends(ctx, st)
+	// Tunnel presence, the peer denylist, and the hub's identity live
+	// in the same SQL backend: the local SQLite DB by default, or a
+	// shared PostgreSQL with --directory-dsn, so a fleet of hubs sees
+	// each other's peers and blocks, and signs with one key.
+	back, err := h.openBackends(ctx, st)
 	if err != nil {
 		return err
 	}
 
-	defer closeBackends()
+	defer back.close()
+
+	dir, blockStore := back.directory, back.blocks
 
 	if migErr := dir.Migrate(ctx); migErr != nil {
 		return migErr
@@ -130,6 +124,22 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 	if migErr := blockStore.Migrate(ctx); migErr != nil {
 		return migErr
 	}
+
+	if sqlSecret, ok := back.secret.(*hubsecret.SQLStore); ok {
+		if migErr := sqlSecret.Migrate(ctx); migErr != nil {
+			return migErr
+		}
+	}
+
+	// The signing secret is held behind an atomic so rotate-secret can
+	// swap it live (invalidating every issued JWT) without a restart,
+	// here or on another hub sharing the backend.
+	secret, err := back.secret.LoadOrCreate(ctx)
+	if err != nil {
+		return err
+	}
+
+	logger.Debug("hub identity ready", zap.String("stored in", back.secret.Describe()))
 
 	// Prometheus metrics: install the OTel SDK provider globally before
 	// any instrument is built, so they all bind to it. When off,
@@ -145,10 +155,14 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 		defer func() { _ = mp.Shutdown(context.Background()) }()
 	}
 
-	rt, err := h.newRuntime(ctx, commons, logger, dir, blockStore, secret)
+	rt, err := h.newRuntime(ctx, commons, logger, dir, blockStore, back.secret, secret)
 	if err != nil {
 		return err
 	}
+
+	// On a shared backend, a rotation performed on another hub has to
+	// reach this one; on a local one this is a no-op.
+	watchIdentity(ctx, back.secret, rt.secrets, rt.registry, logger)
 
 	listeners := httpsrv.NewGroup(logger)
 	if err = h.startServers(ctx, listeners, rt); err != nil {

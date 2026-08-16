@@ -39,18 +39,27 @@ The hub keeps everything under `~/.holt` (override with `--state`):
 - `jwt-secret`: the hub's JWT signing secret, a file reused across
   restarts so already-issued tokens keep working.
 - `holt.db`: a SQLite database holding the **peer blocklist** and the
-  **tunnel-presence directory** (via `hub/sqldir`).
+  **tunnel-presence directory**.
 
-The presence directory can move to a shared PostgreSQL instead of the
-local SQLite file with `--directory-dsn` (env `HOLT_DIRECTORY_DSN`):
+All three move to a shared PostgreSQL with `--directory-dsn` (env
+`HOLT_DIRECTORY_DSN`):
 
 ```sh
 holt hub --directory-dsn postgres://user:pass@db.example.com:5432/holt
 ```
 
-A fleet of hubs pointed at the same database then sees which peer is
-attached to which hub. Presence only: the JWT secret and blocklist stay
-local, and only the owning hub can proxy to a peer's live tunnel.
+A fleet of hubs pointed at the same database sees which peer is
+attached where, shares one denylist, and **signs with one identity**:
+a token minted by any hub verifies at every hub, and rotating on one
+rotates for all of them (the others adopt it within 30 seconds,
+closing the tunnels the old secret authenticated). Only the owning hub
+can proxy to a peer's live tunnel.
+
+A hub that already has a local `jwt-secret` adopts it into the
+database the first time it starts with a DSN, so moving identity off
+the disk does not invalidate the tokens already in the field. Nothing
+seeds over an identity the fleet has agreed on: a second hub joining
+with its own file keeps the shared one.
 
 ## Run a hub
 

@@ -19,11 +19,14 @@ import (
 // Destructive, hence the confirmation.
 type RotateSecret struct {
 	State string `help:"Hub state directory (default: ~/.holt)." type:"path"`
-	Yes   bool   `help:"Skip the confirmation prompt (for automation)." short:"y"`
+	// Identity lives in the shared database when the hub was pointed
+	// at one, and rotating there rotates for the whole fleet.
+	DirectoryDSN string `help:"PostgreSQL DSN the hub stores its identity in, when it is not local." name:"directory-dsn" env:"HOLT_DIRECTORY_DSN"`
+	Yes          bool   `help:"Skip the confirmation prompt (for automation)." short:"y"`
 }
 
 // Run rotates the signing secret after an interactive confirmation.
-func (rs *RotateSecret) Run(_ context.Context, _ *c.Commons, out *style.Output) error {
+func (rs *RotateSecret) Run(ctx context.Context, _ *c.Commons, out *style.Output) error {
 	if rs.State == "" {
 		rs.State = defaultStateDir()
 	}
@@ -34,13 +37,37 @@ func (rs *RotateSecret) Run(_ context.Context, _ *c.Commons, out *style.Output) 
 		return nil
 	}
 
-	if _, err := hubsecret.Rotate(rs.State); err != nil {
+	identity, closeIdentity, err := openSecretStore(ctx, rs.State, rs.DirectoryDSN)
+	if err != nil {
 		return err
 	}
 
+	defer closeIdentity()
+
+	if sqlSecret, ok := identity.(*hubsecret.SQLStore); ok {
+		if migErr := sqlSecret.Migrate(ctx); migErr != nil {
+			return migErr
+		}
+	}
+
+	_, shared := identity.(*hubsecret.SQLStore)
+
+	if _, rotateErr := identity.Rotate(ctx); rotateErr != nil {
+		return rotateErr
+	}
+
 	if out.Pretty {
-		fmt.Println(style.Success("signing secret rotated in %s", tildePath(rs.State)))
-		fmt.Println(style.Note("restart the hub to load it, then re-enroll peers (holt enroll <peer>)"))
+		fmt.Println(style.Success("signing secret rotated in %s", tildePath(identity.Describe())))
+
+		// A hub reading its identity from a shared backend picks the
+		// rotation up on its own; a file-backed one is only read at
+		// boot, so that one needs the restart.
+		if shared {
+			fmt.Println(style.Note(
+				"running hubs adopt it within 30s and close their tunnels; re-enroll peers (holt enroll <peer>)"))
+		} else {
+			fmt.Println(style.Note("restart the hub to load it, then re-enroll peers (holt enroll <peer>)"))
+		}
 	} else {
 		fmt.Println("signing secret rotated")
 	}

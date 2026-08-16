@@ -12,19 +12,25 @@ import (
 func TestOpenBackends_DefaultSQLite(t *testing.T) {
 	t.Parallel()
 
-	st, err := store.Open(t.TempDir())
+	// Run resolves State before opening anything, so the backends see
+	// a real directory; mirror that here.
+	state := t.TempDir()
+
+	st, err := store.Open(state)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = st.Close() })
 
-	h := &Hub{}
+	h := &Hub{State: state}
 
-	dir, blocks, closeBackends, err := h.openBackends(context.Background(), st)
+	back, err := h.openBackends(context.Background(), st)
 	if err != nil {
 		t.Fatalf("openBackends: %v", err)
 	}
-	defer closeBackends()
+	defer back.close()
+
+	dir, blocks := back.directory, back.blocks
 
 	// Both backends share the store's DB: migrating and reading must
 	// work without any external database.
@@ -42,6 +48,13 @@ func TestOpenBackends_DefaultSQLite(t *testing.T) {
 
 	if _, loadErr := blocks.Load(context.Background()); loadErr != nil {
 		t.Fatalf("blocklist load: %v", loadErr)
+	}
+
+	// Identity comes from the same backend: with no DSN it is the
+	// state directory's file.
+	secret, secretErr := back.secret.LoadOrCreate(context.Background())
+	if secretErr != nil || len(secret) == 0 {
+		t.Fatalf("identity: %v (len %d)", secretErr, len(secret))
 	}
 }
 
@@ -61,7 +74,7 @@ func TestOpenBackends_UnreachablePostgres(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if _, _, _, dirErr := h.openBackends(ctx, st); dirErr == nil {
+	if _, dirErr := h.openBackends(ctx, st); dirErr == nil {
 		t.Fatal("expected an error for an unreachable postgres")
 	}
 }

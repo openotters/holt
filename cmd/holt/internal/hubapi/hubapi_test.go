@@ -1,6 +1,7 @@
 package hubapi_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -160,7 +161,9 @@ func TestConsoleRotateSecret(t *testing.T) {
 
 	dir := t.TempDir()
 
-	original, err := hubsecret.LoadOrCreate(dir)
+	identity := hubsecret.NewFile(dir)
+
+	original, err := identity.LoadOrCreate(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +173,7 @@ func TestConsoleRotateSecret(t *testing.T) {
 
 	mux := http.NewServeMux()
 	hubapi.Console{
-		State:    dir,
+		Identity: identity,
 		Secret:   secret,
 		Tunnels:  tunnels,
 		Settings: hubapi.Config{},
@@ -199,7 +202,7 @@ func TestConsoleRotateSecret(t *testing.T) {
 		t.Fatal("the live secret was not swapped, so issued tokens stay valid")
 	}
 
-	onDisk, err := hubsecret.Load(dir)
+	onDisk, err := identity.Load(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

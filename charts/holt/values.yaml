@@ -10,11 +10,11 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# The hub is a single replica on purpose: the JWT secret, blocklist,
-# and live tunnels are process-local. The tunnel-presence directory
-# can move to a shared PostgreSQL (see `postgres` below) so several
-# hub releases see each other's peers; each release still runs one
-# replica.
+# The hub is a single replica by default: live tunnels are
+# process-local, and so is the state on its volume. With a shared
+# PostgreSQL (see `postgres` below) presence, the denylist, and the
+# JWT signing secret all move to the database, so several hubs verify
+# each other's tokens and persistence can be turned off entirely.
 hub:
   # Serve the web console on the admin port.
   ui: true
@@ -195,6 +195,9 @@ ingress:
 persistence:
   # The hub state: JWT secret, blocklist, presence.
   # Losing it invalidates every join token already handed out.
+  # Safe to disable when `postgres` is configured: all three live in
+  # the database then, and the signing secret no longer regenerates
+  # on each restart.
   enabled: true
   size: 1Gi
   storageClass: ""

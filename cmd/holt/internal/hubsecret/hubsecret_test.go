@@ -2,6 +2,7 @@ package hubsecret_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
@@ -12,7 +13,7 @@ func TestLoadOrCreateIsStable(t *testing.T) {
 
 	dir := t.TempDir()
 
-	first, err := hubsecret.LoadOrCreate(dir)
+	first, err := hubsecret.NewFile(dir).LoadOrCreate(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +24,7 @@ func TestLoadOrCreateIsStable(t *testing.T) {
 
 	// A second call reuses the persisted secret, so already-issued JWTs
 	// keep verifying across restarts.
-	second, err := hubsecret.LoadOrCreate(dir)
+	second, err := hubsecret.NewFile(dir).LoadOrCreate(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +37,7 @@ func TestLoadOrCreateIsStable(t *testing.T) {
 func TestLoadErrorsWithoutSecret(t *testing.T) {
 	t.Parallel()
 
-	if _, err := hubsecret.Load(t.TempDir()); err == nil {
+	if _, err := hubsecret.NewFile(t.TempDir()).Load(context.Background()); err == nil {
 		t.Fatal("Load should error when the hub was never run")
 	}
 }
@@ -46,12 +47,12 @@ func TestRotateChangesSecret(t *testing.T) {
 
 	dir := t.TempDir()
 
-	before, err := hubsecret.LoadOrCreate(dir)
+	before, err := hubsecret.NewFile(dir).LoadOrCreate(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	after, err := hubsecret.Rotate(dir)
+	after, err := hubsecret.NewFile(dir).Rotate(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func TestRotateChangesSecret(t *testing.T) {
 	}
 
 	// The rotated secret is what a subsequent load sees.
-	reloaded, err := hubsecret.Load(dir)
+	reloaded, err := hubsecret.NewFile(dir).Load(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

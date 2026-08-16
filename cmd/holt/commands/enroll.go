@@ -13,7 +13,6 @@ import (
 	c "github.com/merlindorin/go-shared/pkg/cmd"
 
 	"github.com/openotters/holt/cmd/holt/internal/config"
-	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/pkg/jwtauth"
 	"github.com/openotters/holt/pkg/peername"
@@ -32,9 +31,12 @@ type Enroll struct {
 	// applying only while it still describes the hub being enrolled
 	// against; local mode then falls back to ws://127.0.0.1:7200, remote
 	// mode to the hub's --advertise-addr.
-	TunnelURL string        `help:"Tunnel URL to advertise, e.g. https://holt.example.com (default: the profile's tunnel_url for its own hub, then the hub's advertised URL when remote, else ws://127.0.0.1:7200)." name:"tunnel-url" env:"HOLT_TUNNEL_URL"`
-	State     string        `help:"Hub state directory (JWT secret)." type:"path"`
-	TokenTTL  time.Duration `help:"Lifetime of the minted JWT (local mode)." default:"24h"`
+	TunnelURL string `help:"Tunnel URL to advertise, e.g. https://holt.example.com (default: the profile's tunnel_url for its own hub, then the hub's advertised URL when remote, else ws://127.0.0.1:7200)." name:"tunnel-url" env:"HOLT_TUNNEL_URL"`
+	State     string `help:"Hub state directory (JWT secret)." type:"path"`
+	// Local minting reads the signing secret, which lives in the
+	// shared database when the hub was pointed at one.
+	DirectoryDSN string        `help:"PostgreSQL DSN the hub stores its identity in, when it is not local (local mode only)." name:"directory-dsn" env:"HOLT_DIRECTORY_DSN"`
+	TokenTTL     time.Duration `help:"Lifetime of the minted JWT (local mode)." default:"24h"`
 
 	// Remote mode: --admin-url / --header / --profile / --config.
 	adminConn
@@ -77,7 +79,7 @@ func (e *Enroll) mint(ctx context.Context) (string, error) {
 		return e.enrollRemote(ctx, ep, tunnelURL)
 	}
 
-	return e.enrollLocal(tunnelURL)
+	return e.enrollLocal(ctx, tunnelURL)
 }
 
 // advertisedURL is the tunnel URL to stamp into the token: the flag or
@@ -142,8 +144,9 @@ func (e *Enroll) enrollRemote(ctx context.Context, ep endpoint, tunnelURL string
 	return out.Token, nil
 }
 
-// enrollLocal signs a token from the on-disk JWT secret.
-func (e *Enroll) enrollLocal(tunnelURL string) (string, error) {
+// enrollLocal signs a token with the hub's own signing secret, read
+// from wherever that hub keeps it.
+func (e *Enroll) enrollLocal(ctx context.Context, tunnelURL string) (string, error) {
 	if e.State == "" {
 		e.State = defaultStateDir()
 	}
@@ -152,7 +155,14 @@ func (e *Enroll) enrollLocal(tunnelURL string) (string, error) {
 		tunnelURL = "ws://127.0.0.1:7200"
 	}
 
-	secret, err := hubsecret.Load(e.State)
+	identity, closeIdentity, err := openSecretStore(ctx, e.State, e.DirectoryDSN)
+	if err != nil {
+		return "", err
+	}
+
+	defer closeIdentity()
+
+	secret, err := identity.Load(ctx)
 	if err != nil {
 		return "", err
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/openotters/holt/cmd/holt/internal/admin"
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
+	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
 	"github.com/openotters/holt/pkg/blocklist"
 	"github.com/openotters/holt/pkg/directory/sqldir"
 	"github.com/openotters/holt/pkg/jwtauth"
@@ -25,6 +26,7 @@ type hubRuntime struct {
 	registry *registry.Registry
 	blocks   *blocklist.List
 	secrets  *jwtauth.Secret
+	identity hubsecret.Store
 	metrics  *hubmetrics.Metrics
 	info     admin.HubInfo
 	logger   *zap.Logger
@@ -36,7 +38,7 @@ type hubRuntime struct {
 // attach.
 func (h *Hub) newRuntime(
 	ctx context.Context, commons *c.Commons, logger *zap.Logger,
-	dir *sqldir.Directory, blockStore blocklist.Store, secret []byte,
+	dir *sqldir.Directory, blockStore blocklist.Store, identity hubsecret.Store, secret []byte,
 ) (*hubRuntime, error) {
 	registry := registry.NewRegistry(logger, registry.WithHubID(hostname()), registry.WithDirectory(dir))
 	if err := registry.ClearStale(ctx); err != nil {
@@ -52,6 +54,7 @@ func (h *Hub) newRuntime(
 		registry: registry,
 		blocks:   blocks,
 		secrets:  jwtauth.NewSecret(secret),
+		identity: identity,
 		metrics:  hubmetrics.New(commons.Version.Version(), commons.Version.Commit()),
 		info:     h.adminInfo(commons),
 		logger:   logger,

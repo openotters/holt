@@ -14,11 +14,11 @@ Full values in [`charts/holt/values.yaml`](../charts/holt/values.yaml).
 
 ## Shape
 
-The hub runs as a **single replica** on purpose: the JWT secret,
-blocklist, and live tunnels are process-local. The tunnel-presence
-directory can move to a shared PostgreSQL (see
-[below](#shared-presence-directory-postgresql)) so several hub releases
-see each other's peers; each release still runs one replica.
+The hub runs as a **single replica** by default: live tunnels are
+process-local, and so is the state on its volume. Point it at a shared
+PostgreSQL (see [below](#shared-presence-directory-postgresql)) and
+presence, the denylist, and the signing secret all move there, so
+several hubs behave as one fleet: any hub verifies any hub's tokens.
 
 Three services: the **tunnel** listener is a `LoadBalancer` (peers dial
 it from outside the cluster), while **admin** and **proxy** stay
@@ -53,6 +53,23 @@ and advertise its `wss://` URL.
 `persistence.enabled` (default true) binds a PVC for the hub state.
 Losing it invalidates every join token already handed out. The pod runs
 non-root; `fsGroup` makes the volume writable.
+
+**With a shared PostgreSQL you can turn it off.** Presence, the
+denylist, and the signing secret all live in the database then, and
+nothing else on the volume outlives a restart, so:
+
+```yaml
+persistence:
+  enabled: false          # emptyDir; the database is the state
+postgres:
+  cnpg:
+    enabled: true
+```
+
+Identity is the piece that used to make this impossible: a hub with an
+`emptyDir` minted a new secret on every restart, invalidating every
+token. Reading it from the database fixes that, and is also what lets
+you scale past one replica.
 
 ## Ingresses
 

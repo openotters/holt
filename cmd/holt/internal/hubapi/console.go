@@ -35,12 +35,14 @@ type Tunnels interface {
 }
 
 // Console serves the web console: its static build, the settings it
-// reads at startup, and the danger-zone rotate endpoint. State, Secret,
-// Tunnels, and Logger are required — rotating without any one of them
-// would leave tokens alive that the operator was told are dead.
+// reads at startup, and the danger-zone rotate endpoint. Identity,
+// Secret, Tunnels, and Logger are required — rotating without any one
+// of them would leave tokens alive that the operator was told are
+// dead.
 type Console struct {
-	// State is the hub state directory holding the signing secret.
-	State string
+	// Identity is where the signing secret lives, whichever backend
+	// the hub was pointed at.
+	Identity hubsecret.Store
 	// Secret is the live signing secret, hot-swapped by rotate.
 	Secret *jwtauth.Secret
 	// Tunnels are closed when the secret rotates.
@@ -67,13 +69,14 @@ func (c Console) Mount(mux *http.ServeMux) {
 }
 
 // mountRotate registers the danger zone: regenerate the JWT signing
-// secret on disk and hot-swap the live one, so it takes effect
-// immediately. Every JWT already issued was signed with the old secret
-// and stops verifying, and live tunnels are closed; peers must be
-// re-enrolled.
+// secret in whichever backend holds it and hot-swap the live one, so
+// it takes effect immediately. Every JWT already issued was signed
+// with the old secret and stops verifying, and live tunnels are
+// closed; peers must be re-enrolled. On a shared backend that is
+// fleet-wide: the other hubs pick the new secret up too.
 func (c Console) mountRotate(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/rotate-secret", func(w http.ResponseWriter, _ *http.Request) {
-		secret, err := hubsecret.Rotate(c.State)
+	mux.HandleFunc("POST /api/rotate-secret", func(w http.ResponseWriter, r *http.Request) {
+		secret, err := c.Identity.Rotate(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 

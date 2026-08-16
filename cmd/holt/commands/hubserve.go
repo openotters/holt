@@ -91,7 +91,7 @@ func (h *Hub) startAdmin(ctx context.Context, listeners *httpsrv.Group, rt *hubR
 
 	if h.UI {
 		hubapi.Console{
-			State:    h.State,
+			Identity: rt.identity,
 			Secret:   rt.secrets,
 			Tunnels:  rt.registry,
 			Settings: h.consoleConfig(),
