@@ -14,7 +14,6 @@ Every example under [`examples/`](../examples) is runnable with
 | `authenticated` | Bearer-token auth on the attach, both sides                |
 | `transport-tls` | TLS on the outer WebSocket hop (wss with a private CA)     |
 | `encrypted`     | Plaintext outer hop, mutual TLS inside the tunnel          |
-| `join-token`    | Token-based enrollment, like the CLI does it               |
 
 For example:
 

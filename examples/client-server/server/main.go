@@ -76,9 +76,7 @@ func run(tunnelAddr, rosterAddr, proxyAddr string) error {
 	// Ctrl-C.
 	srv := holt.NewServer(
 		holt.WithLogger(logger),
-		holt.WithTunnel(holt.NewTunnel(tunnelAddr,
-			holt.WithAuthBearer(peerForToken),
-		)),
+		holt.WithTunnel(holt.NewTunnel(tunnelAddr, holt.WithAuthBearer(peerForToken))),
 		holt.WithProxy(holt.NewProxy(proxyAddr,
 			holt.WithErrorHook(func(_ context.Context, reason string) {
 				logger.Info("proxy miss", zap.String("reason", reason))

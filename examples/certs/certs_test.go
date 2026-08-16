@@ -1,92 +1,84 @@
 package certs_test
 
 import (
-	"crypto/tls"
+	"crypto/x509"
 	"testing"
 
 	"github.com/openotters/holt/examples/certs"
 )
 
-// TestBundleRoundTrip confirms a client bundle survives Encode →
-// DecodeBundle and yields a usable mutual-TLS config whose cert the
-// PKI's own pool verifies.
-func TestBundleRoundTrip(t *testing.T) {
+// TestEnsureDirRoundTrip confirms the generated demo PKI is usable
+// for mutual TLS: the issued certs load, and the CA pool verifies
+// them.
+func TestEnsureDirRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	pki, err := certs.NewPKI()
+	dir := t.TempDir()
+
+	if err := certs.EnsureDir(dir); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+
+	// Idempotent: a second call must not regenerate or fail.
+	if err := certs.EnsureDir(dir); err != nil {
+		t.Fatalf("ensure again: %v", err)
+	}
+
+	pool, err := certs.LoadCA(dir)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("load ca: %v", err)
 	}
 
-	bundle, err := pki.ClientBundle("alice")
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, name := range []string{certs.Hub, certs.Peer} {
+		cert, loadErr := certs.Load(dir, name)
+		if loadErr != nil {
+			t.Fatalf("load %s: %v", name, loadErr)
+		}
 
-	token := bundle.Encode()
-	if token == "" {
-		t.Fatal("empty token")
-	}
+		leaf, parseErr := x509.ParseCertificate(cert.Certificate[0])
+		if parseErr != nil {
+			t.Fatal(parseErr)
+		}
 
-	decoded, err := certs.DecodeBundle(token)
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-
-	tlsCfg, err := decoded.ClientTLS(certs.Hub)
-	if err != nil {
-		t.Fatalf("client TLS: %v", err)
-	}
-
-	if tlsCfg.ServerName != certs.Hub || len(tlsCfg.Certificates) != 1 {
-		t.Fatalf("unexpected client config: %+v", tlsCfg)
-	}
-
-	// The client cert must verify against the PKI's own CA pool with
-	// the CN we asked for.
-	leaf := tlsCfg.Certificates[0].Leaf
-	if leaf == nil {
-		if len(tlsCfg.Certificates[0].Certificate) == 0 {
-			t.Fatal("no certificate in bundle")
+		if _, verifyErr := leaf.Verify(x509.VerifyOptions{
+			Roots:     pool,
+			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		}); verifyErr != nil {
+			t.Fatalf("%s cert does not verify against the CA: %v", name, verifyErr)
 		}
 	}
-
-	// Server-side view: the hub trusts this cert via its pool.
-	pool := pki.Pool()
-	if pool == nil {
-		t.Fatal("nil pool")
-	}
 }
 
-func TestDecodeBundle_Garbage(t *testing.T) {
+// TestIssueNewIdentity mints a certificate for a name the initial
+// generation did not cover, verified by the same CA.
+func TestIssueNewIdentity(t *testing.T) {
 	t.Parallel()
 
-	if _, err := certs.DecodeBundle("not-base64-!!!"); err == nil {
-		t.Fatal("expected error on non-base64 token")
+	dir := t.TempDir()
+	if err := certs.EnsureDir(dir); err != nil {
+		t.Fatal(err)
 	}
 
-	if _, err := certs.DecodeBundle("dGhpcyBpcyBub3QganNvbg=="); err == nil {
-		t.Fatal("expected error on non-JSON payload")
+	cert, err := certs.Issue(dir, "carol")
+	if err != nil {
+		t.Fatalf("issue: %v", err)
 	}
-}
 
-// TestServerCertUsableForTLS confirms ServerCert yields a leaf a TLS
-// server can present.
-func TestServerCertUsableForTLS(t *testing.T) {
-	t.Parallel()
+	pool, _ := certs.LoadCA(dir)
 
-	pki, err := certs.NewPKI()
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cert, err := pki.ServerCert(certs.Hub)
-	if err != nil {
-		t.Fatal(err)
+	if _, err := leaf.Verify(x509.VerifyOptions{
+		Roots:     pool,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	}); err != nil {
+		t.Fatalf("issued cert does not verify: %v", err)
 	}
 
-	cfg := &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS13}
-	if len(cfg.Certificates) != 1 || cfg.Certificates[0].Leaf == nil {
-		t.Fatal("server cert not usable")
+	if leaf.Subject.CommonName != "carol" {
+		t.Fatalf("CN = %q, want carol", leaf.Subject.CommonName)
 	}
 }

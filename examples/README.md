@@ -10,7 +10,6 @@ more peers wired together so you can watch a reverse tunnel work.
 | [`client-server`](client-server) | **Two standalone binaries** over a real socket — a hub that reverse-proxies your `curl` through a listenerless peer's tunnel. The realistic deployment shape. |
 | [`transport-tls`](transport-tls) | Two binaries. **Outer** mutual TLS on the WebSocket hop; the hub takes each peer's identity from its client certificate's CN. |
 | [`encrypted`](encrypted) | Two binaries. **Inner** mutual TLS *inside* the tunnel over a plaintext transport — end-to-end confidentiality and mutual auth even past a TLS-terminating proxy. |
-| [`join-token`](join-token) | Mutual TLS with **no cert files**: the server prints a copy-paste join token (CA + client cert + key) you hand to the client's `--token` flag. |
 
 The tunnel's carrier is a **WebSocket**, so a peer names the hub by
 URL and the scheme picks the transport:

@@ -32,27 +32,21 @@ func main() {
 	token := flag.String("token", "tok-alice", "bearer token identifying this peer to the hub")
 	flag.Parse()
 
-	if err := run(*hubURL, *token); err != nil {
+	logger, _ := zap.NewDevelopment()
+	defer func() { _ = logger.Sync() }()
+
+	if err := run(*hubURL, *token, logger); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(hubURL, token string) error {
-	logger, _ := zap.NewDevelopment()
-	defer func() { _ = logger.Sync() }()
-
+func run(hubURL, token string, logger *zap.Logger) error {
 	// The handler this peer serves over the tunnel. None of this is
 	// reachable directly — the peer opens no listener.
 	mux := http.NewServeMux()
-	mux.HandleFunc("/hello", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprintf(w, "hello from %s (pid %d)\n", token, os.Getpid())
-	})
-	mux.HandleFunc("/time", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprintf(w, "%s\n", time.Now().Format(time.RFC3339Nano))
-	})
-	mux.HandleFunc("/env", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = fmt.Fprintf(w, "requested-path: %s\n", r.URL.Path)
-	})
+	mux.HandleFunc("/hello", helloHandler(token))
+	mux.HandleFunc("/time", timeHandler)
+	mux.HandleFunc("/env", envHandler)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -78,4 +72,18 @@ func run(hubURL, token string) error {
 	logger.Info("peer stopped")
 
 	return nil
+}
+
+func envHandler(w http.ResponseWriter, r *http.Request) {
+	_, _ = fmt.Fprintf(w, "requested-path: %s\n", r.URL.Path)
+}
+
+func timeHandler(w http.ResponseWriter, _ *http.Request) {
+	_, _ = fmt.Fprintf(w, "%s\n", time.Now().Format(time.RFC3339Nano))
+}
+
+func helloHandler(token string) func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, "hello from %s (pid %d)\n", token, os.Getpid())
+	}
 }
