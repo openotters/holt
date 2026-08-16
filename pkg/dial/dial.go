@@ -57,7 +57,9 @@ type Options struct {
 	Header http.Header
 
 	// HTTPClient overrides the client used for the upgrade request
-	// (custom roots, proxies). Defaults to http.DefaultClient.
+	// (custom roots, proxies). Default: a private client with its own
+	// connection pool. Between redial attempts Run closes the
+	// client's idle connections so every attempt dials fresh.
 	HTTPClient *http.Client
 
 	// Keepalive paces WebSocket pings; 0 means DefaultKeepalive, a
@@ -121,6 +123,13 @@ func Run(ctx context.Context, opts Options) error {
 		return urlErr
 	}
 
+	// The upgrade client gets its own connection pool by default so
+	// closing idle connections below never touches unrelated traffic
+	// on http.DefaultClient's shared pool.
+	if opts.HTTPClient == nil {
+		opts.HTTPClient = &http.Client{Transport: newTransport()}
+	}
+
 	backoff := backoffBase
 
 	for {
@@ -140,6 +149,13 @@ func Run(ctx context.Context, opts Options) error {
 			backoff = backoffBase
 		}
 
+		// Drop pooled keep-alive connections so the next attempt dials
+		// fresh. A pooled connection can outlive the endpoint it was
+		// good for — a hub that restarted, or another process that
+		// answered the port while the hub was down — and would pin
+		// every redial to that dead or wrong peer.
+		opts.HTTPClient.CloseIdleConnections()
+
 		logger.Warn("tunnel detached; redialing",
 			zap.Error(err), zap.Duration("backoff", backoff))
 
@@ -153,6 +169,16 @@ func Run(ctx context.Context, opts Options) error {
 
 		backoff = min(backoff*2, backoffCap)
 	}
+}
+
+// newTransport is the dialer's private pool: http.DefaultTransport's
+// shape, but owned here.
+func newTransport() *http.Transport {
+	if t, ok := http.DefaultTransport.(*http.Transport); ok {
+		return t.Clone()
+	}
+
+	return &http.Transport{}
 }
 
 // attachOnce performs one attach: WebSocket dial, handshake, then
