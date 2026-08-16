@@ -12,8 +12,8 @@ on:
       - '.github/workflows/release.yml'
       - '.github/workflows/release-check.yml'
       - 'cmd/holt/**'
-      - 'ui/package.json'
-      - 'ui/package-lock.json'
+      - 'cmd/holt/ui/package.json'
+      - 'cmd/holt/ui/package-lock.json'
       - 'go.mod'
       - 'go.sum'
   push:

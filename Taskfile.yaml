@@ -70,26 +70,26 @@ tasks:
     desc: Regenerate Go and TypeScript protobuf stubs from api/
     cmds:
       - buf generate
-      - cd ui && npm run gen
+      - cd cmd/holt/ui && npm run gen
 
   ui:install:
     desc: Install web console dependencies
-    dir: ui
+    dir: cmd/holt/ui
     cmds:
       - npm ci
 
   ui:dev:
     desc: Run the web console dev server (proxies to a local hub)
-    dir: ui
+    dir: cmd/holt/ui
     cmds:
       - npm run dev
 
   ui:build:
     desc: Build the web console and refresh the embedded copy
-    dir: ui
+    dir: cmd/holt/ui
     cmds:
       - npm run build
-      - rsync -a --delete --exclude=.gitkeep dist/ ../{{.WEBUI_DIST}}/
+      - rsync -a --delete --exclude=.gitkeep dist/ ../../../{{.WEBUI_DIST}}/
 
   chart:lint:
     desc: Lint and render the Helm chart

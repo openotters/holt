@@ -4,9 +4,9 @@
 coverage.out
 
 # web console
-ui/node_modules/
-ui/dist/
-ui/tsconfig.tsbuildinfo
+cmd/holt/ui/node_modules/
+cmd/holt/ui/dist/
+cmd/holt/ui/tsconfig.tsbuildinfo
 
 # embedded console build: rebuilt by `task ui:build` / goreleaser, only
 # the .gitkeep placeholder is tracked (go:embed needs the dir to exist).

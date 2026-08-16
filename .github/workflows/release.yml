@@ -43,14 +43,14 @@ jobs:
 
       # The web console is embedded into holt via go:embed.
       # GoReleaser's before-hooks run `npm ci && npm run build` under
-      # ./ui and rsync the bundle into cmd/holt/internal/webui/dist
+      # ./cmd/holt/ui and rsync the bundle into cmd/holt/internal/webui/dist
       # before any Go binary is built, so Node must be on the PATH.
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: ui/package-lock.json
+          cache-dependency-path: cmd/holt/ui/package-lock.json
 
       # Multi-arch images: goreleaser builds one image per arch with
       # buildx and assembles the manifest.

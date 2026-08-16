@@ -18,7 +18,8 @@ task chart:lint     # lint and render the Helm chart
 task check          # full local gate, same as CI
 ```
 
-The web console is a small React app under [`ui/`](../ui), embedded into
+The web console is a small React app under
+[`cmd/holt/ui/`](../cmd/holt/ui), embedded into
 the binary with `go:embed`. The embedded build (`cmd/holt/internal/webui/dist`)
 is generated, not tracked: `task ui:build` populates it, and goreleaser
 rebuilds it before a release. A source checkout that skips the build

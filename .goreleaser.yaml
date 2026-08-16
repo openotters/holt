@@ -8,15 +8,15 @@ before:
     # The web console is embedded into holt via go:embed
     # (cmd/holt/internal/webui/dist). The committed copy keeps
     # `go install` working, but every release rebuilds the bundle from
-    # source under ui/ so the binary always ships the UI code of the
+    # source under cmd/holt/ui/ so the binary always ships the UI code of the
     # tagged commit.
     #
     # `before.hooks` entries are strings split by shellwords, so each
     # multi-step command goes through `sh -c "..."` to keep `cd` and
     # `&&` working as expected.
-    - sh -c "cd ui && npm ci"
-    - sh -c "cd ui && npm run build"
-    - sh -c "rsync -a --delete --exclude=.gitkeep ui/dist/ cmd/holt/internal/webui/dist/"
+    - sh -c "cd cmd/holt/ui && npm ci"
+    - sh -c "cd cmd/holt/ui && npm run build"
+    - sh -c "rsync -a --delete --exclude=.gitkeep cmd/holt/ui/dist/ cmd/holt/internal/webui/dist/"
 
 builds:
   - id: holt
