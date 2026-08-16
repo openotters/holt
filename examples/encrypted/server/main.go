@@ -30,7 +30,6 @@ import (
 
 	"github.com/openotters/holt"
 	"github.com/openotters/holt/examples/certs"
-	"github.com/openotters/holt/hub"
 )
 
 func main() {
@@ -83,7 +82,7 @@ func run(addr, certsDir string) error {
 		holt.WithLogger(logger),
 		holt.WithTunnel(holt.NewTunnel(addr,
 			holt.WithIdentity(func(context.Context) (string, error) { return "peer", nil }),
-			holt.WithHandlerOptions(hub.WithPeerTLS(innerTLS)),
+			holt.WithHandlerOptions(holt.WithPeerTLS(innerTLS)),
 		)),
 		holt.WithProxy(nil),
 	)
@@ -97,12 +96,12 @@ func run(addr, certsDir string) error {
 
 // greetOnAttach reaches the peer through the (inner-encrypted) tunnel
 // on attach and logs the reply.
-func greetOnAttach(ctx context.Context, registry *hub.Registry, logger *zap.Logger) {
+func greetOnAttach(ctx context.Context, registry *holt.Registry, logger *zap.Logger) {
 	events := registry.Watch(ctx)
 
 	go func() {
 		for ev := range events {
-			if ev.Kind != hub.EventAttached {
+			if ev.Kind != holt.EventAttached {
 				continue
 			}
 
@@ -119,7 +118,7 @@ func greetOnAttach(ctx context.Context, registry *hub.Registry, logger *zap.Logg
 	}()
 }
 
-func get(ctx context.Context, registry *hub.Registry, peer, path string) (string, error) {
+func get(ctx context.Context, registry *holt.Registry, peer, path string) (string, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 

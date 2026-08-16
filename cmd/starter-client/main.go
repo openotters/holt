@@ -4,7 +4,7 @@
 // tunnel, and listens on nothing.
 //
 // Everything a peer needs is here and nothing else: decode the token,
-// then dial.Run your handler (JWT auth rides the WebSocket upgrade;
+// then holt.NewClient your handler (JWT auth rides the WebSocket upgrade;
 // the tunnel URL's scheme picks the transport). The join token is
 // decoded inline (a tiny base64+JSON struct) so this file has no
 // dependency on the holt CLI's internals — copy it and go.
@@ -35,7 +35,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/dial"
+	"github.com/openotters/holt"
 )
 
 // joinToken is what `holt enroll` prints: a JWT in compact
@@ -93,13 +93,11 @@ func run(rawToken string) error {
 
 	logger.Info("joined; serving over the tunnel", zap.String("peer", jt.Peer))
 
-	return dial.Run(ctx, dial.Options{
-		URL:     jt.TunnelURL,
-		Header:  http.Header{"Authorization": {"Bearer " + jt.JWT}},
-		Handler: handler,
-		Version: "starter-client",
-		Logger:  logger,
-	})
+	return holt.NewClient(jt.TunnelURL, handler,
+		holt.WithBearerToken(jt.JWT),
+		holt.WithVersion("starter-client"),
+		holt.WithLogger(logger),
+	).Run(ctx)
 }
 
 // decodeToken reads the JWT's claims WITHOUT verifying the signature:

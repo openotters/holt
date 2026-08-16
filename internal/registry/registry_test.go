@@ -1,4 +1,4 @@
-package hub_test
+package registry_test
 
 import (
 	"context"
@@ -9,13 +9,13 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/hub"
+	"github.com/openotters/holt/internal/registry"
 )
 
 func TestRegistry_AttachDetach(t *testing.T) {
 	t.Parallel()
 
-	r := hub.NewRegistry(zap.NewNop())
+	r := registry.NewRegistry(zap.NewNop())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -36,7 +36,7 @@ func TestRegistry_AttachDetach(t *testing.T) {
 	if tunnels := r.ListTunnels(); len(tunnels) != 1 || tunnels[0].Peer != "peer-1" {
 		t.Fatalf("ListTunnels = %+v", tunnels)
 	}
-	if ev := recv(t, events); ev.Kind != hub.EventAttached || ev.Peer != "peer-1" {
+	if ev := recv(t, events); ev.Kind != registry.EventAttached || ev.Peer != "peer-1" {
 		t.Fatalf("event = %+v", ev)
 	}
 
@@ -45,7 +45,7 @@ func TestRegistry_AttachDetach(t *testing.T) {
 	if r.Attached("peer-1") {
 		t.Fatal("still attached after detach")
 	}
-	if ev := recv(t, events); ev.Kind != hub.EventDetached || ev.Reason != "connection-lost" {
+	if ev := recv(t, events); ev.Kind != registry.EventDetached || ev.Reason != "connection-lost" {
 		t.Fatalf("event = %+v", ev)
 	}
 }
@@ -53,7 +53,7 @@ func TestRegistry_AttachDetach(t *testing.T) {
 func TestRegistry_SupersededClosesLoser(t *testing.T) {
 	t.Parallel()
 
-	r := hub.NewRegistry(zap.NewNop())
+	r := registry.NewRegistry(zap.NewNop())
 
 	var closedWith string
 
@@ -73,16 +73,16 @@ func TestRegistry_SupersededClosesLoser(t *testing.T) {
 func TestRegistry_RoundTripperDetached(t *testing.T) {
 	t.Parallel()
 
-	r := hub.NewRegistry(zap.NewNop())
+	r := registry.NewRegistry(zap.NewNop())
 	rt := r.RoundTripper("nobody")
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://peer.invalid/", nil)
-	if _, err := rt.RoundTrip(req); !errors.Is(err, hub.ErrPeerDetached) {
+	if _, err := rt.RoundTrip(req); !errors.Is(err, registry.ErrPeerDetached) {
 		t.Fatalf("err = %v, want ErrPeerDetached", err)
 	}
 }
 
-func recv(t *testing.T, ch <-chan hub.Event) hub.Event {
+func recv(t *testing.T, ch <-chan registry.Event) registry.Event {
 	t.Helper()
 
 	select {
@@ -91,6 +91,6 @@ func recv(t *testing.T, ch <-chan hub.Event) hub.Event {
 	case <-time.After(2 * time.Second):
 		t.Fatal("no event")
 
-		return hub.Event{}
+		return registry.Event{}
 	}
 }

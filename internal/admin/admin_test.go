@@ -11,14 +11,14 @@ import (
 
 	holtv1 "github.com/openotters/holt/api/v1"
 	"github.com/openotters/holt/api/v1/holtv1connect"
-	"github.com/openotters/holt/hub"
-	"github.com/openotters/holt/hub/admin"
+	"github.com/openotters/holt/internal/admin"
+	"github.com/openotters/holt/internal/registry"
 )
 
 func TestAdminService(t *testing.T) {
 	t.Parallel()
 
-	reg := hub.NewRegistry(zap.NewNop())
+	reg := registry.NewRegistry(zap.NewNop())
 	svc := admin.NewService(reg)
 	ctx := context.Background()
 
@@ -78,7 +78,7 @@ func (f *fakeBlocker) Blocked() []admin.BlockedPeer {
 func TestAdminService_Block(t *testing.T) {
 	t.Parallel()
 
-	reg := hub.NewRegistry(zap.NewNop())
+	reg := registry.NewRegistry(zap.NewNop())
 	blocker := &fakeBlocker{blocked: map[string]bool{}}
 	svc := admin.NewService(reg, admin.WithBlocker(blocker))
 	ctx := context.Background()
@@ -113,7 +113,7 @@ func TestAdminService_Block(t *testing.T) {
 func TestAdminService_BlockUnimplementedWithoutBlocker(t *testing.T) {
 	t.Parallel()
 
-	svc := admin.NewService(hub.NewRegistry(zap.NewNop()))
+	svc := admin.NewService(registry.NewRegistry(zap.NewNop()))
 
 	_, err := svc.BlockPeer(context.Background(), connect.NewRequest(&holtv1.BlockPeerRequest{Peer: "x"}))
 	if connect.CodeOf(err) != connect.CodeUnimplemented {
@@ -132,7 +132,7 @@ func TestAdminService_BlockUnimplementedWithoutBlocker(t *testing.T) {
 func TestWatchTunnels(t *testing.T) {
 	t.Parallel()
 
-	reg := hub.NewRegistry(zap.NewNop())
+	reg := registry.NewRegistry(zap.NewNop())
 	path, handler := holtv1connect.NewAdminHandler(admin.NewService(reg))
 	mux := http.NewServeMux()
 	mux.Handle(path, handler)
@@ -198,7 +198,7 @@ func TestWatchTunnels(t *testing.T) {
 func TestInfo(t *testing.T) {
 	t.Parallel()
 
-	reg := hub.NewRegistry(zap.NewNop())
+	reg := registry.NewRegistry(zap.NewNop())
 	var detach func(string)
 	detach = reg.Attach("alice", "v1", nil, func(r string) { detach(r) })
 

@@ -20,8 +20,8 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/peername"
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
-	"github.com/openotters/holt/dial"
-	"github.com/openotters/holt/hub/proxy"
+	"github.com/openotters/holt/internal/dial"
+	"github.com/openotters/holt/internal/revproxy"
 )
 
 // Expose tunnels a LOCAL HTTP service through the hub — the
@@ -108,7 +108,7 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 
 		rows = append(rows, style.BannerRow{
 			Key:   "reach",
-			Value: "curl -H '" + proxy.RouteHeader + ": " + jt.Peer + "'",
+			Value: "curl -H '" + revproxy.RouteHeader + ": " + jt.Peer + "'",
 			Hint:  "against the hub proxy address",
 		})
 		if e.Insecure && targetURL.Scheme == schemeHTTPS {

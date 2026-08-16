@@ -37,7 +37,7 @@ const (
 // stamps the peer id onto the request context for PeerFrom.
 //
 //	guard := jwtauth.Guard{Secret: secret, Blocked: blocks, OnReject: metrics.RecordReject}
-//	mux.Handle("/", guard.Middleware(hub.NewHandler(registry, jwtauth.PeerFrom, logger)))
+//	mux.Handle("/", guard.Middleware(attach.NewHandler(registry, jwtauth.PeerFrom, logger)))
 //
 // Only Secret is required: without a Blocker nothing is denylisted
 // (every valid token attaches), and without a RejectHook refusals are
@@ -99,7 +99,7 @@ type peerKey struct{}
 var ErrUnauthenticated = errors.New("unauthenticated")
 
 // PeerFrom returns the peer id the guard verified for this request. Its
-// signature is hub.Identity, so it wires straight into hub.NewHandler.
+// signature is attach.Identity, so it wires straight into attach.NewHandler.
 func PeerFrom(ctx context.Context) (string, error) {
 	peer, _ := ctx.Value(peerKey{}).(string)
 	if peer == "" {

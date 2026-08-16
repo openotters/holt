@@ -35,29 +35,40 @@ edges. Presence of the tunnel doubles as the peer's liveness signal.
 
 ## The parts
 
-- **root package `holt`**: the front door for both halves.
-  `NewServer` assembles the whole hub in one call (tunnel endpoint,
-  proxy endpoint, lifecycle); `NewClient` wires a peer that attaches
-  and serves a handler back through the tunnel.
-- **`hub`**: the server-side pieces underneath. `NewRegistry` tracks
-  live tunnels per peer and `NewHandler` is the `http.Handler` that
-  accepts attachments, mounted behind your auth middleware (the
-  peer's credential arrives on the upgrade request).
-- **`hub/proxy`**: the data plane. An `http.Handler` that picks the
-  target peer from the request (`x-tunnel-peer` header, or
-  `<peer>.<domain>` subdomain) and dials it through its tunnel. This is
-  what `holt hub` serves on its proxy port.
-- **`dial`**: the client-side piece underneath. `dial.Run` is a
-  persistent attach loop that dials the hub's WebSocket endpoint,
-  serves your `http.Handler` over the tunnel, and redials with
-  jittered backoff; extra upgrade headers carry whatever auth the hub
-  or the edge in front wants.
-- **`hub/sqldir`**: a SQL-backed presence directory (SQLite or
-  PostgreSQL) for sharing which peer is attached to which hub across a
-  fleet.
+The root package `holt` is the module's entire public API: `NewServer`
+assembles the whole hub in one call (tunnel endpoint, proxy endpoint,
+lifecycle); `NewClient` wires a peer that attaches and serves a
+handler back through the tunnel; the `Registry` (from
+`srv.Registry()`) is the operator surface.
 
-See [Library](library.md) to use these directly, or [CLI](cli.md) for
-the batteries-included `holt` binary.
+Everything underneath lives in `internal/`, one package per role:
+
+- **`internal/registry`**: tracks the live tunnel per peer and hands
+  out the per-peer `http.RoundTripper`; attach/detach events double as
+  the presence signal.
+- **`internal/attach`**: the `http.Handler` that accepts a peer's
+  WebSocket upgrade and registers the tunnel, mounted behind the
+  tunnel endpoint's middleware (the peer's credential arrives on the
+  upgrade request).
+- **`internal/revproxy`**: the data plane. Picks the target peer from
+  the request (`x-tunnel-peer` header, or `<peer>.<domain>` subdomain)
+  and dials it through its tunnel. This is what `holt hub` serves on
+  its proxy port.
+- **`internal/dial`**: the client side's persistent attach loop —
+  dials the hub's WebSocket endpoint, serves the handler over the
+  tunnel, and redials with jittered backoff.
+- **`internal/directory`** (+ `sqldir`, `sqlite`, `postgres`): peer
+  presence — in-memory for one hub, SQL-backed to share which peer is
+  attached to which hub across a fleet.
+- **`internal/tunnel`, `internal/proxy`, `internal/server`,
+  `internal/client`, `internal/utils`**: the endpoint declarations and
+  assembly the root facade builds on.
+- **`internal/admin`**: the Admin gRPC service over the registry.
+- **`internal/wire`**: the frame-level `net.Conn` adapter, handshake,
+  and GoAway vocabulary both halves share.
+
+See [Library](library.md) to embed the two halves, or [CLI](cli.md)
+for the batteries-included `holt` binary.
 
 ---
 

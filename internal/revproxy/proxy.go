@@ -23,7 +23,7 @@
 //
 // Transport encryption is the deployment's job: put a TLS edge,
 // ingress, or mesh in front of the hub, same as its other listeners.
-package proxy
+package revproxy
 
 import (
 	"context"

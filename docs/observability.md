@@ -89,8 +89,8 @@ if you would rather import it by hand.
 Point the hub at your own providers:
 
 ```go
-hub.NewRegistry(log, hub.WithMeterProvider(mp))
-hub.NewHandler(reg, id, log, hub.WithTracerProvider(tp))
+holt.NewRegistry(log, holt.WithMeterProvider(mp))
+holt.NewTunnel(":7000", holt.WithHandlerOptions(holt.WithTracerProvider(tp)))
 ```
 
 ---

@@ -1,19 +1,14 @@
-// Package hub is the server half of the holt: it accepts
-// Attach streams from peers, keeps a registry of live tunnels keyed
-// by peer ID, and lets the application dial "through" any attached
-// peer with an ordinary http.RoundTripper. Attach/detach events
-// double as the peers' presence signal.
+// Package registry keeps the hub's live tunnels keyed by peer ID and
+// lets the application dial "through" any attached peer with an
+// ordinary http.RoundTripper. Attach/detach events double as the
+// peers' presence signal.
 //
-// Identity is the application's concern: the Handler is constructed
-// with an Identity func that extracts the peer ID from the request
-// context (JWT claims, mTLS SAN, header — whatever the surrounding
-// middleware established). The handshake itself carries no identity.
-//
-// Presence can be projected to a pluggable Directory (in-memory by
-// default; SQL for a shared fleet — see hub/sqldir). The live tunnels
-// themselves are always local to the owning hub process; the
-// Directory only records who is attached where.
-package hub
+// Presence can be projected to a pluggable directory.Directory
+// (in-memory by default; SQL for a shared fleet — see
+// internal/directory/sqldir). The live tunnels themselves are always
+// local to the owning hub process; the directory only records who is
+// attached where.
+package registry
 
 import (
 	"context"
@@ -26,6 +21,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
+
+	"github.com/openotters/holt/internal/directory"
 )
 
 // ErrPeerDetached is returned by the per-peer RoundTripper when no
@@ -83,7 +80,7 @@ const watchChanSize = 64
 type Registry struct {
 	logger  *zap.Logger
 	hubID   string
-	dir     Directory
+	dir     directory.Directory
 	metrics *metrics
 
 	mu      sync.Mutex
@@ -92,39 +89,39 @@ type Registry struct {
 	nextSub uint64
 }
 
-// RegistryOption configures a Registry.
-type RegistryOption func(*Registry)
+// Option configures a Registry.
+type Option func(*Registry)
 
 // WithHubID sets this hub's stable instance id, recorded in the
 // Directory so a fleet can tell which hub owns a peer. Give each hub a
 // stable, unique id (hostname, pod name) in a multi-hub deployment so
 // a restarting hub can clear its own stale rows. Default "local".
-func WithHubID(id string) RegistryOption {
+func WithHubID(id string) Option {
 	return func(r *Registry) { r.hubID = id }
 }
 
 // WithDirectory sets the presence backend. Default is an in-memory
 // directory (correct for a single hub); pass a SQL directory to share
 // presence across a fleet.
-func WithDirectory(dir Directory) RegistryOption {
+func WithDirectory(dir directory.Directory) Option {
 	return func(r *Registry) { r.dir = dir }
 }
 
 // WithMeterProvider sets the OTel MeterProvider for tunnel metrics.
 // Optional — without it the global provider is used, which is a no-op
 // until the application installs an SDK.
-func WithMeterProvider(mp metric.MeterProvider) RegistryOption {
+func WithMeterProvider(mp metric.MeterProvider) Option {
 	return func(r *Registry) { r.metrics = newMetrics(mp, func() int64 { return int64(r.CountTunnels()) }) }
 }
 
 // NewRegistry builds a Registry. By default it keeps presence
 // in-memory, identifies itself as "local", and records metrics
 // against the global (no-op) OTel provider.
-func NewRegistry(logger *zap.Logger, opts ...RegistryOption) *Registry {
+func NewRegistry(logger *zap.Logger, opts ...Option) *Registry {
 	r := &Registry{
 		logger: logger.Named("holt-hub"),
 		hubID:  "local",
-		dir:    NewMemoryDirectory(),
+		dir:    directory.NewMemoryDirectory(),
 		conns:  make(map[string]*entry),
 		subs:   make(map[uint64]chan Event),
 	}
@@ -173,7 +170,7 @@ func (r *Registry) Attach(
 	}
 
 	r.metrics.recordAttach(context.Background())
-	r.dirAttach(PeerRecord{Peer: peer, Hub: r.hubID, PeerVersion: version, AttachedAt: now})
+	r.dirAttach(directory.PeerRecord{Peer: peer, Hub: r.hubID, PeerVersion: version, AttachedAt: now})
 
 	var once sync.Once
 
@@ -285,13 +282,13 @@ func (r *Registry) StopAllTunnels(reason string) {
 
 // LookupPeer returns the Directory record for peer — a fleet-wide
 // answer to "is this peer attached, and to which hub?".
-func (r *Registry) LookupPeer(ctx context.Context, peer string) (PeerRecord, bool, error) {
+func (r *Registry) LookupPeer(ctx context.Context, peer string) (directory.PeerRecord, bool, error) {
 	return r.dir.Lookup(ctx, peer)
 }
 
 // Peers returns every attached peer known to the Directory (fleet-wide
 // when the Directory is shared).
-func (r *Registry) Peers(ctx context.Context) ([]PeerRecord, error) {
+func (r *Registry) Peers(ctx context.Context) ([]directory.PeerRecord, error) {
 	return r.dir.List(ctx)
 }
 
@@ -335,7 +332,7 @@ func (r *Registry) broadcastLocked(ev Event) {
 
 // dirAttach records presence best-effort — a Directory error is
 // logged but never fails a live attach.
-func (r *Registry) dirAttach(rec PeerRecord) {
+func (r *Registry) dirAttach(rec directory.PeerRecord) {
 	ctx, cancel := context.WithTimeout(context.Background(), dirTimeout)
 	defer cancel()
 

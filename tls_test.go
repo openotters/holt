@@ -18,8 +18,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/dial"
-	"github.com/openotters/holt/hub"
+	"github.com/openotters/holt/internal/attach"
+	"github.com/openotters/holt/internal/dial"
+	"github.com/openotters/holt/internal/registry"
 )
 
 // TestEncryptedTunnel proves payload TLS INSIDE the tunnel: the peer
@@ -105,7 +106,7 @@ func TestMutualTLSTunnel(t *testing.T) {
 }
 
 // assertUnreachable fails if the peer becomes reachable within 2s.
-func assertUnreachable(t *testing.T, registry *hub.Registry, msg string) {
+func assertUnreachable(t *testing.T, registry *registry.Registry, msg string) {
 	t.Helper()
 
 	deadline := time.Now().Add(2 * time.Second)
@@ -122,15 +123,15 @@ func assertUnreachable(t *testing.T, registry *hub.Registry, msg string) {
 
 // runHubAndPeer wires an encrypted hub + peer and returns the hub's
 // registry. The peer serves handler over TLS; the hub pins hubTLS.
-func runHubAndPeer(t *testing.T, hubTLS, peerTLS *tls.Config, handler http.Handler) *hub.Registry {
+func runHubAndPeer(t *testing.T, hubTLS, peerTLS *tls.Config, handler http.Handler) *registry.Registry {
 	t.Helper()
 
 	logger := zap.NewNop()
-	registry := hub.NewRegistry(logger)
+	registry := registry.NewRegistry(logger)
 	identity := func(context.Context) (string, error) { return "peer", nil }
 
 	mux := http.NewServeMux()
-	mux.Handle("/", hub.NewHandler(registry, identity, logger, hub.WithPeerTLS(hubTLS)))
+	mux.Handle("/", attach.NewHandler(registry, identity, logger, attach.WithPeerTLS(hubTLS)))
 
 	var lc net.ListenConfig
 
@@ -165,7 +166,7 @@ func okHandler() http.Handler {
 	return mux
 }
 
-func tlsGet(t *testing.T, r *hub.Registry, peer string) (string, error) {
+func tlsGet(t *testing.T, r *registry.Registry, peer string) (string, error) {
 	t.Helper()
 
 	client := &http.Client{Transport: r.RoundTripper(peer), Timeout: 2 * time.Second}

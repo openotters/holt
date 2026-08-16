@@ -11,8 +11,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/dial"
-	"github.com/openotters/holt/hub"
+	"github.com/openotters/holt/internal/attach"
+	"github.com/openotters/holt/internal/dial"
+	"github.com/openotters/holt/internal/registry"
 )
 
 // TestReverseTunnel_EndToEnd is the module's headline proof: a peer
@@ -27,14 +28,14 @@ func TestReverseTunnel_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	logger := zap.NewNop()
-	registry := hub.NewRegistry(logger)
+	registry := registry.NewRegistry(logger)
 
 	// The hub identifies every peer on this listener as "peer-1"
 	// (a real deployment reads a JWT claim from the upgrade request).
 	identity := func(context.Context) (string, error) { return "peer-1", nil }
 
 	mux := http.NewServeMux()
-	mux.Handle("/", hub.NewHandler(registry, identity, logger))
+	mux.Handle("/", attach.NewHandler(registry, identity, logger))
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -90,11 +91,11 @@ func TestReverseTunnel_WSSAndKeepalive(t *testing.T) {
 	t.Parallel()
 
 	logger := zap.NewNop()
-	registry := hub.NewRegistry(logger)
+	registry := registry.NewRegistry(logger)
 	identity := func(context.Context) (string, error) { return "peer-tls", nil }
 
 	mux := http.NewServeMux()
-	mux.Handle("/", hub.NewHandler(registry, identity, logger))
+	mux.Handle("/", attach.NewHandler(registry, identity, logger))
 
 	// httptest's TLS server is the stand-in for the TLS edge: it
 	// terminates TLS and speaks plain HTTP/1.1 to the handler, exactly

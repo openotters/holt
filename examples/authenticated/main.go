@@ -37,7 +37,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt"
-	"github.com/openotters/holt/hub"
 )
 
 // peerForToken maps a demo bearer token to the peer identity it
@@ -143,7 +142,7 @@ func startPeer(ctx context.Context, hubAddr, token, name string, logger *zap.Log
 	}()
 }
 
-func getThroughTunnel(ctx context.Context, r *hub.Registry, peer string) (string, error) {
+func getThroughTunnel(ctx context.Context, r *holt.Registry, peer string) (string, error) {
 	client := &http.Client{Transport: r.RoundTripper(peer)}
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://peer.invalid/hello", nil)
@@ -158,7 +157,7 @@ func getThroughTunnel(ctx context.Context, r *hub.Registry, peer string) (string
 	return string(body), nil
 }
 
-func waitAttached(ctx context.Context, r *hub.Registry, peer string) error {
+func waitAttached(ctx context.Context, r *holt.Registry, peer string) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 

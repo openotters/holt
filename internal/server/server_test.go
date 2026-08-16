@@ -1,4 +1,4 @@
-package holt_test
+package server_test
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt"
-	"github.com/openotters/holt/dial"
-	"github.com/openotters/holt/hub"
-	"github.com/openotters/holt/hub/proxy"
+	"github.com/openotters/holt/internal/dial"
+	"github.com/openotters/holt/internal/registry"
+	"github.com/openotters/holt/internal/revproxy"
 )
 
 // listen binds a throwaway loopback listener the test hands to the
@@ -358,7 +358,7 @@ func get(t *testing.T, url, peer string) proxyResponse {
 		t.Fatal(err)
 	}
 
-	req.Header.Set(proxy.RouteHeader, peer)
+	req.Header.Set(revproxy.RouteHeader, peer)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -371,7 +371,7 @@ func get(t *testing.T, url, peer string) proxyResponse {
 	return proxyResponse{body: string(body), status: resp.StatusCode, via: resp.Header.Get("X-Via")}
 }
 
-func waitAttached(t *testing.T, r *hub.Registry, peer string) {
+func waitAttached(t *testing.T, r *registry.Registry, peer string) {
 	t.Helper()
 
 	deadline := time.Now().Add(10 * time.Second)

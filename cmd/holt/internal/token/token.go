@@ -25,7 +25,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/openotters/holt/dial"
+	"github.com/openotters/holt/internal/dial"
 )
 
 // JoinToken is the decoded view of a join token.

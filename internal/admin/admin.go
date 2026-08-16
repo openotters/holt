@@ -1,5 +1,5 @@
 // Package admin implements the holt hub's Admin gRPC service over a
-// *hub.Registry: list live tunnels, force one closed, and — when a
+// *registry.Registry: list live tunnels, force one closed, and — when a
 // Blocker is supplied — ban/unban a peer id. Mount the returned
 // connect handler behind whatever operator auth you use.
 package admin
@@ -12,7 +12,7 @@ import (
 	"connectrpc.com/connect"
 
 	holtv1 "github.com/openotters/holt/api/v1"
-	"github.com/openotters/holt/hub"
+	"github.com/openotters/holt/internal/registry"
 	"github.com/openotters/holt/internal/wire"
 )
 
@@ -56,7 +56,7 @@ type HubInfo struct {
 
 // Service implements holtv1connect.AdminHandler against a Registry.
 type Service struct {
-	registry *hub.Registry
+	registry *registry.Registry
 	blocker  Blocker
 	info     HubInfo
 }
@@ -76,7 +76,7 @@ func WithInfo(i HubInfo) Option {
 }
 
 // NewService wires the Admin service to a Registry.
-func NewService(registry *hub.Registry, opts ...Option) *Service {
+func NewService(registry *registry.Registry, opts ...Option) *Service {
 	s := &Service{registry: registry}
 	for _, opt := range opts {
 		opt(s)
@@ -222,7 +222,7 @@ func (s *Service) WatchTunnels(
 				Info:   &holtv1.TunnelInfo{Peer: ev.Peer},
 				Reason: ev.Reason,
 			}
-			if ev.Kind == hub.EventAttached {
+			if ev.Kind == registry.EventAttached {
 				out.Kind = holtv1.TunnelEvent_KIND_ATTACHED
 				out.Reason = ""
 				if t, live := s.registry.Tunnel(ev.Peer); live {

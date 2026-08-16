@@ -1,4 +1,11 @@
-package hub
+// Package attach is the hub's tunnel front door: an http.Handler that
+// accepts a peer's WebSocket upgrade, runs the holt handshake, and
+// registers the resulting tunnel in the registry. Identity is the
+// application's concern: the Handler is constructed with an Identity
+// func that extracts the peer ID from the request context (JWT
+// claims, mTLS SAN, header — whatever the surrounding middleware
+// established). The handshake itself carries no identity.
+package attach
 
 import (
 	"context"
@@ -10,12 +17,14 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 
+	"github.com/openotters/holt/internal/registry"
 	"github.com/openotters/holt/internal/wire"
 )
 
@@ -43,7 +52,7 @@ type Identity func(ctx context.Context) (peer string, err error)
 // func reads whatever that middleware established from the upgrade
 // request's context.
 type Handler struct {
-	registry *Registry
+	registry *registry.Registry
 	identity Identity
 	logger   *zap.Logger
 	peerTLS  *tls.Config
@@ -72,7 +81,7 @@ func WithTracerProvider(tp trace.TracerProvider) HandlerOption {
 
 // NewHandler builds the attach handler. identity maps the
 // authenticated request context to the registry key.
-func NewHandler(registry *Registry, identity Identity, logger *zap.Logger, opts ...HandlerOption) *Handler {
+func NewHandler(registry *registry.Registry, identity Identity, logger *zap.Logger, opts ...HandlerOption) *Handler {
 	h := &Handler{registry: registry, identity: identity, logger: logger.Named("holt-hub")}
 	for _, opt := range opts {
 		opt(h)
@@ -235,3 +244,16 @@ func (h *Handler) clientConn(ctx context.Context, conn *wire.Conn) (*http2.Clien
 }
 
 var _ http.Handler = (*Handler)(nil)
+
+// instrumentName is the OTel instrumentation scope for handler spans.
+const instrumentName = "github.com/openotters/holt/internal/attach"
+
+// tracer returns the tracer for handler spans, defaulting to the
+// global TracerProvider (no-op until an SDK is installed).
+func tracer(tp trace.TracerProvider) trace.Tracer {
+	if tp == nil {
+		tp = otel.GetTracerProvider()
+	}
+
+	return tp.Tracer(instrumentName)
+}

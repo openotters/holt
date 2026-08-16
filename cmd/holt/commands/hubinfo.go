@@ -10,12 +10,12 @@ import (
 
 	"github.com/openotters/holt/cmd/holt/internal/hubapi"
 	"github.com/openotters/holt/cmd/holt/internal/style"
-	"github.com/openotters/holt/hub/admin"
-	"github.com/openotters/holt/hub/proxy"
+	"github.com/openotters/holt/internal/admin"
+	"github.com/openotters/holt/internal/revproxy"
 )
 
 // routing is the proxy strategy the flags select.
-func (h *Hub) routing() proxy.Routing { return proxy.Routing(h.ProxyRouting) }
+func (h *Hub) routing() revproxy.Routing { return revproxy.Routing(h.ProxyRouting) }
 
 // advertiseURL is the tunnel URL stamped into tokens (what peers dial):
 // the operator override if set, otherwise ws://<bind address>. A value
@@ -41,7 +41,7 @@ func (h *Hub) adminInfo(commons *c.Commons) admin.HubInfo {
 		Commit:        commons.Version.Commit(),
 		AdvertiseAddr: h.advertiseURL(),
 		ProxyAddr:     h.ProxyAddr,
-		RouteHeader:   proxy.RouteHeader,
+		RouteHeader:   revproxy.RouteHeader,
 		MetricsAddr:   h.metricsAddr(),
 		ExternalURL:   strings.TrimRight(h.ExternalURL, "/"),
 		TokenTTL:      h.TokenTTL,
@@ -54,7 +54,7 @@ func (h *Hub) adminInfo(commons *c.Commons) admin.HubInfo {
 // commands it shows.
 func (h *Hub) consoleConfig() hubapi.Config {
 	return hubapi.Config{
-		RouteHeader:  proxy.RouteHeader,
+		RouteHeader:  revproxy.RouteHeader,
 		ProxyPort:    portOf(h.ProxyAddr),
 		ExternalURL:  strings.TrimRight(h.ExternalURL, "/"),
 		TunnelURL:    h.advertiseURL(),
@@ -159,13 +159,13 @@ func (h *Hub) welcomeBanner() string {
 // in the terms the configured routing actually accepts.
 func (h *Hub) proxyHint() string {
 	switch h.routing() {
-	case proxy.RoutingSubdomain:
+	case revproxy.RoutingSubdomain:
 		return "reach peers: <peer>." + h.ProxyDomain
-	case proxy.RoutingBoth:
-		return "reach peers: <peer>." + h.ProxyDomain + " (or the " + proxy.RouteHeader + " header)"
-	case proxy.RoutingHeader:
-		return "reach peers: curl -H '" + proxy.RouteHeader + ": <peer>'"
+	case revproxy.RoutingBoth:
+		return "reach peers: <peer>." + h.ProxyDomain + " (or the " + revproxy.RouteHeader + " header)"
+	case revproxy.RoutingHeader:
+		return "reach peers: curl -H '" + revproxy.RouteHeader + ": <peer>'"
 	default:
-		return "reach peers: curl -H '" + proxy.RouteHeader + ": <peer>'"
+		return "reach peers: curl -H '" + revproxy.RouteHeader + ": <peer>'"
 	}
 }

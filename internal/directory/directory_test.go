@@ -1,28 +1,38 @@
-package hub_test
+package directory_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/openotters/holt/hub"
+	"github.com/openotters/holt/internal/directory"
 )
 
 func TestMemoryDirectory(t *testing.T) {
 	t.Parallel()
 
-	testDirectory(t, hub.NewMemoryDirectory())
+	testDirectory(t, directory.NewMemoryDirectory())
 }
 
 // testDirectory is the shared contract every Directory implementation
 // must satisfy — reused by the SQL directory's tests.
-func testDirectory(t *testing.T, dir hub.Directory) {
+func testDirectory(t *testing.T, dir directory.Directory) {
 	t.Helper()
 
 	ctx := context.Background()
 	now := time.Unix(1_700_000_000, 0)
 
-	rec := hub.PeerRecord{Peer: "alice", Hub: "hub-a", PeerVersion: "v1", AttachedAt: now}
+	testAttachAndUpsert(ctx, t, dir, now)
+	testDetachOwnership(ctx, t, dir)
+	testListAndClearHub(ctx, t, dir, now)
+}
+
+// testAttachAndUpsert covers attach, lookup, and re-attach replacing
+// ownership.
+func testAttachAndUpsert(ctx context.Context, t *testing.T, dir directory.Directory, now time.Time) {
+	t.Helper()
+
+	rec := directory.PeerRecord{Peer: "alice", Hub: "hub-a", PeerVersion: "v1", AttachedAt: now}
 	if err := dir.Attach(ctx, rec); err != nil {
 		t.Fatalf("attach: %v", err)
 	}
@@ -36,7 +46,7 @@ func testDirectory(t *testing.T, dir hub.Directory) {
 	}
 
 	// Upsert: a re-attach to a different hub replaces ownership.
-	reattach := hub.PeerRecord{Peer: "alice", Hub: "hub-b", PeerVersion: "v2", AttachedAt: now}
+	reattach := directory.PeerRecord{Peer: "alice", Hub: "hub-b", PeerVersion: "v2", AttachedAt: now}
 	if err := dir.Attach(ctx, reattach); err != nil {
 		t.Fatalf("re-attach: %v", err)
 	}
@@ -45,6 +55,12 @@ func testDirectory(t *testing.T, dir hub.Directory) {
 	if got.Hub != "hub-b" {
 		t.Fatalf("owner after re-attach = %q, want hub-b", got.Hub)
 	}
+}
+
+// testDetachOwnership covers stale and owning detaches; it expects
+// "alice" to be owned by hub-b (testAttachAndUpsert leaves it there).
+func testDetachOwnership(ctx context.Context, t *testing.T, dir directory.Directory) {
+	t.Helper()
 
 	// A stale detach from the OLD owner must not evict the new one.
 	if err := dir.Detach(ctx, "alice", "hub-a"); err != nil {
@@ -61,11 +77,15 @@ func testDirectory(t *testing.T, dir hub.Directory) {
 	if _, ok, _ := dir.Lookup(ctx, "alice"); ok {
 		t.Fatal("record survived its owner's detach")
 	}
+}
 
-	// List + ClearHub.
-	_ = dir.Attach(ctx, hub.PeerRecord{Peer: "b", Hub: "hub-a", AttachedAt: now})
-	_ = dir.Attach(ctx, hub.PeerRecord{Peer: "a", Hub: "hub-a", AttachedAt: now})
-	_ = dir.Attach(ctx, hub.PeerRecord{Peer: "c", Hub: "hub-b", AttachedAt: now})
+// testListAndClearHub covers ordered listing and per-hub cleanup.
+func testListAndClearHub(ctx context.Context, t *testing.T, dir directory.Directory, now time.Time) {
+	t.Helper()
+
+	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "b", Hub: "hub-a", AttachedAt: now})
+	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "a", Hub: "hub-a", AttachedAt: now})
+	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "c", Hub: "hub-b", AttachedAt: now})
 
 	list, err := dir.List(ctx)
 	if err != nil {

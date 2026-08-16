@@ -1,4 +1,4 @@
-package proxy_test
+package revproxy_test
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/openotters/holt/hub/proxy"
+	"github.com/openotters/holt/internal/revproxy"
 )
 
-// fakePeers stands in for a *hub.Registry: whoever is in the map has a
+// fakePeers stands in for a *registry.Registry: whoever is in the map has a
 // live tunnel.
 type fakePeers struct {
 	tunnels map[string]http.RoundTripper
@@ -54,7 +54,7 @@ func TestLandingPage(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "http://placeholder/", nil)
 			req.Header.Set("Accept", tc.accept)
 
-			proxy.New(fakePeers{}).ServeHTTP(rec, req)
+			revproxy.New(fakePeers{}).ServeHTTP(rec, req)
 
 			// A missing target is a client error, not a 502, so Cloudflare
 			// and friends never show their scary bad-gateway page.
@@ -72,8 +72,8 @@ func TestLandingPage(t *testing.T) {
 				t.Fatalf("body should be the swirl, got: %s", rec.Body.String())
 			}
 
-			if strings.Contains(rec.Body.String(), proxy.RouteHeader) {
-				t.Fatalf("body must not leak the %q header, got: %s", proxy.RouteHeader, rec.Body.String())
+			if strings.Contains(rec.Body.String(), revproxy.RouteHeader) {
+				t.Fatalf("body must not leak the %q header, got: %s", revproxy.RouteHeader, rec.Body.String())
 			}
 		})
 	}
@@ -101,10 +101,10 @@ func TestErrorStatus(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "http://placeholder/", nil)
-			req.Header.Set(proxy.RouteHeader, tc.peer)
+			req.Header.Set(revproxy.RouteHeader, tc.peer)
 
 			peers := fakePeers{tunnels: map[string]http.RoundTripper{"alice": failing}}
-			proxy.New(peers).ServeHTTP(rec, req)
+			revproxy.New(peers).ServeHTTP(rec, req)
 
 			if rec.Code != tc.want {
 				t.Fatalf("got status %d, want %d", rec.Code, tc.want)
@@ -126,9 +126,9 @@ func TestErrorGRPC(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "http://placeholder/svc/Method", nil)
 	req.Header.Set("Content-Type", "application/grpc")
-	req.Header.Set(proxy.RouteHeader, "alice")
+	req.Header.Set(revproxy.RouteHeader, "alice")
 
-	proxy.New(fakePeers{}).ServeHTTP(rec, req)
+	revproxy.New(fakePeers{}).ServeHTTP(rec, req)
 
 	// gRPC callers get a trailer-less status, always 200 at the HTTP layer.
 	if rec.Code != http.StatusOK {
@@ -152,7 +152,7 @@ func TestProxiesToAttachedPeer(t *testing.T) {
 
 	alice := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		gotPath = r.URL.Path
-		gotHeader = r.Header.Get(proxy.RouteHeader)
+		gotHeader = r.Header.Get(revproxy.RouteHeader)
 
 		rec := httptest.NewRecorder()
 		rec.WriteHeader(http.StatusTeapot)
@@ -165,9 +165,9 @@ func TestProxiesToAttachedPeer(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://placeholder/hello", nil)
 	req.Host = "alice.peers.example.com"
 
-	proxy.New(
+	revproxy.New(
 		fakePeers{tunnels: map[string]http.RoundTripper{"alice": alice}},
-		proxy.WithRouting(proxy.RoutingSubdomain, "peers.example.com"),
+		revproxy.WithRouting(revproxy.RoutingSubdomain, "peers.example.com"),
 	).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusTeapot {
@@ -184,7 +184,7 @@ func TestProxiesToAttachedPeer(t *testing.T) {
 
 	// The routing header is the hub's business, not the peer's.
 	if gotHeader != "" {
-		t.Fatalf("peer saw the %s header (%q); it must be stripped", proxy.RouteHeader, gotHeader)
+		t.Fatalf("peer saw the %s header (%q); it must be stripped", revproxy.RouteHeader, gotHeader)
 	}
 }
 
@@ -203,9 +203,9 @@ func TestErrorHookReasons(t *testing.T) {
 		want   string
 		routed bool
 	}{
-		{"no peer named", "", proxy.ReasonNoPeer, false},
-		{"peer not attached", "nobody", proxy.ReasonNotAttached, true},
-		{"tunnel fails", "alice", proxy.ReasonTransport, true},
+		{"no peer named", "", revproxy.ReasonNoPeer, false},
+		{"peer not attached", "nobody", revproxy.ReasonNotAttached, true},
+		{"tunnel fails", "alice", revproxy.ReasonTransport, true},
 	}
 
 	for _, tc := range cases {
@@ -226,11 +226,11 @@ func TestErrorHookReasons(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "http://placeholder/", nil)
 			if tc.routed {
-				req.Header.Set(proxy.RouteHeader, tc.peer)
+				req.Header.Set(revproxy.RouteHeader, tc.peer)
 			}
 
 			peers := fakePeers{tunnels: map[string]http.RoundTripper{"alice": failing}}
-			proxy.New(peers, proxy.WithErrorHook(hook)).ServeHTTP(httptest.NewRecorder(), req)
+			revproxy.New(peers, revproxy.WithErrorHook(hook)).ServeHTTP(httptest.NewRecorder(), req)
 
 			mu.Lock()
 			defer mu.Unlock()

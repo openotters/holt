@@ -1,4 +1,4 @@
-package hub_test
+package registry_test
 
 import (
 	"context"
@@ -6,7 +6,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/hub"
+	"github.com/openotters/holt/internal/directory"
+	"github.com/openotters/holt/internal/registry"
 )
 
 // TestRegistry_DirectoryProjection confirms the Registry mirrors live
@@ -15,10 +16,10 @@ import (
 func TestRegistry_DirectoryProjection(t *testing.T) {
 	t.Parallel()
 
-	dir := hub.NewMemoryDirectory()
-	r := hub.NewRegistry(zap.NewNop(),
-		hub.WithHubID("hub-1"),
-		hub.WithDirectory(dir))
+	dir := directory.NewMemoryDirectory()
+	r := registry.NewRegistry(zap.NewNop(),
+		registry.WithHubID("hub-1"),
+		registry.WithDirectory(dir))
 
 	ctx := context.Background()
 
@@ -49,15 +50,15 @@ func TestRegistry_DirectoryProjection(t *testing.T) {
 func TestRegistry_ClearStale(t *testing.T) {
 	t.Parallel()
 
-	dir := hub.NewMemoryDirectory()
+	dir := directory.NewMemoryDirectory()
 	ctx := context.Background()
 
 	// Simulate rows left by a previous incarnation of hub-1 and a
 	// live row owned by hub-2.
-	_ = dir.Attach(ctx, hub.PeerRecord{Peer: "ghost", Hub: "hub-1"})
-	_ = dir.Attach(ctx, hub.PeerRecord{Peer: "other", Hub: "hub-2"})
+	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "ghost", Hub: "hub-1"})
+	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "other", Hub: "hub-2"})
 
-	r := hub.NewRegistry(zap.NewNop(), hub.WithHubID("hub-1"), hub.WithDirectory(dir))
+	r := registry.NewRegistry(zap.NewNop(), registry.WithHubID("hub-1"), registry.WithDirectory(dir))
 	if err := r.ClearStale(ctx); err != nil {
 		t.Fatalf("ClearStale: %v", err)
 	}
@@ -76,7 +77,7 @@ func TestRegistry_ClearStale(t *testing.T) {
 func TestRegistry_MetricsNoopByDefault(t *testing.T) {
 	t.Parallel()
 
-	r := hub.NewRegistry(zap.NewNop())
+	r := registry.NewRegistry(zap.NewNop())
 
 	detach := r.Attach("p", "v1", nil, func(string) {})
 	if r.CountTunnels() != 1 {

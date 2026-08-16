@@ -26,11 +26,13 @@ compiles fine and the console shows a "not built" message.
 
 ## Layout
 
-- root package: the public facade — `NewServer` and `NewClient` (see
-  [Library](library.md)).
-- `hub/`, `dial/`, `hub/sqldir/`: the library halves underneath.
-- `internal/wire/`: the shared `Conn`, handshake, and `GoAway`
-  vocabulary.
+- root package: the entire public API — `NewServer`, `NewClient`, and
+  their options (see [Library](library.md)).
+- `internal/`: everything underneath, one package per role —
+  `registry`, `attach`, `revproxy`, `dial`, `directory` (+ `sqldir`,
+  `sqlite`, `postgres`), `admin`, `tunnel`, `proxy`, `server`,
+  `client`, `utils`, and `wire` (see
+  [How it works](architecture.md)).
 - `api/v1/`: the protobuf definitions and generated stubs.
 - `cmd/holt/`: the operator CLI (see [CLI](cli.md)).
 - `charts/holt/`: the Helm chart (see [Kubernetes](kubernetes.md)).

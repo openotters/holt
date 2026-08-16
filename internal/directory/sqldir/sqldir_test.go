@@ -8,8 +8,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/openotters/holt/hub"
-	"github.com/openotters/holt/hub/sqldir"
+	"github.com/openotters/holt/internal/directory"
+	"github.com/openotters/holt/internal/directory/sqldir"
 )
 
 // openSQLite opens a fresh in-memory SQLite DB for one test.
@@ -57,13 +57,14 @@ func TestSQLDirectory_MigrateIdempotent(t *testing.T) {
 
 // testDirectoryContract mirrors the hub package's directory contract
 // (kept local so this package needn't export it).
-func testDirectoryContract(t *testing.T, dir hub.Directory) {
+func testDirectoryContract(t *testing.T, dir directory.Directory) {
 	t.Helper()
 
 	ctx := context.Background()
 	now := time.Unix(1_700_000_000, 0)
 
-	if err := dir.Attach(ctx, hub.PeerRecord{Peer: "alice", Hub: "a", PeerVersion: "v1", AttachedAt: now}); err != nil {
+	rec := directory.PeerRecord{Peer: "alice", Hub: "a", PeerVersion: "v1", AttachedAt: now}
+	if err := dir.Attach(ctx, rec); err != nil {
 		t.Fatalf("attach: %v", err)
 	}
 
@@ -76,7 +77,7 @@ func testDirectoryContract(t *testing.T, dir hub.Directory) {
 	}
 
 	// Re-attach to a new hub, stale detach must not evict.
-	_ = dir.Attach(ctx, hub.PeerRecord{Peer: "alice", Hub: "b", AttachedAt: now})
+	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "alice", Hub: "b", AttachedAt: now})
 	_ = dir.Detach(ctx, "alice", "a")
 	if _, ok, _ := dir.Lookup(ctx, "alice"); !ok {
 		t.Fatal("stale detach evicted current owner")
@@ -87,8 +88,8 @@ func testDirectoryContract(t *testing.T, dir hub.Directory) {
 		t.Fatal("record survived owner detach")
 	}
 
-	_ = dir.Attach(ctx, hub.PeerRecord{Peer: "b", Hub: "a", AttachedAt: now})
-	_ = dir.Attach(ctx, hub.PeerRecord{Peer: "a", Hub: "a", AttachedAt: now})
+	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "b", Hub: "a", AttachedAt: now})
+	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "a", Hub: "a", AttachedAt: now})
 
 	list, err := dir.List(ctx)
 	if err != nil {

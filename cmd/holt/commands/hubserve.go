@@ -12,9 +12,9 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/hubapi"
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/hub"
-	"github.com/openotters/holt/hub/admin"
-	"github.com/openotters/holt/hub/proxy"
+	"github.com/openotters/holt/internal/admin"
+	"github.com/openotters/holt/internal/attach"
+	"github.com/openotters/holt/internal/revproxy"
 )
 
 // startServers brings up the tunnel, admin, proxy, and (optional)
@@ -56,7 +56,7 @@ func (h *Hub) startTunnel(ctx context.Context, listeners *httpsrv.Group, rt *hub
 	// The upgrade is accepted on ANY path, so an advertise URL keeps
 	// working whether the ingress in front routes /, a dedicated
 	// prefix, or the pre-0.13 gRPC path.
-	attach := guard.Middleware(hub.NewHandler(rt.registry, jwtauth.PeerFrom, rt.logger))
+	attach := guard.Middleware(attach.NewHandler(rt.registry, jwtauth.PeerFrom, rt.logger))
 
 	// Optional cap on concurrent tunnel connections. Off by default so
 	// behavior is unchanged; a value bounds resource use under a flood
@@ -121,9 +121,9 @@ func (h *Hub) adminHosts() []string {
 
 // startProxy runs the routed reverse proxy that reaches peer services.
 func (h *Hub) startProxy(ctx context.Context, listeners *httpsrv.Group, rt *hubRuntime) error {
-	peers := proxy.New(rt.registry,
-		proxy.WithRouting(h.routing(), h.ProxyDomain),
-		proxy.WithErrorHook(rt.metrics.RecordProxyError),
+	peers := revproxy.New(rt.registry,
+		revproxy.WithRouting(h.routing(), h.ProxyDomain),
+		revproxy.WithErrorHook(rt.metrics.RecordProxyError),
 	)
 
 	return listeners.Start(ctx, "proxy", h.ProxyAddr, rt.metrics.Instrument(peers))

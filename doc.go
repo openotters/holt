@@ -7,11 +7,12 @@
 // hostnames, access proxies, and HTTP/1.1-only edges that cannot
 // proxy gRPC.
 //
-// This package is the front door for both halves: NewServer
-// assembles a hub from options and serves it; NewClient wires a peer
-// that attaches to one and serves a handler back through the tunnel.
-// The pieces underneath the facade stay public for applications that
-// want to mount or drive them directly — package hub (registry,
-// attach handler, presence directory) and hub/proxy on the server
-// side, package dial (the raw attach loop) on the client side.
+// This package is the module's entire public API, the front door for
+// both halves: NewServer assembles a hub from options and serves it;
+// NewClient wires a peer that attaches to one and serves a handler
+// back through the tunnel. The operator surface stays reachable
+// through Server.Registry (roster, stop, watch, per-peer
+// RoundTripper). Everything underneath lives in internal/ packages —
+// registry, attach handler, presence directory, reverse proxy, the
+// raw attach loop — and is deliberately not importable.
 package holt

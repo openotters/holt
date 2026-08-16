@@ -30,7 +30,6 @@ import (
 
 	"github.com/openotters/holt"
 	"github.com/openotters/holt/examples/certs"
-	"github.com/openotters/holt/hub"
 )
 
 type peerCtxKey struct{}
@@ -131,12 +130,12 @@ func certIdentity(next http.Handler) http.Handler {
 	})
 }
 
-func greetOnAttach(ctx context.Context, registry *hub.Registry, logger *zap.Logger) {
+func greetOnAttach(ctx context.Context, registry *holt.Registry, logger *zap.Logger) {
 	events := registry.Watch(ctx)
 
 	go func() {
 		for ev := range events {
-			if ev.Kind != hub.EventAttached {
+			if ev.Kind != holt.EventAttached {
 				continue
 			}
 
@@ -153,7 +152,7 @@ func greetOnAttach(ctx context.Context, registry *hub.Registry, logger *zap.Logg
 	}()
 }
 
-func get(ctx context.Context, registry *hub.Registry, peer string) (string, error) {
+func get(ctx context.Context, registry *holt.Registry, peer string) (string, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 

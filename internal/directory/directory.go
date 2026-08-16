@@ -1,4 +1,7 @@
-package hub
+// Package directory defines peer presence: which peer is attached to
+// which hub, since when. The in-memory implementation covers a single
+// hub; the sqldir subpackages share presence across a fleet.
+package directory
 
 import (
 	"context"

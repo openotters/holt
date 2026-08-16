@@ -1,4 +1,4 @@
-// Package sqldir is a SQL-backed hub.Directory: a shared peer-presence
+// Package sqldir is a SQL-backed directory.Directory: a shared peer-presence
 // store so a fleet of hubs can each see who is attached where. It
 // works on SQLite and PostgreSQL.
 //
@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openotters/holt/hub"
+	"github.com/openotters/holt/internal/directory"
 )
 
 // Dialect selects SQL syntax that differs between engines (parameter
@@ -34,7 +34,7 @@ const (
 	Postgres
 )
 
-// Directory is a SQL-backed hub.Directory.
+// Directory is a SQL-backed directory.Directory.
 type Directory struct {
 	db      *sql.DB
 	dialect Dialect
@@ -77,7 +77,7 @@ func (d *Directory) Migrate(ctx context.Context) error {
 }
 
 // Attach upserts the peer's presence row.
-func (d *Directory) Attach(ctx context.Context, rec hub.PeerRecord) error {
+func (d *Directory) Attach(ctx context.Context, rec directory.PeerRecord) error {
 	// ON CONFLICT ... DO UPDATE is supported by both SQLite and
 	// PostgreSQL; only the placeholders differ.
 	q := d.rebind(fmt.Sprintf(
@@ -106,7 +106,7 @@ func (d *Directory) Detach(ctx context.Context, peer, hubID string) error {
 }
 
 // Lookup returns the peer's record.
-func (d *Directory) Lookup(ctx context.Context, peer string) (hub.PeerRecord, bool, error) {
+func (d *Directory) Lookup(ctx context.Context, peer string) (directory.PeerRecord, bool, error) {
 	q := d.rebind(fmt.Sprintf(
 		`SELECT hub_id, peer_version, attached_at FROM %s WHERE peer = ?`, d.table))
 
@@ -119,13 +119,13 @@ func (d *Directory) Lookup(ctx context.Context, peer string) (hub.PeerRecord, bo
 	scanErr := d.db.QueryRowContext(ctx, q, peer).Scan(&hubID, &version, &nanos)
 	if scanErr != nil {
 		if errors.Is(scanErr, sql.ErrNoRows) {
-			return hub.PeerRecord{}, false, nil
+			return directory.PeerRecord{}, false, nil
 		}
 
-		return hub.PeerRecord{}, false, fmt.Errorf("sqldir: lookup %s: %w", peer, scanErr)
+		return directory.PeerRecord{}, false, fmt.Errorf("sqldir: lookup %s: %w", peer, scanErr)
 	}
 
-	return hub.PeerRecord{
+	return directory.PeerRecord{
 		Peer:        peer,
 		Hub:         hubID,
 		PeerVersion: version,
@@ -134,7 +134,7 @@ func (d *Directory) Lookup(ctx context.Context, peer string) (hub.PeerRecord, bo
 }
 
 // List returns every attached peer, ordered by peer id.
-func (d *Directory) List(ctx context.Context) ([]hub.PeerRecord, error) {
+func (d *Directory) List(ctx context.Context) ([]directory.PeerRecord, error) {
 	//nolint:gosec // G201: table is a caller-controlled identifier (WithTable / default), never user input.
 	q := fmt.Sprintf(
 		`SELECT peer, hub_id, peer_version, attached_at FROM %s ORDER BY peer`, d.table)
@@ -145,7 +145,7 @@ func (d *Directory) List(ctx context.Context) ([]hub.PeerRecord, error) {
 	}
 	defer func() { _ = rows.Close() }()
 
-	var out []hub.PeerRecord
+	var out []directory.PeerRecord
 
 	for rows.Next() {
 		var (
@@ -157,7 +157,7 @@ func (d *Directory) List(ctx context.Context) ([]hub.PeerRecord, error) {
 			return nil, fmt.Errorf("sqldir: list scan: %w", scanErr)
 		}
 
-		out = append(out, hub.PeerRecord{
+		out = append(out, directory.PeerRecord{
 			Peer: peer, Hub: hubID, PeerVersion: version, AttachedAt: time.Unix(0, nanos),
 		})
 	}
@@ -206,4 +206,4 @@ func (d *Directory) rebind(q string) string {
 	return b.String()
 }
 
-var _ hub.Directory = (*Directory)(nil)
+var _ directory.Directory = (*Directory)(nil)

@@ -25,7 +25,7 @@ type Config struct {
 	ProxyDomain  string `json:"proxyDomain"`
 }
 
-// Tunnels is the live-tunnel side rotate-secret closes: *hub.Registry
+// Tunnels is the live-tunnel side rotate-secret closes: *registry.Registry
 // satisfies it.
 type Tunnels interface {
 	// CountTunnels reports how many peers are attached right now.

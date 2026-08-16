@@ -12,9 +12,9 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
 	"github.com/openotters/holt/cmd/holt/internal/store"
-	"github.com/openotters/holt/hub"
-	"github.com/openotters/holt/hub/admin"
-	"github.com/openotters/holt/hub/sqldir"
+	"github.com/openotters/holt/internal/admin"
+	"github.com/openotters/holt/internal/directory/sqldir"
+	"github.com/openotters/holt/internal/registry"
 )
 
 // hubRuntime is what the four listeners share: the registry of live
@@ -23,7 +23,7 @@ import (
 // resources these are built from (the state DB, the directory, the
 // meter provider) and closes them; nothing here needs closing.
 type hubRuntime struct {
-	registry *hub.Registry
+	registry *registry.Registry
 	blocks   *blocklist.List
 	secrets  *jwtauth.Secret
 	metrics  *hubmetrics.Metrics
@@ -38,7 +38,7 @@ func (h *Hub) newRuntime(
 	ctx context.Context, commons *c.Commons, logger *zap.Logger,
 	st *store.Store, dir *sqldir.Directory, secret []byte,
 ) (*hubRuntime, error) {
-	registry := hub.NewRegistry(logger, hub.WithHubID(hostname()), hub.WithDirectory(dir))
+	registry := registry.NewRegistry(logger, registry.WithHubID(hostname()), registry.WithDirectory(dir))
 	if err := registry.ClearStale(ctx); err != nil {
 		return nil, err
 	}

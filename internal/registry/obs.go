@@ -1,4 +1,4 @@
-package hub
+package registry
 
 import (
 	"context"
@@ -6,11 +6,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // instrumentName is the OTel instrumentation scope for this module.
-const instrumentName = "github.com/openotters/holt/hub"
+const instrumentName = "github.com/openotters/holt/internal/registry"
 
 // metrics holds the OTel instruments the Registry records against.
 // Built from a MeterProvider that defaults to the global one — which
@@ -68,14 +67,4 @@ func (m *metrics) recordDetach(ctx context.Context, reason string) {
 	}
 
 	m.detaches.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
-}
-
-// tracer returns the tracer for handler spans, defaulting to the
-// global TracerProvider (no-op until an SDK is installed).
-func tracer(tp trace.TracerProvider) trace.Tracer {
-	if tp == nil {
-		tp = otel.GetTracerProvider()
-	}
-
-	return tp.Tracer(instrumentName)
 }

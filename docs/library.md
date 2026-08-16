@@ -70,32 +70,25 @@ holt.NewTunnel("", holt.WithListener(tlsLis),
     holt.WithMiddleware(certIdentity), holt.WithIdentity(cnFromCtx))
 
 // Inner TLS and tracing pass through to the attach handler:
-holt.NewTunnel(":7000", holt.WithHandlerOptions(hub.WithPeerTLS(cfg)))
+holt.NewTunnel(":7000", holt.WithHandlerOptions(holt.WithPeerTLS(cfg)))
 ```
 
 The proxy routes on the `x-tunnel-peer` header by default;
-`holt.WithRouting(proxy.RoutingBoth, "peers.example.com")` adds
+`holt.WithRouting(holt.RoutingBoth, "peers.example.com")` adds
 per-peer hostnames, and `holt.WithErrorHook` observes requests that
 could not be proxied. A request that names no peer, or names one that
 is not attached, never reaches a backend: it gets a bare page that
 says nothing about the hub (400 and 404 respectively, never a 502).
 
-## Underneath: your own router
+## Underneath
 
-`holt.NewServer` assembles public pieces from package `hub` you can
-also mount yourself, for an application with its own HTTP server and
-lifecycle (`dial.Run` is the same escape hatch on the client side):
-
-```go
-registry := hub.NewRegistry(log)
-// NewHandler is an http.Handler that accepts the WebSocket upgrade;
-// wrap it in your auth middleware, which sees the upgrade request's
-// headers and stamps the identity on its context.
-mux.Handle("/attach", authMiddleware(hub.NewHandler(registry, identityFromCtx, log)))
-// hub/proxy is the data plane; validate the routing pair at boot with
-// routing.Validate(domain).
-mux.Handle("/", proxy.New(registry))
-```
+The root package is the module's entire public API; the pieces
+`NewServer` assembles (registry, attach handler, reverse proxy, the
+raw attach loop) live in `internal/` and are deliberately not
+importable. Endpoints stay composable from the outside through
+`WithListener` (bring your own listener) and `WithMiddleware` (wrap
+either endpoint's handler), so custom auth, instrumentation, and TLS
+all mount without reaching underneath.
 
 ## Operating the hub
 
@@ -124,16 +117,17 @@ the `Directory` interface, in-memory by default (a single hub needs
 nothing else).
 
 For a fleet, back it with SQL so any hub can answer "is peer X
-attached, and where?". `hub/sqldir` supports SQLite and PostgreSQL and
-imports only `database/sql` (you bring the driver):
+attached, and where?". The SQL directory supports SQLite and
+PostgreSQL and imports only `database/sql` (you bring the driver):
 
 ```go
-db, _ := sql.Open("sqlite", "file:presence.db")           // or pgx/stdlib
-dir := sqldir.New(db, sqldir.SQLite); _ = dir.Migrate(ctx)
+db, _ := sql.Open("sqlite", "file:presence.db")   // or pgx/stdlib
+dir := holt.NewSQLiteDirectory(db)                // or NewPostgresDirectory
+_ = dir.Migrate(ctx)
 
-reg := hub.NewRegistry(log,
-    hub.WithHubID("hub-eu-1"),   // stable per-instance id, recorded in rows
-    hub.WithDirectory(dir))
+reg := holt.NewRegistry(log,
+    holt.WithHubID("hub-eu-1"),  // stable per-instance id, recorded in rows
+    holt.WithDirectory(dir))
 _ = reg.ClearStale(ctx)          // drop rows this hub left after a crash
 
 reg.LookupPeer(ctx, peer)        // fleet-wide: which hub owns it
@@ -168,8 +162,8 @@ an attack.
 Point the hub at your own OTel providers:
 
 ```go
-hub.NewRegistry(log, hub.WithMeterProvider(mp))
-hub.NewHandler(reg, id, log, hub.WithTracerProvider(tp))
+holt.NewRegistry(log, holt.WithMeterProvider(mp))
+holt.NewTunnel(":7000", holt.WithHandlerOptions(holt.WithTracerProvider(tp)))
 ```
 
 See [Observability](observability.md) for the instruments and the

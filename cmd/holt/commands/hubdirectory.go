@@ -7,7 +7,9 @@ import (
 	"net/url"
 
 	"github.com/openotters/holt/cmd/holt/internal/store"
-	"github.com/openotters/holt/hub/sqldir"
+	"github.com/openotters/holt/internal/directory/postgres"
+	"github.com/openotters/holt/internal/directory/sqldir"
+	"github.com/openotters/holt/internal/directory/sqlite"
 )
 
 // openDirectory picks the presence-directory backend: the local SQLite
@@ -16,7 +18,7 @@ import (
 // for SQLite, whose DB belongs to the store).
 func (h *Hub) openDirectory(ctx context.Context, st *store.Store) (*sqldir.Directory, func(), error) {
 	if h.DirectoryDSN == "" {
-		return sqldir.New(st.DB(), sqldir.SQLite), func() {}, nil
+		return sqlite.New(st.DB()), func() {}, nil
 	}
 
 	db, err := sql.Open("pgx", h.DirectoryDSN)
@@ -31,7 +33,7 @@ func (h *Hub) openDirectory(ctx context.Context, st *store.Store) (*sqldir.Direc
 		return nil, nil, fmt.Errorf("directory: ping postgres: %w", pingErr)
 	}
 
-	return sqldir.New(db, sqldir.Postgres), func() { _ = db.Close() }, nil
+	return postgres.New(db), func() { _ = db.Close() }, nil
 }
 
 // redactDSN is the display form of the directory DSN: URL-form DSNs

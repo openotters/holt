@@ -33,7 +33,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt"
-	"github.com/openotters/holt/hub"
 )
 
 func main() {
@@ -108,7 +107,7 @@ func run() error {
 	return nil
 }
 
-func waitAttached(ctx context.Context, r *hub.Registry, peer string) error {
+func waitAttached(ctx context.Context, r *holt.Registry, peer string) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
