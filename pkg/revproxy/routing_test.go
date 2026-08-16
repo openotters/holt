@@ -8,7 +8,25 @@ import (
 	"github.com/openotters/holt/pkg/revproxy"
 )
 
-func TestResolverPeer(t *testing.T) {
+// request builds an inbound proxy request with the given Host and,
+// when non-empty, the routing header.
+func request(t *testing.T, host, header string) *http.Request {
+	t.Helper()
+
+	r, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://placeholder/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r.Host = host
+	if header != "" {
+		r.Header.Set(revproxy.RouteHeader, header)
+	}
+
+	return r
+}
+
+func TestRoutingResolverPeer(t *testing.T) {
 	t.Parallel()
 
 	const domain = "peers.example.com"
@@ -24,7 +42,6 @@ func TestResolverPeer(t *testing.T) {
 		// header strategy
 		{"header routes", revproxy.RoutingHeader, "", "anything", "alice", "alice"},
 		{"header absent", revproxy.RoutingHeader, "", "alice." + domain, "", ""},
-		{"header mode ignores subdomains", revproxy.RoutingHeader, domain, "alice." + domain, "", ""},
 
 		// subdomain strategy
 		{"subdomain routes", revproxy.RoutingSubdomain, domain, "alice." + domain, "", "alice"},
@@ -46,35 +63,27 @@ func TestResolverPeer(t *testing.T) {
 			"configured domain with dots trimmed",
 			revproxy.RoutingSubdomain, "." + domain + ".", "alice." + domain, "", "alice",
 		},
-
-		// an unvalidated strategy resolves nothing rather than guessing
-		{"unknown strategy routes nowhere", revproxy.Routing("nonsense"), domain, "alice." + domain, "alice", ""},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			r, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://placeholder/", nil)
+			resolver, err := tc.routing.Resolver(tc.domain)
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("Resolver() = %v", err)
 			}
 
-			r.Host = tc.host
-			if tc.header != "" {
-				r.Header.Set(revproxy.RouteHeader, tc.header)
-			}
-
-			if got := revproxy.NewResolver(tc.routing, tc.domain).Peer(r); got != tc.want {
+			if got := resolver.Peer(request(t, tc.host, tc.header)); got != tc.want {
 				t.Fatalf("Peer() = %q, want %q", got, tc.want)
 			}
 		})
 	}
 }
 
-// Subdomain routing without a domain to strip would match every host
-// and route to nonsense, so it has to fail at boot, not per request.
-func TestRoutingValidate(t *testing.T) {
+// An unusable strategy/domain pair must be an error at construction —
+// never a resolver that silently routes nothing.
+func TestRoutingResolverErrors(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -83,10 +92,7 @@ func TestRoutingValidate(t *testing.T) {
 		domain  string
 		want    error
 	}{
-		{"header needs no domain", revproxy.RoutingHeader, "", nil},
 		{"header with a domain is ambiguous", revproxy.RoutingHeader, "peers.example.com", revproxy.ErrUnusedDomain},
-		{"subdomain with domain", revproxy.RoutingSubdomain, "peers.example.com", nil},
-		{"both with domain", revproxy.RoutingBoth, "peers.example.com", nil},
 		{"subdomain without domain", revproxy.RoutingSubdomain, "", revproxy.ErrNoDomain},
 		{"both without domain", revproxy.RoutingBoth, "", revproxy.ErrNoDomain},
 		{"domain of only dots is empty", revproxy.RoutingSubdomain, "..", revproxy.ErrNoDomain},
@@ -97,10 +103,34 @@ func TestRoutingValidate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tc.routing.Validate(tc.domain)
-			if !errors.Is(err, tc.want) {
-				t.Fatalf("Validate() = %v, want %v", err, tc.want)
+			if _, err := tc.routing.Resolver(tc.domain); !errors.Is(err, tc.want) {
+				t.Fatalf("Resolver() error = %v, want %v", err, tc.want)
 			}
 		})
+	}
+}
+
+// ResolveFirst composes strategies in order; custom resolvers slot in
+// next to the built-ins.
+func TestResolveFirst(t *testing.T) {
+	t.Parallel()
+
+	sub, err := revproxy.ResolveBySubdomain("peers.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resolver := revproxy.ResolveFirst(revproxy.ResolveByHeader(), sub)
+
+	if got := resolver.Peer(request(t, "bob.peers.example.com", "alice")); got != "alice" {
+		t.Fatalf("header should win, got %q", got)
+	}
+
+	if got := resolver.Peer(request(t, "bob.peers.example.com", "")); got != "bob" {
+		t.Fatalf("subdomain fallback, got %q", got)
+	}
+
+	if got := revproxy.ResolveFirst().Peer(request(t, "x", "")); got != "" {
+		t.Fatalf("empty chain resolves nothing, got %q", got)
 	}
 }

@@ -8,12 +8,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt/api/v1/holtv1connect"
+	"github.com/openotters/holt/cmd/holt/internal/admin"
 	"github.com/openotters/holt/cmd/holt/internal/httpsrv"
 	"github.com/openotters/holt/cmd/holt/internal/hubapi"
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
-	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/pkg/admin"
 	"github.com/openotters/holt/pkg/attach"
+	"github.com/openotters/holt/pkg/jwtauth"
 	"github.com/openotters/holt/pkg/revproxy"
 )
 
@@ -121,8 +121,13 @@ func (h *Hub) adminHosts() []string {
 
 // startProxy runs the routed reverse proxy that reaches peer services.
 func (h *Hub) startProxy(ctx context.Context, listeners *httpsrv.Group, rt *hubRuntime) error {
+	resolver, err := h.routing().Resolver(h.ProxyDomain)
+	if err != nil {
+		return err
+	}
+
 	peers := revproxy.New(rt.registry,
-		revproxy.WithRouting(h.routing(), h.ProxyDomain),
+		revproxy.WithResolver(resolver),
 		revproxy.WithErrorHook(rt.metrics.RecordProxyError),
 	)
 

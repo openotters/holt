@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/openotters/holt/cmd/holt/internal/peername"
+	"github.com/openotters/holt/pkg/peername"
 )
 
 // Blocker is the peer-id denylist the guard consults on every attach.

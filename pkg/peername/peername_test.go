@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openotters/holt/cmd/holt/internal/peername"
+	"github.com/openotters/holt/pkg/peername"
 )
 
 func TestValidateAccepts(t *testing.T) {

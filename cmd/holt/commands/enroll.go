@@ -14,9 +14,9 @@ import (
 
 	"github.com/openotters/holt/cmd/holt/internal/config"
 	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
-	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/cmd/holt/internal/peername"
 	"github.com/openotters/holt/cmd/holt/internal/style"
+	"github.com/openotters/holt/pkg/jwtauth"
+	"github.com/openotters/holt/pkg/peername"
 )
 
 // Enroll mints a join token for a peer. With an admin endpoint

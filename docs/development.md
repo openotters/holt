@@ -30,8 +30,8 @@ compiles fine and the console shows a "not built" message.
   options (see [Library](library.md)).
 - `pkg/`: the optional public pieces, one package per role —
   `registry`, `attach`, `revproxy`, `dial`, `directory` (+ `sqldir`,
-  `sqlite`, `postgres`), and `admin` (see
-  [How it works](architecture.md)).
+  `sqlite`, `postgres`), `blocklist`, `jwtauth`, `token`, and
+  `peername` (see [How it works](architecture.md)).
 - `internal/`: the assembly guts — `tunnel`, `proxy`, `server`,
   `client`, `utils`, and the `wire` protocol.
 - `api/v1/`: the protobuf definitions and generated stubs.

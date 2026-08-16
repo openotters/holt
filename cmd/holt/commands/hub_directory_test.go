@@ -1,4 +1,4 @@
-//nolint:testpackage // openDirectory and redactDSN are unexported; white-box unit test on purpose.
+//nolint:testpackage // openBackends and redactDSN are unexported; white-box unit test on purpose.
 package commands
 
 import (
@@ -9,7 +9,7 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/store"
 )
 
-func TestOpenDirectory_DefaultSQLite(t *testing.T) {
+func TestOpenBackends_DefaultSQLite(t *testing.T) {
 	t.Parallel()
 
 	st, err := store.Open(t.TempDir())
@@ -20,24 +20,32 @@ func TestOpenDirectory_DefaultSQLite(t *testing.T) {
 
 	h := &Hub{}
 
-	dir, closeDir, err := h.openDirectory(context.Background(), st)
+	dir, blocks, closeBackends, err := h.openBackends(context.Background(), st)
 	if err != nil {
-		t.Fatalf("openDirectory: %v", err)
+		t.Fatalf("openBackends: %v", err)
 	}
-	defer closeDir()
+	defer closeBackends()
 
-	// The SQLite directory shares the store's DB: migrating and listing
-	// must work without any external database.
+	// Both backends share the store's DB: migrating and reading must
+	// work without any external database.
 	if migErr := dir.Migrate(context.Background()); migErr != nil {
-		t.Fatalf("migrate: %v", migErr)
+		t.Fatalf("directory migrate: %v", migErr)
 	}
 
 	if _, listErr := dir.List(context.Background()); listErr != nil {
-		t.Fatalf("list: %v", listErr)
+		t.Fatalf("directory list: %v", listErr)
+	}
+
+	if migErr := blocks.Migrate(context.Background()); migErr != nil {
+		t.Fatalf("blocklist migrate: %v", migErr)
+	}
+
+	if _, loadErr := blocks.Load(context.Background()); loadErr != nil {
+		t.Fatalf("blocklist load: %v", loadErr)
 	}
 }
 
-func TestOpenDirectory_UnreachablePostgres(t *testing.T) {
+func TestOpenBackends_UnreachablePostgres(t *testing.T) {
 	t.Parallel()
 
 	st, err := store.Open(t.TempDir())
@@ -53,7 +61,7 @@ func TestOpenDirectory_UnreachablePostgres(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if _, _, dirErr := h.openDirectory(ctx, st); dirErr == nil {
+	if _, _, _, dirErr := h.openBackends(ctx, st); dirErr == nil {
 		t.Fatal("expected an error for an unreachable postgres")
 	}
 }

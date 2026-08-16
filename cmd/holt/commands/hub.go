@@ -87,7 +87,7 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 	// Subdomain routing without a domain to strip would match every
 	// host and route to nonsense; a domain the strategy never reads is
 	// just as misleading. Fail at boot, not per request.
-	if err := h.routing().Validate(h.ProxyDomain); err != nil {
+	if _, err := h.routing().Resolver(h.ProxyDomain); err != nil {
 		return fmt.Errorf("%w (--proxy-routing / --proxy-domain)", err)
 	}
 
@@ -112,17 +112,22 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 	// already tells the operator where state lives.
 	logger.Debug("hub state ready", zap.String("dir", h.State))
 
-	// Tunnel presence is projected into a SQL Directory: the same
-	// SQLite DB by default, or a shared PostgreSQL with --directory-dsn
-	// (so a fleet of hubs sees each other's peers).
-	dir, closeDir, err := h.openDirectory(ctx, st)
+	// Tunnel presence and the peer denylist live in the same SQL
+	// backend: the local SQLite DB by default, or a shared PostgreSQL
+	// with --directory-dsn (so a fleet of hubs sees each other's peers
+	// and each other's blocks).
+	dir, blockStore, closeBackends, err := h.openBackends(ctx, st)
 	if err != nil {
 		return err
 	}
 
-	defer closeDir()
+	defer closeBackends()
 
 	if migErr := dir.Migrate(ctx); migErr != nil {
+		return migErr
+	}
+
+	if migErr := blockStore.Migrate(ctx); migErr != nil {
 		return migErr
 	}
 
@@ -140,7 +145,7 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 		defer func() { _ = mp.Shutdown(context.Background()) }()
 	}
 
-	rt, err := h.newRuntime(ctx, commons, logger, st, dir, secret)
+	rt, err := h.newRuntime(ctx, commons, logger, dir, blockStore, secret)
 	if err != nil {
 		return err
 	}

@@ -28,7 +28,9 @@ const (
 )
 
 // WithRouting sets how the proxy picks the target peer; domain is the
-// base domain for the subdomain strategies.
+// base domain for the subdomain strategies. An unusable pair (unknown
+// strategy, missing or unused domain) fails Server.Run before
+// anything binds.
 func WithRouting(routing Routing, domain string) ProxyOption {
 	return proxy.WithRouting(routing, domain)
 }

@@ -12,8 +12,8 @@ import (
 
 	"github.com/openotters/holt/cmd/holt/internal/hubapi"
 	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
-	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/cmd/holt/internal/token"
+	"github.com/openotters/holt/pkg/jwtauth"
+	"github.com/openotters/holt/pkg/token"
 )
 
 const advertised = "ws://hub.example.com:7000"

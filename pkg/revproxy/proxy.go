@@ -14,8 +14,10 @@
 // where registry is a *hub.Registry (or anything else satisfying
 // Peers). Subdomain routing and an observability hook are options:
 //
+//	resolver, err := proxy.RoutingBoth.Resolver("peers.example.com")
+//	// handle err — a bad strategy/domain pair fails here, at boot
 //	p := proxy.New(registry,
-//		proxy.WithRouting(proxy.RoutingBoth, "peers.example.com"),
+//		proxy.WithResolver(resolver),
 //		proxy.WithErrorHook(func(ctx context.Context, reason string) {
 //			errors.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
 //		}),
@@ -70,12 +72,12 @@ type Proxy struct {
 // Option configures a Proxy.
 type Option func(*Proxy)
 
-// WithRouting sets how the target peer is picked. domain is the base
-// domain for the subdomain strategies (ignored by RoutingHeader).
-// Validate the pair at boot with Routing.Validate: an unusable
-// combination resolves no peer here rather than erroring.
-func WithRouting(routing Routing, domain string) Option {
-	return func(p *Proxy) { p.resolver = NewResolver(routing, domain) }
+// WithResolver sets how the target peer is picked. Build one from
+// configuration with Routing.Resolver — which rejects unusable
+// strategy/domain pairs at boot — or compose your own from
+// ResolveByHeader, ResolveBySubdomain, and ResolveFirst.
+func WithResolver(resolver Resolver) Option {
+	return func(p *Proxy) { p.resolver = resolver }
 }
 
 // WithErrorHook registers an observer for requests that could not be
@@ -89,7 +91,7 @@ func WithErrorHook(hook ErrorHook) Option {
 func New(peers Peers, opts ...Option) *Proxy {
 	p := &Proxy{
 		peers:    peers,
-		resolver: NewResolver(RoutingHeader, ""),
+		resolver: ResolveByHeader(),
 		onError:  nil,
 		reverse:  nil,
 	}

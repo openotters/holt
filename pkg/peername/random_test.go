@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openotters/holt/cmd/holt/internal/peername"
+	"github.com/openotters/holt/pkg/peername"
 )
 
 // The shape the CLI documents and the hub has to accept.

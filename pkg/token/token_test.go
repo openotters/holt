@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/cmd/holt/internal/token"
+	"github.com/openotters/holt/pkg/jwtauth"
+	"github.com/openotters/holt/pkg/token"
 )
 
+//nolint:gochecknoglobals // shared fixture, never mutated
 var secret = []byte("test-secret-value-for-signing-only")
 
 // mint is what the hub hands out: the signed JWT, nothing around it.

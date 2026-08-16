@@ -294,6 +294,25 @@ func TestServerValidation(t *testing.T) {
 	}
 }
 
+// An unusable routing pair — subdomain routing with no base domain —
+// fails at Run, before anything binds, instead of serving a proxy
+// that routes nothing.
+func TestServerRoutingValidatedAtRun(t *testing.T) {
+	t.Parallel()
+
+	srv := holt.NewServer(
+		holt.WithTunnel(nil),
+		holt.WithProxy(holt.NewProxy("127.0.0.1:0",
+			holt.WithRouting(holt.RoutingSubdomain, ""),
+		)),
+	)
+
+	err := srv.Run(t.Context())
+	if !errors.Is(err, revproxy.ErrNoDomain) {
+		t.Fatalf("Run() = %v, want ErrNoDomain", err)
+	}
+}
+
 // The development identity trusts what peers claim, so it is refused
 // on any bind another machine could reach — before the port is even
 // bound.

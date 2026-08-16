@@ -177,6 +177,14 @@ func (s *Server) validate() error {
 				" — bind 127.0.0.1, or configure WithAuthBearer / WithIdentity", s.tunnel.BoundName())
 	}
 
+	// A routing strategy that cannot resolve (unknown, or a mismatched
+	// domain) is refused here rather than served routing nothing.
+	if hasProxy && s.proxyd.Routing != "" {
+		if _, err := s.proxyd.Routing.Resolver(s.proxyd.Domain); err != nil {
+			return fmt.Errorf("holt: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -234,7 +242,22 @@ func (s *Server) start(ctx context.Context) ([]*http.Server, error) {
 	}
 
 	if s.proxyd != nil && s.proxyd.Configured() {
-		handler := s.proxyd.Wrap(revproxy.New(s.registry, s.proxyd.Opts...))
+		opts := s.proxyd.Opts
+
+		// validate already rejected an unresolvable pair; a blank
+		// strategy keeps the revproxy default (header routing).
+		if s.proxyd.Routing != "" {
+			resolver, err := s.proxyd.Routing.Resolver(s.proxyd.Domain)
+			if err != nil {
+				closeAll(servers)
+
+				return nil, fmt.Errorf("holt: %w", err)
+			}
+
+			opts = append(opts, revproxy.WithResolver(resolver))
+		}
+
+		handler := s.proxyd.Wrap(revproxy.New(s.registry, opts...))
 
 		srv, err := s.serve(ctx, "proxy", s.proxyd.Endpoint, handler)
 		if err != nil {

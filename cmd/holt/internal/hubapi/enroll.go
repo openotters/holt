@@ -19,8 +19,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/cmd/holt/internal/peername"
+	"github.com/openotters/holt/pkg/jwtauth"
+	"github.com/openotters/holt/pkg/peername"
 )
 
 // Enroll serves POST /api/enroll: mint a join token for a peer. It is

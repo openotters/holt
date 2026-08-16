@@ -61,7 +61,12 @@ The optional pieces are public under `pkg/`, one package per role:
 - **`pkg/directory`** (+ `sqldir`, `sqlite`, `postgres`): peer
   presence — in-memory for one hub, SQL-backed to share which peer is
   attached to which hub across a fleet.
-- **`pkg/admin`**: the Admin gRPC service over the registry.
+- **`pkg/blocklist`** (+ `sqlite`, `postgres`): the peer-id denylist
+  consulted at attach time, on the same backend choice as presence —
+  a fleet sharing PostgreSQL shares its blocks too.
+- **`pkg/jwtauth`**, **`pkg/token`**, **`pkg/peername`**: the
+  ready-made JWT identity scheme — issue and verify attach tokens,
+  decode the copy-paste join token, validate peer ids.
 
 Only the assembly guts stay private: `internal/tunnel`,
 `internal/proxy`, `internal/server`, `internal/client`,

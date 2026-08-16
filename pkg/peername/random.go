@@ -19,6 +19,8 @@ import (
 // attaching under a name already in use evicts that peer, and a
 // client should not have to enumerate other people's tunnels (which
 // it may not be allowed to do) just to pick a safe name for its own.
+//
+//nolint:gochecknoglobals // immutable word tables, package-level by nature
 var (
 	adjectives = []string{
 		"agile", "amber", "ancient", "autumn", "bold", "brave", "brisk", "calm",

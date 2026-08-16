@@ -8,12 +8,11 @@ import (
 
 	c "github.com/merlindorin/go-shared/pkg/cmd"
 
-	"github.com/openotters/holt/cmd/holt/internal/blocklist"
+	"github.com/openotters/holt/cmd/holt/internal/admin"
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
-	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/cmd/holt/internal/store"
-	"github.com/openotters/holt/pkg/admin"
+	"github.com/openotters/holt/pkg/blocklist"
 	"github.com/openotters/holt/pkg/directory/sqldir"
+	"github.com/openotters/holt/pkg/jwtauth"
 	"github.com/openotters/holt/pkg/registry"
 )
 
@@ -31,19 +30,20 @@ type hubRuntime struct {
 	logger   *zap.Logger
 }
 
-// newRuntime wires the shared pieces together over an open store and
-// presence directory. Stale presence rows from a previous run are
-// cleared here, before any listener can accept an attach.
+// newRuntime wires the shared pieces together over the opened
+// presence directory and denylist store. Stale presence rows from a
+// previous run are cleared here, before any listener can accept an
+// attach.
 func (h *Hub) newRuntime(
 	ctx context.Context, commons *c.Commons, logger *zap.Logger,
-	st *store.Store, dir *sqldir.Directory, secret []byte,
+	dir *sqldir.Directory, blockStore blocklist.Store, secret []byte,
 ) (*hubRuntime, error) {
 	registry := registry.NewRegistry(logger, registry.WithHubID(hostname()), registry.WithDirectory(dir))
 	if err := registry.ClearStale(ctx); err != nil {
 		return nil, err
 	}
 
-	blocks, err := blocklist.New(st)
+	blocks, err := blocklist.New(ctx, blockStore)
 	if err != nil {
 		return nil, err
 	}

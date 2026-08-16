@@ -3,11 +3,10 @@
 // a token from `holt enroll`, serves one HTTP handler over the
 // tunnel, and listens on nothing.
 //
-// Everything a peer needs is here and nothing else: decode the token,
-// then holt.NewClient your handler (JWT auth rides the WebSocket upgrade;
-// the tunnel URL's scheme picks the transport). The join token is
-// decoded inline (a tiny base64+JSON struct) so this file has no
-// dependency on the holt CLI's internals — copy it and go.
+// Everything a peer needs is here and nothing else: token.Decode the
+// join token, then holt.NewClient your handler (JWT auth rides the
+// WebSocket upgrade; the tunnel URL's scheme picks the transport).
+// Only public packages are used — copy this file and go.
 //
 //	# on the hub machine:
 //	holt hub &
@@ -22,32 +21,19 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt"
+	"github.com/openotters/holt/pkg/token"
 )
-
-// joinToken is what `holt enroll` prints: a JWT in compact
-// serialization (header.payload.signature). Its subject is the peer
-// name and its audience is the hub's tunnel URL, so the token needs
-// no envelope, and the token itself is the credential the peer
-// presents. Decoded inline so this starter has no internal imports.
-type joinToken struct {
-	Peer      string // JWT "sub"
-	TunnelURL string // JWT "aud"
-	JWT       string // the token itself
-}
 
 func main() {
 	tok := flag.String("token", "", "join token from `holt enroll` (required)")
@@ -64,7 +50,10 @@ func main() {
 
 func run(rawToken string) error {
 	// ── 1. Decode the join token: peer name, tunnel URL, JWT. ───────────
-	jt, err := decodeToken(rawToken)
+	// The token from `holt enroll` is a JWT in compact serialization:
+	// its subject is the peer name, its audience the hub's tunnel URL,
+	// and the token itself is the credential the peer presents.
+	jt, err := token.Decode(rawToken)
 	if err != nil {
 		return err
 	}
@@ -98,52 +87,4 @@ func run(rawToken string) error {
 		holt.WithVersion("starter-client"),
 		holt.WithLogger(logger),
 	).Run(ctx)
-}
-
-// decodeToken reads the JWT's claims WITHOUT verifying the signature:
-// the peer holds no key, and the hub is the one that checks it on
-// attach. Only the middle segment (the payload) is needed.
-func decodeToken(s string) (joinToken, error) {
-	parts := strings.Split(strings.TrimSpace(s), ".")
-	if len(parts) != 3 {
-		return joinToken{}, fmt.Errorf("token is not a JWT (want header.payload.signature)")
-	}
-
-	// JWT segments are base64url without padding.
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return joinToken{}, fmt.Errorf("token payload is not valid base64url: %w", err)
-	}
-
-	var claims struct {
-		Subject  string `json:"sub"`
-		Audience any    `json:"aud"` // a string, or an array of them
-	}
-	if unmarshalErr := json.Unmarshal(payload, &claims); unmarshalErr != nil {
-		return joinToken{}, fmt.Errorf("token payload is invalid: %w", unmarshalErr)
-	}
-
-	jt := joinToken{Peer: claims.Subject, TunnelURL: audience(claims.Audience), JWT: strings.TrimSpace(s)}
-	if jt.Peer == "" || jt.TunnelURL == "" {
-		return joinToken{}, fmt.Errorf("token is missing its subject or audience; re-enroll")
-	}
-
-	return jt, nil
-}
-
-// audience reads the "aud" claim, which JWT allows to be a single
-// string or an array of them.
-func audience(v any) string {
-	switch aud := v.(type) {
-	case string:
-		return aud
-	case []any:
-		if len(aud) > 0 {
-			s, _ := aud[0].(string)
-
-			return s
-		}
-	}
-
-	return ""
 }

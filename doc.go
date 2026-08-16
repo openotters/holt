@@ -17,7 +17,9 @@
 // Server.Registry returns one), pkg/attach (the WebSocket attach
 // handler, for mounting on your own router), pkg/revproxy (the
 // data-plane reverse proxy), pkg/dial (the raw attach loop),
-// pkg/directory (peer presence, with SQLite and Postgres flavours),
-// and pkg/admin (the admin gRPC service). Only the assembly guts and
-// the wire protocol are internal.
+// pkg/directory and pkg/blocklist (peer presence and the denylist,
+// each with SQLite and Postgres flavours), pkg/jwtauth and pkg/token
+// (the JWT identity scheme and its join token), and pkg/peername
+// (peer-id validation). Only the assembly guts and the wire protocol
+// are internal.
 package holt

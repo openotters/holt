@@ -165,9 +165,14 @@ func TestProxiesToAttachedPeer(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "http://placeholder/hello", nil)
 	req.Host = "alice.peers.example.com"
 
+	subdomains, err := revproxy.ResolveBySubdomain("peers.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	revproxy.New(
 		fakePeers{tunnels: map[string]http.RoundTripper{"alice": alice}},
-		revproxy.WithRouting(revproxy.RoutingSubdomain, "peers.example.com"),
+		revproxy.WithResolver(subdomains),
 	).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusTeapot {

@@ -12,15 +12,13 @@ import (
 	"connectrpc.com/connect"
 
 	holtv1 "github.com/openotters/holt/api/v1"
-	"github.com/openotters/holt/internal/wire"
+
+	"github.com/openotters/holt/pkg/blocklist"
 	"github.com/openotters/holt/pkg/registry"
 )
 
 // BlockedPeer is one entry in the peer-id denylist.
-type BlockedPeer struct {
-	Peer          string
-	BlockedAtUnix int64
-}
+type BlockedPeer = blocklist.BlockedPeer
 
 // Blocker is the hub-side peer-id denylist BlockPeer/UnblockPeer
 // drive, and ListBlocked reads. The ban is on the identity, not one
@@ -112,7 +110,7 @@ func (s *Service) StopTunnel(
 	if reason == "" {
 		// Terminal, so a killed peer stays down instead of instantly
 		// redialing.
-		reason = wire.ReasonClosed
+		reason = registry.ReasonClosed
 	}
 
 	stopped := s.registry.StopTunnel(req.Msg.GetPeer(), reason)
@@ -133,7 +131,7 @@ func (s *Service) BlockPeer(
 	peer := req.Msg.GetPeer()
 
 	s.blocker.Block(peer)
-	stopped := s.registry.StopTunnel(peer, wire.ReasonTokenRevoked)
+	stopped := s.registry.StopTunnel(peer, registry.ReasonTokenRevoked)
 
 	return connect.NewResponse(&holtv1.BlockPeerResponse{Stopped: stopped}), nil
 }

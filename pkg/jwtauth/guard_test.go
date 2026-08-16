@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
+	"github.com/openotters/holt/pkg/jwtauth"
 )
 
 const testSecret = "test-secret-value-for-signing-only"

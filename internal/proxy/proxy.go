@@ -14,6 +14,11 @@ type Proxy struct {
 	utils.Endpoint
 
 	Opts []revproxy.Option
+
+	// Routing and Domain hold the configured strategy; the server
+	// resolves them at Run, so a bad pair fails before binding.
+	Routing revproxy.Routing
+	Domain  string
 }
 
 // Option configures a Proxy; every EndpointOption is one too.
@@ -38,9 +43,11 @@ func NewProxy(addr string, opts ...Option) *Proxy {
 }
 
 // WithRouting sets how the proxy picks the target peer; domain is the
-// base domain for the subdomain strategies. See revproxy.Routing.
+// base domain for the subdomain strategies. The pair is resolved when
+// the server runs — an unusable combination is an error there, not a
+// proxy that routes nothing. See revproxy.Routing.
 func WithRouting(routing revproxy.Routing, domain string) Option {
-	return proxyOption(func(p *Proxy) { p.Opts = append(p.Opts, revproxy.WithRouting(routing, domain)) })
+	return proxyOption(func(p *Proxy) { p.Routing, p.Domain = routing, domain })
 }
 
 // WithErrorHook observes requests the proxy could not serve, with a

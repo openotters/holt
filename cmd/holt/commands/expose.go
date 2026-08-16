@@ -17,11 +17,11 @@ import (
 
 	holtv1 "github.com/openotters/holt/api/v1"
 
-	"github.com/openotters/holt/cmd/holt/internal/peername"
 	"github.com/openotters/holt/cmd/holt/internal/style"
-	"github.com/openotters/holt/cmd/holt/internal/token"
 	"github.com/openotters/holt/pkg/dial"
+	"github.com/openotters/holt/pkg/peername"
 	"github.com/openotters/holt/pkg/revproxy"
+	"github.com/openotters/holt/pkg/token"
 )
 
 // Expose tunnels a LOCAL HTTP service through the hub — the
