@@ -13,51 +13,88 @@ Peer side:
 ```go
 dial.Run(ctx, dial.Options{
     URL:     "wss://holt.example.com",  // ws for plaintext; http/https accepted as aliases
-    Header:  http.Header{"Authorization": {"Bearer " + jwt}},
+    Header:  http.Header{"Authorization": {"Bearer " + token}},
     Handler: myHandler, Version: build.Version, Logger: log,
 })
 ```
 
-Hub side:
+Hub side — `hub.NewServer` is `dial.Run`'s counterpart, the whole
+server in one call:
+
+```go
+srv := hub.NewServer(
+    hub.WithLogger(log),
+    hub.WithTunnel(hub.NewTunnel(":7000",     // where peers attach
+        hub.WithAuthBearer(peerForToken),     // token → peer id, 401s the rest
+    )),
+    hub.WithProxy(hub.NewProxy(":7002")),     // reach peers: x-tunnel-peer header
+)
+
+err := srv.Run(ctx) // binds (fail fast), serves, blocks; cancel to drain
+
+// meanwhile, anywhere in the hub process:
+client := &http.Client{Transport: srv.Registry().RoundTripper(peerID)}
+```
+
+Zero configuration works too: `hub.NewServer().Run(ctx)` serves a
+tunnel on `127.0.0.1:7000` and a proxy on `127.0.0.1:7002` with the
+**development identity** — peers name themselves with the
+`x-holt-peer` header (or get a generated name), nothing verifies the
+claim. It is loopback-only by construction: a tunnel bound anywhere
+another machine could reach it refuses to start without a real
+identity.
+
+## Endpoints and identity
+
+`NewTunnel` and `NewProxy` declare the two endpoints; both take
+`WithListener` (bring your own — a `tls.NewListener` for wss, a
+systemd socket) and `WithMiddleware` (any `func(http.Handler)
+http.Handler`, first-listed outermost).
+
+The tunnel's identity decides what keys the registry, and it must
+come from something verified — never from what the peer asserts:
+
+```go
+// Bearer tokens: one func from token to peer id does middleware and
+// identity both.
+hub.NewTunnel(":7000", hub.WithAuthBearer(peerForToken))
+
+// Any other scheme: middleware stamps the context, identity reads it
+// back (a client-cert CN here; see examples/transport-tls).
+hub.NewTunnel("", hub.WithListener(tlsLis),
+    hub.WithMiddleware(certIdentity), hub.WithIdentity(cnFromCtx))
+
+// Inner TLS and tracing pass through to the attach handler:
+hub.NewTunnel(":7000", hub.WithHandlerOptions(hub.WithPeerTLS(cfg)))
+```
+
+The proxy routes on the `x-tunnel-peer` header by default;
+`hub.WithRouting(proxy.RoutingBoth, "peers.example.com")` adds
+per-peer hostnames, and `hub.WithErrorHook` observes requests that
+could not be proxied. A request that names no peer, or names one that
+is not attached, never reaches a backend: it gets a bare page that
+says nothing about the hub (400 and 404 respectively, never a 502).
+
+## Underneath: your own router
+
+`NewServer` assembles public pieces you can also mount yourself, for
+an application with its own HTTP server and lifecycle:
 
 ```go
 registry := hub.NewRegistry(log)
 // NewHandler is an http.Handler that accepts the WebSocket upgrade;
 // wrap it in your auth middleware, which sees the upgrade request's
-// headers (the bearer above) and stamps the identity on its context.
-mux.Handle("/", authMiddleware(hub.NewHandler(registry, identityFromCtx, log)))
-
-// later, anywhere in the hub process:
-client := &http.Client{Transport: registry.RoundTripper(peerID)}
-```
-
-## Reaching peers over HTTP
-
-`registry.RoundTripper(peer)` dials one peer. To let ordinary HTTP
-clients reach any of them, mount `hub/proxy`: it reads the target peer
-off the request and dials it for you.
-
-```go
-// Header routing needs no configuration: curl -H 'x-tunnel-peer: alice'
+// headers and stamps the identity on its context.
+mux.Handle("/attach", authMiddleware(hub.NewHandler(registry, identityFromCtx, log)))
+// hub/proxy is the data plane; validate the routing pair at boot with
+// routing.Validate(domain).
 mux.Handle("/", proxy.New(registry))
-
-// Or give every peer its own hostname (alice.peers.example.com), which
-// is what browsers and webhooks can actually use:
-p := proxy.New(registry,
-    proxy.WithRouting(proxy.RoutingBoth, "peers.example.com"),
-    proxy.WithErrorHook(func(ctx context.Context, reason string) { ... }),
-)
 ```
-
-Validate the routing pair at boot with `routing.Validate(domain)`. A
-request that names no peer, or names one that is not attached, never
-reaches a backend: it gets a bare page that says nothing about the hub
-(400 and 404 respectively, never a 502), and the error hook sees the
-reason.
 
 ## Operating the hub
 
-The `Registry` is the operational surface over live tunnels:
+The `Registry` (from `srv.Registry()`, or your own `NewRegistry`) is
+the operational surface over live tunnels:
 
 ```go
 registry.ListTunnels()             // every live tunnel on this hub

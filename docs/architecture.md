@@ -35,10 +35,11 @@ edges. Presence of the tunnel doubles as the peer's liveness signal.
 
 ## The parts
 
-- **`hub`**: server side. `NewRegistry` tracks live tunnels per peer;
-  `NewHandler` is the `http.Handler` that accepts attachments, mounted
-  behind your auth middleware (the peer's credential arrives on the
-  upgrade request).
+- **`hub`**: server side. `NewServer` assembles the whole thing in
+  one call (tunnel endpoint, proxy endpoint, lifecycle). Underneath,
+  `NewRegistry` tracks live tunnels per peer and `NewHandler` is the
+  `http.Handler` that accepts attachments, mounted behind your auth
+  middleware (the peer's credential arrives on the upgrade request).
 - **`hub/proxy`**: the data plane. An `http.Handler` that picks the
   target peer from the request (`x-tunnel-peer` header, or
   `<peer>.<domain>` subdomain) and dials it through its tunnel. This is
