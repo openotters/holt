@@ -53,12 +53,13 @@ func httpAddr(addr string) string {
 
 // pointsAtAnotherHub reports that a flag or env aimed this command at a
 // different hub than the one the profile describes. The profile's other
-// hub-specific settings (its tunnel_url) describe ITS hub, so they stop
-// applying when the endpoint is redirected: a token minted at hub B
-// must not advertise hub A's tunnel URL.
+// hub-specific settings (its tunnel_url, its headers) describe ITS hub,
+// so they stop applying when the endpoint is redirected: a token minted
+// at hub B must not advertise hub A's tunnel URL, and hub A's
+// credentials must not be sent to hub B.
 //
 // A profile with no admin_url describes no particular endpoint, so its
-// tunnel_url keeps applying — that is the "mint locally on the hub
+// settings keep applying — that is the "mint locally on the hub
 // machine, advertise the public URL" setup.
 func (a adminConn) pointsAtAnotherHub(prof config.Profile) bool {
 	override := coalesce(a.AdminURL, httpAddr(a.AdminAddr))
@@ -113,7 +114,15 @@ func (a adminConn) endpoint() (endpoint, error) {
 		url = "http://127.0.0.1:7001"
 	}
 
-	headers := prof.ResolvedHeaders()
+	// The profile's headers authenticate the profile's hub: an Access
+	// service token, a bearer, whatever sits in front of it. Aiming the
+	// endpoint at another hub must not hand them to it, so they go with
+	// the profile. --header still applies, being explicit.
+	headers := map[string]string{}
+	if !a.pointsAtAnotherHub(prof) {
+		headers = prof.ResolvedHeaders()
+	}
+
 	for _, h := range a.Header {
 		name, value, ok := splitHeader(h)
 		if !ok {

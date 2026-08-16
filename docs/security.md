@@ -59,6 +59,12 @@ auth proxy), that boundary is your identity provider. The `holt` CLI
 sends whatever headers you configure, so it works with service tokens or
 any header-based scheme; see [CLI: remote hubs and profiles](cli.md#remote-hubs-and-profiles).
 
+A profile's headers are a credential for the hub its `admin_url` names,
+and go only there: aiming `--admin-url` / `--admin-addr` at a different
+hub sends none of them, so a service token cannot follow you onto a
+host the profile does not describe. Headers passed with `--header` are
+explicit and go wherever the command is aimed.
+
 ---
 
 [← Web console](console.md)  ·  [Docs home](README.md)  ·  [Kubernetes →](kubernetes.md)

@@ -328,13 +328,14 @@ remotely, and the advertised tunnel URL resolves `--tunnel-url` >
 `HOLT_TUNNEL_URL` > the profile's `tunnel_url` > (remote) the hub's own
 `--advertise-addr` > (local) `ws://127.0.0.1:7000`.
 
-One exception, because a token has to point at the hub that minted it:
-a profile's `tunnel_url` describes *that profile's* hub, so pointing
-`--admin-url` / `--admin-addr` at a different hub than the profile's
-`admin_url` drops it, and the token carries the advertised URL of the
-hub actually enrolled against. `--tunnel-url` still overrides either
-way, and a profile with no `admin_url` (the "mint locally, advertise
-the public URL" setup) always applies its `tunnel_url`.
+One exception, because a profile describes *one hub*: its `tunnel_url`
+and its `headers` belong to the hub its `admin_url` names. Pointing
+`--admin-url` / `--admin-addr` at a different hub drops both, so a
+token carries the advertised URL of the hub that actually minted it,
+and a profile's credentials are never sent to a host it does not
+describe. `--tunnel-url` and `--header` are explicit and still apply
+either way, and a profile with no `admin_url` (the "mint locally,
+advertise the public URL" setup) keeps applying its settings.
 
 ## Output modes
 
