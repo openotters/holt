@@ -13,12 +13,12 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/internal/attach"
 	"github.com/openotters/holt/internal/proxy"
-	"github.com/openotters/holt/internal/registry"
-	"github.com/openotters/holt/internal/revproxy"
 	"github.com/openotters/holt/internal/tunnel"
 	"github.com/openotters/holt/internal/utils"
+	"github.com/openotters/holt/pkg/attach"
+	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/revproxy"
 )
 
 // Server is the assembled hub: a Registry, a Tunnel endpoint peers

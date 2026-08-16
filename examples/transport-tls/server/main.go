@@ -35,6 +35,7 @@ import (
 
 	"github.com/openotters/holt"
 	"github.com/openotters/holt/examples/certs"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 type peerCtxKey struct{}
@@ -141,16 +142,16 @@ func certIdentity(next http.Handler) http.Handler {
 
 // greetOnAttach reaches each newly-attached peer through the tunnel
 // and logs the reply — the hub proving the secure round-trip works.
-func greetOnAttach(ctx context.Context, registry *holt.Registry, logger *zap.Logger) {
-	events := registry.Watch(ctx)
+func greetOnAttach(ctx context.Context, reg *registry.Registry, logger *zap.Logger) {
+	events := reg.Watch(ctx)
 
 	go func() {
 		for ev := range events {
-			if ev.Kind != holt.EventAttached {
+			if ev.Kind != registry.EventAttached {
 				continue
 			}
 
-			reply, err := get(ctx, registry, ev.Peer, "/hello")
+			reply, err := get(ctx, reg, ev.Peer, "/hello")
 			if err != nil {
 				logger.Warn("reach peer failed", zap.String("peer", ev.Peer), zap.Error(err))
 
@@ -163,7 +164,7 @@ func greetOnAttach(ctx context.Context, registry *holt.Registry, logger *zap.Log
 	}()
 }
 
-func get(ctx context.Context, registry *holt.Registry, peer, path string) (string, error) {
+func get(ctx context.Context, reg *registry.Registry, peer, path string) (string, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -172,7 +173,7 @@ func get(ctx context.Context, registry *holt.Registry, peer, path string) (strin
 		return "", err
 	}
 
-	client := &http.Client{Transport: registry.RoundTripper(peer)}
+	client := &http.Client{Transport: reg.RoundTripper(peer)}
 
 	resp, err := client.Do(req)
 	if err != nil {

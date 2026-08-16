@@ -8,7 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/internal/dial"
+	"github.com/openotters/holt/pkg/dial"
 )
 
 // Client is the assembled peer: a persistent attach loop that dials

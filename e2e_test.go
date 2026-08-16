@@ -11,9 +11,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/internal/attach"
-	"github.com/openotters/holt/internal/dial"
-	"github.com/openotters/holt/internal/registry"
+	"github.com/openotters/holt/pkg/attach"
+	"github.com/openotters/holt/pkg/dial"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 // TestReverseTunnel_EndToEnd is the module's headline proof: a peer

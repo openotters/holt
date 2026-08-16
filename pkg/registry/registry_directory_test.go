@@ -6,8 +6,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/internal/directory"
-	"github.com/openotters/holt/internal/registry"
+	"github.com/openotters/holt/pkg/directory"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 // TestRegistry_DirectoryProjection confirms the Registry mirrors live

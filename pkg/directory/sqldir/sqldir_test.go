@@ -8,8 +8,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/openotters/holt/internal/directory"
-	"github.com/openotters/holt/internal/directory/sqldir"
+	"github.com/openotters/holt/pkg/directory"
+	"github.com/openotters/holt/pkg/directory/sqldir"
 )
 
 // openSQLite opens a fresh in-memory SQLite DB for one test.

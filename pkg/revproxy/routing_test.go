@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/openotters/holt/internal/revproxy"
+	"github.com/openotters/holt/pkg/revproxy"
 )
 
 func TestResolverPeer(t *testing.T) {

@@ -12,9 +12,9 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/hubapi"
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
-	"github.com/openotters/holt/internal/admin"
-	"github.com/openotters/holt/internal/attach"
-	"github.com/openotters/holt/internal/revproxy"
+	"github.com/openotters/holt/pkg/admin"
+	"github.com/openotters/holt/pkg/attach"
+	"github.com/openotters/holt/pkg/revproxy"
 )
 
 // startServers brings up the tunnel, admin, proxy, and (optional)

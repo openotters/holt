@@ -12,9 +12,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt"
-	"github.com/openotters/holt/internal/dial"
-	"github.com/openotters/holt/internal/registry"
-	"github.com/openotters/holt/internal/revproxy"
+	"github.com/openotters/holt/pkg/dial"
+	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/revproxy"
 )
 
 // listen binds a throwaway loopback listener the test hands to the

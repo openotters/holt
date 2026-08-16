@@ -10,7 +10,7 @@ import (
 
 	holtv1 "github.com/openotters/holt/api/v1"
 	"github.com/openotters/holt/cmd/holt/internal/style"
-	"github.com/openotters/holt/internal/revproxy"
+	"github.com/openotters/holt/pkg/revproxy"
 )
 
 // Info prints a snapshot of a hub: build, live counts, and the

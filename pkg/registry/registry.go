@@ -22,7 +22,8 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 
-	"github.com/openotters/holt/internal/directory"
+	"github.com/openotters/holt/internal/wire"
+	"github.com/openotters/holt/pkg/directory"
 )
 
 // ErrPeerDetached is returned by the per-peer RoundTripper when no
@@ -378,3 +379,15 @@ func (rt roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	return e.cc.RoundTrip(req)
 }
+
+// Well-known detach reasons, as carried by the tunnel's GoAway frame.
+// Superseded, credential revocation, and deliberate stop are terminal
+// for the peer (no redial); everything else means "redial with
+// backoff".
+const (
+	ReasonSuperseded   = wire.ReasonSuperseded
+	ReasonTokenRevoked = wire.ReasonTokenRevoked
+	ReasonShuttingDown = wire.ReasonShuttingDown
+	ReasonPeerStopping = wire.ReasonPeerStopping
+	ReasonClosed       = wire.ReasonClosed
+)

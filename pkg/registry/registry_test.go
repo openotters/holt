@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/internal/registry"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 func TestRegistry_AttachDetach(t *testing.T) {

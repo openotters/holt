@@ -7,12 +7,17 @@
 // hostnames, access proxies, and HTTP/1.1-only edges that cannot
 // proxy gRPC.
 //
-// This package is the module's entire public API, the front door for
-// both halves: NewServer assembles a hub from options and serves it;
-// NewClient wires a peer that attaches to one and serves a handler
-// back through the tunnel. The operator surface stays reachable
-// through Server.Registry (roster, stop, watch, per-peer
-// RoundTripper). Everything underneath lives in internal/ packages —
-// registry, attach handler, presence directory, reverse proxy, the
-// raw attach loop — and is deliberately not importable.
+// This package is the front door for both halves: NewServer
+// assembles a hub from options and serves it; NewClient wires a peer
+// that attaches to one and serves a handler back through the tunnel.
+// Everything needed to configure the two constructors lives here.
+//
+// The optional surface lives under pkg/ for applications that want
+// the pieces directly: pkg/registry (the operator surface —
+// Server.Registry returns one), pkg/attach (the WebSocket attach
+// handler, for mounting on your own router), pkg/revproxy (the
+// data-plane reverse proxy), pkg/dial (the raw attach loop),
+// pkg/directory (peer presence, with SQLite and Postgres flavours),
+// and pkg/admin (the admin gRPC service). Only the assembly guts and
+// the wire protocol are internal.
 package holt

@@ -2,7 +2,7 @@ package holt
 
 import (
 	"github.com/openotters/holt/internal/proxy"
-	"github.com/openotters/holt/internal/revproxy"
+	"github.com/openotters/holt/pkg/revproxy"
 )
 
 // Proxy is the endpoint that reaches peers through their tunnels.

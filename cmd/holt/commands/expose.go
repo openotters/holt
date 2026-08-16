@@ -20,8 +20,8 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/peername"
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/cmd/holt/internal/token"
-	"github.com/openotters/holt/internal/dial"
-	"github.com/openotters/holt/internal/revproxy"
+	"github.com/openotters/holt/pkg/dial"
+	"github.com/openotters/holt/pkg/revproxy"
 )
 
 // Expose tunnels a LOCAL HTTP service through the hub — the

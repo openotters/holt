@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/openotters/holt/internal/revproxy"
+	"github.com/openotters/holt/pkg/revproxy"
 )
 
 // fakePeers stands in for a *registry.Registry: whoever is in the map has a

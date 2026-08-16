@@ -12,9 +12,9 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
 	"github.com/openotters/holt/cmd/holt/internal/store"
-	"github.com/openotters/holt/internal/admin"
-	"github.com/openotters/holt/internal/directory/sqldir"
-	"github.com/openotters/holt/internal/registry"
+	"github.com/openotters/holt/pkg/admin"
+	"github.com/openotters/holt/pkg/directory/sqldir"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 // hubRuntime is what the four listeners share: the registry of live

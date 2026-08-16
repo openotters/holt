@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/openotters/holt/internal/attach"
 	"github.com/openotters/holt/internal/utils"
+	"github.com/openotters/holt/pkg/attach"
 )
 
 // Tunnel is the endpoint peers attach to. Build it with NewTunnel.

@@ -9,7 +9,7 @@ import (
 )
 
 // instrumentName is the OTel instrumentation scope for this module.
-const instrumentName = "github.com/openotters/holt/internal/registry"
+const instrumentName = "github.com/openotters/holt/pkg/registry"
 
 // metrics holds the OTel instruments the Registry records against.
 // Built from a MeterProvider that defaults to the global one — which

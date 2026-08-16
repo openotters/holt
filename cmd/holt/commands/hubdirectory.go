@@ -7,9 +7,9 @@ import (
 	"net/url"
 
 	"github.com/openotters/holt/cmd/holt/internal/store"
-	"github.com/openotters/holt/internal/directory/postgres"
-	"github.com/openotters/holt/internal/directory/sqldir"
-	"github.com/openotters/holt/internal/directory/sqlite"
+	"github.com/openotters/holt/pkg/directory/postgres"
+	"github.com/openotters/holt/pkg/directory/sqldir"
+	"github.com/openotters/holt/pkg/directory/sqlite"
 )
 
 // openDirectory picks the presence-directory backend: the local SQLite

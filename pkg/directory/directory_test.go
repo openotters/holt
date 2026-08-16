@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openotters/holt/internal/directory"
+	"github.com/openotters/holt/pkg/directory"
 )
 
 func TestMemoryDirectory(t *testing.T) {

@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openotters/holt/internal/directory"
+	"github.com/openotters/holt/pkg/directory"
 )
 
 // Dialect selects SQL syntax that differs between engines (parameter

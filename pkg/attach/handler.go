@@ -24,8 +24,8 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 
-	"github.com/openotters/holt/internal/registry"
 	"github.com/openotters/holt/internal/wire"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 // pingInterval / pingTimeout drive the inner HTTP/2 session's PING
@@ -246,7 +246,7 @@ func (h *Handler) clientConn(ctx context.Context, conn *wire.Conn) (*http2.Clien
 var _ http.Handler = (*Handler)(nil)
 
 // instrumentName is the OTel instrumentation scope for handler spans.
-const instrumentName = "github.com/openotters/holt/internal/attach"
+const instrumentName = "github.com/openotters/holt/pkg/attach"
 
 // tracer returns the tracer for handler spans, defaulting to the
 // global TracerProvider (no-op until an SDK is installed).

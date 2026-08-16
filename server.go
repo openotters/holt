@@ -3,8 +3,8 @@ package holt
 import (
 	"time"
 
-	"github.com/openotters/holt/internal/registry"
 	"github.com/openotters/holt/internal/server"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 // Server is the assembled hub: a Registry, a Tunnel endpoint peers

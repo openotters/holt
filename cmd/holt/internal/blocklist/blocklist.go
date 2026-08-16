@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/openotters/holt/cmd/holt/internal/store"
-	"github.com/openotters/holt/internal/admin"
+	"github.com/openotters/holt/pkg/admin"
 )
 
 // List is the denylist, keyed by JWT subject (peer id) → the unix time

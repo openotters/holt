@@ -10,8 +10,8 @@ import (
 
 	"github.com/openotters/holt/cmd/holt/internal/hubapi"
 	"github.com/openotters/holt/cmd/holt/internal/style"
-	"github.com/openotters/holt/internal/admin"
-	"github.com/openotters/holt/internal/revproxy"
+	"github.com/openotters/holt/pkg/admin"
+	"github.com/openotters/holt/pkg/revproxy"
 )
 
 // routing is the proxy strategy the flags select.

@@ -12,8 +12,8 @@ import (
 	"connectrpc.com/connect"
 
 	holtv1 "github.com/openotters/holt/api/v1"
-	"github.com/openotters/holt/internal/registry"
 	"github.com/openotters/holt/internal/wire"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 // BlockedPeer is one entry in the peer-id denylist.

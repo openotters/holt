@@ -80,20 +80,28 @@ could not be proxied. A request that names no peer, or names one that
 is not attached, never reaches a backend: it gets a bare page that
 says nothing about the hub (400 and 404 respectively, never a 502).
 
-## Underneath
+## Underneath: your own router
 
-The root package is the module's entire public API; the pieces
-`NewServer` assembles (registry, attach handler, reverse proxy, the
-raw attach loop) live in `internal/` and are deliberately not
-importable. Endpoints stay composable from the outside through
-`WithListener` (bring your own listener) and `WithMiddleware` (wrap
-either endpoint's handler), so custom auth, instrumentation, and TLS
-all mount without reaching underneath.
+The root package configures the two constructors; the pieces
+`NewServer` assembles are public under `pkg/` for an application with
+its own HTTP server and lifecycle (`pkg/dial` is the same escape
+hatch on the client side):
+
+```go
+reg := registry.NewRegistry(log)                  // pkg/registry
+// attach.NewHandler is an http.Handler that accepts the WebSocket
+// upgrade; wrap it in your auth middleware, which sees the upgrade
+// request's headers and stamps the identity on its context.
+mux.Handle("/attach", authMiddleware(attach.NewHandler(reg, identityFromCtx, log)))
+// pkg/revproxy is the data plane.
+mux.Handle("/", revproxy.New(reg))
+```
 
 ## Operating the hub
 
-The `Registry` (from `srv.Registry()`, or your own `NewRegistry`) is
-the operational surface over live tunnels:
+The `Registry` (from `srv.Registry()`, or your own
+`registry.NewRegistry`) is the operational surface over live tunnels
+— it lives in `pkg/registry`:
 
 ```go
 registry.ListTunnels()             // every live tunnel on this hub
@@ -122,12 +130,12 @@ PostgreSQL and imports only `database/sql` (you bring the driver):
 
 ```go
 db, _ := sql.Open("sqlite", "file:presence.db")   // or pgx/stdlib
-dir := holt.NewSQLiteDirectory(db)                // or NewPostgresDirectory
+dir := sqlite.New(db)          // pkg/directory/sqlite; postgres flavour next door
 _ = dir.Migrate(ctx)
 
-reg := holt.NewRegistry(log,
-    holt.WithHubID("hub-eu-1"),  // stable per-instance id, recorded in rows
-    holt.WithDirectory(dir))
+reg := registry.NewRegistry(log,
+    registry.WithHubID("hub-eu-1"),  // stable per-instance id, recorded in rows
+    registry.WithDirectory(dir))
 _ = reg.ClearStale(ctx)          // drop rows this hub left after a crash
 
 reg.LookupPeer(ctx, peer)        // fleet-wide: which hub owns it
@@ -162,7 +170,7 @@ an attack.
 Point the hub at your own OTel providers:
 
 ```go
-holt.NewRegistry(log, holt.WithMeterProvider(mp))
+registry.NewRegistry(log, registry.WithMeterProvider(mp)) // pkg/registry
 holt.NewTunnel(":7000", holt.WithHandlerOptions(holt.WithTracerProvider(tp)))
 ```
 

@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 // peerForToken maps a demo bearer token to the peer identity it
@@ -100,10 +101,10 @@ func run(tunnelAddr, rosterAddr, proxyAddr string) error {
 }
 
 // serveRoster exposes GET /peers: every live tunnel this hub owns.
-func serveRoster(registry *holt.Registry, addr string) (*http.Server, error) {
+func serveRoster(reg *registry.Registry, addr string) (*http.Server, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /peers", func(w http.ResponseWriter, _ *http.Request) {
-		tunnels := registry.ListTunnels()
+		tunnels := reg.ListTunnels()
 		if len(tunnels) == 0 {
 			_, _ = io.WriteString(w, "no peers attached\n")
 
@@ -131,15 +132,15 @@ func serveRoster(registry *holt.Registry, addr string) (*http.Server, error) {
 }
 
 // logAttachEvents narrates attach/detach to the log.
-func logAttachEvents(ctx context.Context, registry *holt.Registry, logger *zap.Logger) {
-	events := registry.Watch(ctx)
+func logAttachEvents(ctx context.Context, reg *registry.Registry, logger *zap.Logger) {
+	events := reg.Watch(ctx)
 
 	go func() {
 		for ev := range events {
 			switch ev.Kind {
-			case holt.EventAttached:
+			case registry.EventAttached:
 				logger.Info("peer attached", zap.String("peer", ev.Peer))
-			case holt.EventDetached:
+			case registry.EventDetached:
 				logger.Info("peer detached", zap.String("peer", ev.Peer), zap.String("reason", ev.Reason))
 			}
 		}

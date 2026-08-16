@@ -11,8 +11,8 @@ import (
 
 	holtv1 "github.com/openotters/holt/api/v1"
 	"github.com/openotters/holt/api/v1/holtv1connect"
-	"github.com/openotters/holt/internal/admin"
-	"github.com/openotters/holt/internal/registry"
+	"github.com/openotters/holt/pkg/admin"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 func TestAdminService(t *testing.T) {

@@ -6,7 +6,7 @@ package postgres
 import (
 	"database/sql"
 
-	"github.com/openotters/holt/internal/directory/sqldir"
+	"github.com/openotters/holt/pkg/directory/sqldir"
 )
 
 // New returns a Postgres-dialect presence directory over db. Call

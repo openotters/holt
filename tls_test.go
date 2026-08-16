@@ -18,9 +18,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/internal/attach"
-	"github.com/openotters/holt/internal/dial"
-	"github.com/openotters/holt/internal/registry"
+	"github.com/openotters/holt/pkg/attach"
+	"github.com/openotters/holt/pkg/dial"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 // TestEncryptedTunnel proves payload TLS INSIDE the tunnel: the peer

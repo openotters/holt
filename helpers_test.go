@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openotters/holt/internal/registry"
+	"github.com/openotters/holt/pkg/registry"
 )
 
 // waitAttached blocks until peer shows up in the registry, failing

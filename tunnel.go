@@ -6,8 +6,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/openotters/holt/internal/attach"
 	"github.com/openotters/holt/internal/tunnel"
+	"github.com/openotters/holt/pkg/attach"
 )
 
 // Tunnel is the endpoint peers attach to. Build it with NewTunnel.
