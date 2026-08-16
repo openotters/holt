@@ -90,6 +90,8 @@ docker_manifests:
       - 'ghcr.io/openotters/holt:{{ .Tag }}-amd64'
       - 'ghcr.io/openotters/holt:{{ .Tag }}-arm64'
   - name_template: 'ghcr.io/openotters/holt:latest'
+    # auto: an alpha or rc tag does not move latest.
+    skip_push: auto
     image_templates:
       - 'ghcr.io/openotters/holt:{{ .Tag }}-amd64'
       - 'ghcr.io/openotters/holt:{{ .Tag }}-arm64'
@@ -107,6 +109,9 @@ changelog:
 
 brews:
   - name: holt
+    # auto: an alpha or rc tag does not update the formula, so
+    # `brew upgrade holt` stays on the last stable release.
+    skip_upload: auto
     repository:
       owner: openotters
       name: homebrew-tap
@@ -115,7 +120,7 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: https://github.com/openotters/holt
-    description: "Reverse HTTP tunnel over a single gRPC stream, with a hub CLI and web console"
+    description: "Reverse HTTP tunnels for services that can only dial out, with a hub CLI and web console"
     license: MIT
     install: |
       bin.install "holt"
