@@ -1,22 +1,7 @@
-// Package holt implements a reverse HTTP tunnel over a WebSocket
-// carrying a bidirectional protobuf frame stream: a peer that can
-// only dial OUT attaches to a hub, then serves an ordinary
-// http.Handler back through the attached stream. The hub gets an
-// http.RoundTripper per peer and a presence signal for free. The
-// carrier is a WebSocket so the tunnel passes through CDN public
-// hostnames, access proxies, and HTTP/1.1-only edges that cannot
-// proxy gRPC.
-//
-// The module ships both halves:
-//
-//   - hub:  the server side — accept Attach streams, keep a registry
-//     of live tunnels, dial "through" any peer with a RoundTripper.
-//   - dial: the client side — a persistent attach loop that serves a
-//     handler over the tunnel and redials with backoff.
-//
-// This package holds what both halves share: the frame-level
-// net.Conn adapter, the handshake, and the GoAway vocabulary.
-package holt
+// Package wire holds what the hub and dial halves of the tunnel
+// share: the frame-level net.Conn adapter, the handshake, and the
+// GoAway vocabulary.
+package wire
 
 import (
 	"errors"

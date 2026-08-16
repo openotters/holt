@@ -19,7 +19,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/dial"
+	"github.com/openotters/holt"
 	"github.com/openotters/holt/examples/certs"
 )
 
@@ -68,13 +68,11 @@ func run(hubURL, token string) error {
 
 	logger.Info("attaching with join token", zap.String("hub", hubURL))
 
-	if err := dial.Run(ctx, dial.Options{
-		URL:        hubURL,
-		HTTPClient: httpClient,
-		Handler:    mux,
-		Version:    "join-token-demo",
-		Logger:     logger,
-	}); err != nil && ctx.Err() == nil {
+	if err := holt.NewClient(hubURL, mux,
+		holt.WithHTTPClient(httpClient),
+		holt.WithVersion("join-token-demo"),
+		holt.WithLogger(logger),
+	).Run(ctx); err != nil && ctx.Err() == nil {
 		return err
 	}
 

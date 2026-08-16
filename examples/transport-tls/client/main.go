@@ -26,7 +26,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/dial"
+	"github.com/openotters/holt"
 	"github.com/openotters/holt/examples/certs"
 )
 
@@ -77,13 +77,11 @@ func run(hubURL, name, certsDir string) error {
 
 	logger.Info("attaching to hub over mutual TLS", zap.String("hub", hubURL), zap.String("name", name))
 
-	if err := dial.Run(ctx, dial.Options{
-		URL:        hubURL,
-		HTTPClient: httpClient,
-		Handler:    mux,
-		Version:    "transport-tls-demo",
-		Logger:     logger,
-	}); err != nil && ctx.Err() == nil {
+	if err := holt.NewClient(hubURL, mux,
+		holt.WithHTTPClient(httpClient),
+		holt.WithVersion("transport-tls-demo"),
+		holt.WithLogger(logger),
+	).Run(ctx); err != nil && ctx.Err() == nil {
 		return err
 	}
 

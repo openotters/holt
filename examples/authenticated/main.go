@@ -36,7 +36,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/dial"
+	"github.com/openotters/holt"
 	"github.com/openotters/holt/hub"
 )
 
@@ -76,13 +76,13 @@ func run() error {
 	// The whole identity seam is the one option: WithAuthBearer guards
 	// the upgrade with the token check and keys each tunnel by the
 	// peer id the token proves.
-	srv := hub.NewServer(
-		hub.WithLogger(logger),
-		hub.WithTunnel(hub.NewTunnel("",
-			hub.WithListener(lis),
-			hub.WithAuthBearer(peerForToken),
+	srv := holt.NewServer(
+		holt.WithLogger(logger),
+		holt.WithTunnel(holt.NewTunnel("",
+			holt.WithListener(lis),
+			holt.WithAuthBearer(peerForToken),
 		)),
-		hub.WithProxy(nil),
+		holt.WithProxy(nil),
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -130,19 +130,16 @@ func startPeer(ctx context.Context, hubAddr, token, name string, logger *zap.Log
 		_, _ = fmt.Fprintf(w, "hello from %s", name)
 	})
 
-	var header http.Header
+	opts := []holt.ClientOption{
+		holt.WithVersion(name),
+		holt.WithLogger(logger),
+	}
 	if token != "" {
-		header = http.Header{"Authorization": {"Bearer " + token}}
+		opts = append(opts, holt.WithBearerToken(token))
 	}
 
 	go func() {
-		_ = dial.Run(ctx, dial.Options{
-			URL:     "ws://" + hubAddr,
-			Header:  header,
-			Handler: peerMux,
-			Version: name,
-			Logger:  logger,
-		})
+		_ = holt.NewClient("ws://"+hubAddr, peerMux, opts...).Run(ctx)
 	}()
 }
 

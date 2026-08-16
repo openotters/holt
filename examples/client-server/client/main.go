@@ -24,7 +24,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/dial"
+	"github.com/openotters/holt"
 )
 
 func main() {
@@ -63,15 +63,13 @@ func run(hubURL, token string) error {
 	// WebSocket with the bearer token on the upgrade request. For
 	// transport TLS, dial wss:// instead (see ../../transport-tls).
 	//
-	// dial.Run blocks, redialing with backoff, until ctx ends or the
+	// Run blocks, redialing with backoff, until ctx ends or the
 	// hub sends a terminal GoAway.
-	if err := dial.Run(ctx, dial.Options{
-		URL:     hubURL,
-		Header:  http.Header{"Authorization": {"Bearer " + token}},
-		Handler: mux,
-		Version: "client-server-demo",
-		Logger:  logger,
-	}); err != nil && ctx.Err() == nil {
+	if err := holt.NewClient(hubURL, mux,
+		holt.WithBearerToken(token),
+		holt.WithVersion("client-server-demo"),
+		holt.WithLogger(logger),
+	).Run(ctx); err != nil && ctx.Err() == nil {
 		return err
 	}
 

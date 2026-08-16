@@ -26,7 +26,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/dial"
+	"github.com/openotters/holt"
 	"github.com/openotters/holt/examples/certs"
 )
 
@@ -75,13 +75,11 @@ func run(hubURL, certsDir string) error {
 
 	// Outer transport is a plaintext ws:// WebSocket; inner TLS does
 	// the protecting.
-	if err := dial.Run(ctx, dial.Options{
-		URL:       hubURL,
-		Handler:   mux,
-		TLSConfig: innerTLS,
-		Version:   "encrypted-demo",
-		Logger:    logger,
-	}); err != nil && ctx.Err() == nil {
+	if err := holt.NewClient(hubURL, mux,
+		holt.WithTunnelTLS(innerTLS),
+		holt.WithVersion("encrypted-demo"),
+		holt.WithLogger(logger),
+	).Run(ctx); err != nil && ctx.Err() == nil {
 		return err
 	}
 

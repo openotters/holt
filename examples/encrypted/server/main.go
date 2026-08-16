@@ -28,6 +28,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/openotters/holt"
 	"github.com/openotters/holt/examples/certs"
 	"github.com/openotters/holt/hub"
 )
@@ -78,13 +79,13 @@ func run(addr, certsDir string) error {
 	// the payload regardless. Single-peer demo, so the routing
 	// identity is fixed — the security here is the inner mutual TLS,
 	// not identity routing.
-	srv := hub.NewServer(
-		hub.WithLogger(logger),
-		hub.WithTunnel(hub.NewTunnel(addr,
-			hub.WithIdentity(func(context.Context) (string, error) { return "peer", nil }),
-			hub.WithHandlerOptions(hub.WithPeerTLS(innerTLS)),
+	srv := holt.NewServer(
+		holt.WithLogger(logger),
+		holt.WithTunnel(holt.NewTunnel(addr,
+			holt.WithIdentity(func(context.Context) (string, error) { return "peer", nil }),
+			holt.WithHandlerOptions(hub.WithPeerTLS(innerTLS)),
 		)),
-		hub.WithProxy(nil),
+		holt.WithProxy(nil),
 	)
 
 	greetOnAttach(ctx, srv.Registry(), logger)

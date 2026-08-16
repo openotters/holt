@@ -32,6 +32,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/openotters/holt"
 	"github.com/openotters/holt/hub"
 )
 
@@ -73,13 +74,13 @@ func run(tunnelAddr, rosterAddr, proxyAddr string) error {
 	// The whole hub: a bearer-guarded tunnel endpoint peers attach to,
 	// and a proxy that reaches them. Run binds, serves, and drains on
 	// Ctrl-C.
-	srv := hub.NewServer(
-		hub.WithLogger(logger),
-		hub.WithTunnel(hub.NewTunnel(tunnelAddr,
-			hub.WithAuthBearer(peerForToken),
+	srv := holt.NewServer(
+		holt.WithLogger(logger),
+		holt.WithTunnel(holt.NewTunnel(tunnelAddr,
+			holt.WithAuthBearer(peerForToken),
 		)),
-		hub.WithProxy(hub.NewProxy(proxyAddr,
-			hub.WithErrorHook(func(_ context.Context, reason string) {
+		holt.WithProxy(holt.NewProxy(proxyAddr,
+			holt.WithErrorHook(func(_ context.Context, reason string) {
 				logger.Info("proxy miss", zap.String("reason", reason))
 			}),
 		)),

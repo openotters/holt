@@ -1,4 +1,4 @@
-package hub_test
+package holt_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/openotters/holt"
 	"github.com/openotters/holt/dial"
 	"github.com/openotters/holt/hub"
 	"github.com/openotters/holt/hub/proxy"
@@ -52,22 +53,22 @@ func TestServerEndToEnd(t *testing.T) {
 
 	// The proxy takes middleware too — here one that marks every
 	// response, standing in for metrics or access logging.
-	marked := hub.Middleware(func(next http.Handler) http.Handler {
+	marked := holt.Middleware(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Via", "hub")
 			next.ServeHTTP(w, r)
 		})
 	})
 
-	srv := hub.NewServer(
-		hub.WithLogger(zap.NewNop()),
-		hub.WithTunnel(hub.NewTunnel("",
-			hub.WithListener(tunnelLis),
-			hub.WithAuthBearer(verifyToken),
+	srv := holt.NewServer(
+		holt.WithLogger(zap.NewNop()),
+		holt.WithTunnel(holt.NewTunnel("",
+			holt.WithListener(tunnelLis),
+			holt.WithAuthBearer(verifyToken),
 		)),
-		hub.WithProxy(hub.NewProxy("",
-			hub.WithListener(proxyLis),
-			hub.WithMiddleware(marked),
+		holt.WithProxy(holt.NewProxy("",
+			holt.WithListener(proxyLis),
+			holt.WithMiddleware(marked),
 		)),
 	)
 
@@ -132,12 +133,12 @@ func TestServerBearerGuardsAttach(t *testing.T) {
 
 	tunnelLis := listen(t)
 
-	srv := hub.NewServer(
-		hub.WithTunnel(hub.NewTunnel("",
-			hub.WithListener(tunnelLis),
-			hub.WithAuthBearer(verifyToken),
+	srv := holt.NewServer(
+		holt.WithTunnel(holt.NewTunnel("",
+			holt.WithListener(tunnelLis),
+			holt.WithAuthBearer(verifyToken),
 		)),
-		hub.WithProxy(nil),
+		holt.WithProxy(nil),
 	)
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -188,7 +189,7 @@ func TestServerCustomMiddlewareIdentity(t *testing.T) {
 
 	type peerKey struct{}
 
-	headerAuth := hub.Middleware(func(next http.Handler) http.Handler {
+	headerAuth := holt.Middleware(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			peer := r.Header.Get("X-Peer")
 			if peer == "" {
@@ -209,13 +210,13 @@ func TestServerCustomMiddlewareIdentity(t *testing.T) {
 
 	tunnelLis := listen(t)
 
-	srv := hub.NewServer(
-		hub.WithTunnel(hub.NewTunnel("",
-			hub.WithListener(tunnelLis),
-			hub.WithMiddleware(headerAuth),
-			hub.WithIdentity(identity),
+	srv := holt.NewServer(
+		holt.WithTunnel(holt.NewTunnel("",
+			holt.WithListener(tunnelLis),
+			holt.WithMiddleware(headerAuth),
+			holt.WithIdentity(identity),
 		)),
-		hub.WithProxy(nil),
+		holt.WithProxy(nil),
 	)
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -248,9 +249,9 @@ func TestServerDevIdentity(t *testing.T) {
 
 	tunnelLis := listen(t)
 
-	srv := hub.NewServer(
-		hub.WithTunnel(hub.NewTunnel("", hub.WithListener(tunnelLis))),
-		hub.WithProxy(nil),
+	srv := holt.NewServer(
+		holt.WithTunnel(holt.NewTunnel("", holt.WithListener(tunnelLis))),
+		holt.WithProxy(nil),
 	)
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -261,7 +262,7 @@ func TestServerDevIdentity(t *testing.T) {
 
 	// One peer names itself; one claims nothing and gets a name.
 	for _, header := range []http.Header{
-		{hub.DevPeerHeader: {"carol"}},
+		{holt.DevPeerHeader: {"carol"}},
 		nil,
 	} {
 		go func() {
@@ -287,7 +288,7 @@ func TestServerDevIdentity(t *testing.T) {
 func TestServerValidation(t *testing.T) {
 	t.Parallel()
 
-	srv := hub.NewServer(hub.WithTunnel(nil), hub.WithProxy(nil))
+	srv := holt.NewServer(holt.WithTunnel(nil), holt.WithProxy(nil))
 	if err := srv.Run(t.Context()); err == nil {
 		t.Fatal("Run accepted a configuration with nothing to serve")
 	}
@@ -312,9 +313,9 @@ func TestServerDevIdentityIsLoopbackOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			srv := hub.NewServer(
-				hub.WithTunnel(hub.NewTunnel(tc.addr)),
-				hub.WithProxy(nil),
+			srv := holt.NewServer(
+				holt.WithTunnel(holt.NewTunnel(tc.addr)),
+				holt.WithProxy(nil),
 			)
 
 			if err := srv.Run(t.Context()); err == nil {
@@ -332,9 +333,9 @@ func TestServerBindFailureFailsFast(t *testing.T) {
 	taken := listen(t)
 	defer func() { _ = taken.Close() }()
 
-	srv := hub.NewServer(
-		hub.WithTunnel(hub.NewTunnel("127.0.0.1:0", hub.WithAuthBearer(verifyToken))),
-		hub.WithProxy(hub.NewProxy(taken.Addr().String())),
+	srv := holt.NewServer(
+		holt.WithTunnel(holt.NewTunnel("127.0.0.1:0", holt.WithAuthBearer(verifyToken))),
+		holt.WithProxy(holt.NewProxy(taken.Addr().String())),
 	)
 
 	if err := srv.Run(t.Context()); err == nil {

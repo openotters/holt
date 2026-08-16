@@ -20,7 +20,7 @@ bearer credential.
 Because the carrier is a WebSocket, the tunnel hostname can also sit
 behind an authenticating proxy such as Cloudflare Access with a
 service-token policy: peers send the proxy's headers with the upgrade
-(`holt expose --header`, or `dial.Options.Header` in the library).
+(`holt expose --header`, or `holt.WithHeader` in the library).
 
 The **admin** and **proxy** listeners have no built-in auth and bind to
 `127.0.0.1` by default. They are meant to stay on loopback or sit behind

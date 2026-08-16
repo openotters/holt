@@ -6,7 +6,7 @@
 // Nothing listens on the peer. The only inbound listener in the whole
 // program is the hub's — exactly the point of a reverse tunnel.
 //
-// The hub is hub.NewServer with no identity configured, so the
+// The hub is holt.New with no identity configured, so the
 // development identity applies: the peer names itself with the
 // x-holt-peer header, nothing verifies the claim, and the tunnel must
 // stay on loopback (see the `authenticated` example for a real
@@ -32,7 +32,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt/dial"
+	"github.com/openotters/holt"
 	"github.com/openotters/holt/hub"
 )
 
@@ -56,10 +56,10 @@ func run() error {
 		return err
 	}
 
-	srv := hub.NewServer(
-		hub.WithLogger(logger),
-		hub.WithTunnel(hub.NewTunnel("", hub.WithListener(lis))),
-		hub.WithProxy(nil),
+	srv := holt.NewServer(
+		holt.WithLogger(logger),
+		holt.WithTunnel(holt.NewTunnel("", holt.WithListener(lis))),
+		holt.WithProxy(nil),
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -77,13 +77,11 @@ func run() error {
 	})
 
 	go func() {
-		_ = dial.Run(ctx, dial.Options{
-			URL:     "ws://" + lis.Addr().String(),
-			Header:  http.Header{hub.DevPeerHeader: {"peer"}},
-			Handler: peerMux,
-			Version: "echo-demo",
-			Logger:  logger,
-		})
+		_ = holt.NewClient("ws://"+lis.Addr().String(), peerMux,
+			holt.WithHeader(holt.DevPeerHeader, "peer"),
+			holt.WithVersion("echo-demo"),
+			holt.WithLogger(logger),
+		).Run(ctx)
 	}()
 
 	// ── Wait for attach, then dial the peer through the tunnel ──────

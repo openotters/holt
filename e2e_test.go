@@ -159,18 +159,3 @@ func TestReverseTunnel_WSSAndKeepalive(t *testing.T) {
 		t.Fatalf("after keepalive stretch: body = %q, want pong", got)
 	}
 }
-
-func waitAttached(t *testing.T, r *hub.Registry, peer string) {
-	t.Helper()
-
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if r.Attached(peer) {
-			return
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	t.Fatal("peer never attached")
-}

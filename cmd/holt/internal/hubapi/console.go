@@ -5,10 +5,10 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/openotters/holt"
 	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
 	"github.com/openotters/holt/cmd/holt/internal/jwtauth"
 	"github.com/openotters/holt/cmd/holt/internal/webui"
+	"github.com/openotters/holt/internal/wire"
 )
 
 // Config is what GET /api/config reports to the console: the addresses
@@ -83,7 +83,7 @@ func (c Console) mountRotate(mux *http.ServeMux) {
 		c.Secret.Set(secret)
 
 		closed := c.Tunnels.CountTunnels()
-		c.Tunnels.StopAllTunnels(holt.ReasonTokenRevoked)
+		c.Tunnels.StopAllTunnels(wire.ReasonTokenRevoked)
 
 		c.Logger.Warn("hub signing secret rotated via console; tokens invalidated, tunnels closed",
 			zap.Int("closed_tunnels", closed))

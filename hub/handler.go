@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 
-	"github.com/openotters/holt"
+	"github.com/openotters/holt/internal/wire"
 )
 
 // pingInterval / pingTimeout drive the inner HTTP/2 session's PING
@@ -127,9 +127,9 @@ func (h *Handler) serve(ctx context.Context, peer string, c *websocket.Conn) {
 		trace.WithAttributes(attribute.String("holt.peer", peer)))
 	defer span.End()
 
-	fs := holt.NewWSStream(ctx, c)
+	fs := wire.NewWSStream(ctx, c)
 
-	hello, hsErr := holt.ServerHandshake(fs)
+	hello, hsErr := wire.ServerHandshake(fs)
 	if hsErr != nil {
 		span.SetStatus(codes.Error, "handshake failed")
 		h.logger.Warn("tunnel handshake failed", zap.String("peer", peer), zap.Error(hsErr))
@@ -145,7 +145,7 @@ func (h *Handler) serve(ctx context.Context, peer string, c *websocket.Conn) {
 	closeCtx, closeSession := context.WithCancelCause(ctx)
 	defer closeSession(nil)
 
-	conn := holt.NewConn(fs, holt.WithSides("hub", "peer"))
+	conn := wire.NewConn(fs, wire.WithSides("hub", "peer"))
 	// Seal the adapter LAST (LIFO): after cc.Close() has flushed its
 	// final frames, further transport-goroutine writes fail locally
 	// instead of reaching a finished handler's socket.
@@ -205,7 +205,7 @@ func (h *Handler) serve(ctx context.Context, peer string, c *websocket.Conn) {
 // conn, optionally wrapping it in a TLS client first (WithPeerTLS).
 // The holt framing handshake has already completed in plaintext on
 // conn; TLS, when configured, protects the payload, not the framing.
-func (h *Handler) clientConn(ctx context.Context, conn *holt.Conn) (*http2.ClientConn, error) {
+func (h *Handler) clientConn(ctx context.Context, conn *wire.Conn) (*http2.ClientConn, error) {
 	transport := &http2.Transport{
 		AllowHTTP:       true,
 		ReadIdleTimeout: pingInterval,

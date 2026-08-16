@@ -1,4 +1,4 @@
-package holt_test
+package wire_test
 
 import (
 	"bytes"
@@ -6,8 +6,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/openotters/holt"
 	holtv1 "github.com/openotters/holt/api/v1"
+	"github.com/openotters/holt/internal/wire"
 )
 
 // fakeStream is an in-memory FrameStream.
@@ -41,7 +41,7 @@ func TestConn_ReadDrainsDataFrames(t *testing.T) {
 	t.Parallel()
 
 	s := &fakeStream{queued: []*holtv1.TunnelFrame{data([]byte("hello ")), data([]byte("holt"))}}
-	c := holt.NewConn(s)
+	c := wire.NewConn(s)
 
 	got := make([]byte, 0, 13)
 	buf := make([]byte, 4)
@@ -68,9 +68,9 @@ func TestConn_WriteChunks(t *testing.T) {
 	t.Parallel()
 
 	s := &fakeStream{}
-	c := holt.NewConn(s)
+	c := wire.NewConn(s)
 
-	payload := bytes.Repeat([]byte("x"), holt.MaxDataFrame+100)
+	payload := bytes.Repeat([]byte("x"), wire.MaxDataFrame+100)
 	if _, err := c.Write(payload); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestConn_WriteChunks(t *testing.T) {
 	if len(s.sent) != 2 {
 		t.Fatalf("sent %d frames, want 2", len(s.sent))
 	}
-	if len(s.sent[0].GetData()) != holt.MaxDataFrame || len(s.sent[1].GetData()) != 100 {
+	if len(s.sent[0].GetData()) != wire.MaxDataFrame || len(s.sent[1].GetData()) != 100 {
 		t.Fatalf("bad chunk split: %d, %d", len(s.sent[0].GetData()), len(s.sent[1].GetData()))
 	}
 }
@@ -89,12 +89,12 @@ func TestConn_GoAwaySurfacesReason(t *testing.T) {
 	s := &fakeStream{queued: []*holtv1.TunnelFrame{
 		{Kind: &holtv1.TunnelFrame_GoAway{GoAway: &holtv1.GoAway{Reason: "superseded"}}},
 	}}
-	c := holt.NewConn(s)
+	c := wire.NewConn(s)
 
 	if _, err := c.Read(make([]byte, 8)); !errors.Is(err, io.EOF) {
 		t.Fatalf("read = %v, want EOF", err)
 	}
-	if r := holt.GoAwayReason(c.LastError()); r != "superseded" {
+	if r := wire.GoAwayReason(c.LastError()); r != "superseded" {
 		t.Fatalf("reason = %q", r)
 	}
 }
@@ -102,7 +102,7 @@ func TestConn_GoAwaySurfacesReason(t *testing.T) {
 func TestConn_SealedAfterClose(t *testing.T) {
 	t.Parallel()
 
-	c := holt.NewConn(&fakeStream{})
+	c := wire.NewConn(&fakeStream{})
 	_ = c.Close()
 
 	if _, err := c.Write([]byte("x")); !errors.Is(err, io.ErrClosedPipe) && err == nil {
@@ -125,11 +125,11 @@ func TestHandshake_RoundTrip(t *testing.T) {
 	}
 
 	server := &fakeStream{queued: toServer.sent}
-	hello, err := holt.ServerHandshake(server)
+	hello, err := wire.ServerHandshake(server)
 	if err != nil {
 		t.Fatalf("server handshake: %v", err)
 	}
-	if hello.GetProtocolVersion() != holt.ProtocolVersion {
+	if hello.GetProtocolVersion() != wire.ProtocolVersion {
 		t.Fatalf("hello version = %d", hello.GetProtocolVersion())
 	}
 
@@ -137,7 +137,7 @@ func TestHandshake_RoundTrip(t *testing.T) {
 	client := &fakeStream{queued: server.sent}
 	// Re-send hello (ClientHandshake sends then receives); a fresh
 	// stream that already has Welcome queued lets us assert accept.
-	if hsErr := holt.ClientHandshake(client, "test"); hsErr != nil {
+	if hsErr := wire.ClientHandshake(client, "test"); hsErr != nil {
 		t.Fatalf("client handshake: %v", hsErr)
 	}
 }
@@ -145,13 +145,13 @@ func TestHandshake_RoundTrip(t *testing.T) {
 func TestTerminalReason(t *testing.T) {
 	t.Parallel()
 
-	for _, r := range []string{holt.ReasonSuperseded, holt.ReasonTokenRevoked, holt.ReasonPeerStopping} {
-		if !holt.TerminalReason(r) {
+	for _, r := range []string{wire.ReasonSuperseded, wire.ReasonTokenRevoked, wire.ReasonPeerStopping} {
+		if !wire.TerminalReason(r) {
 			t.Errorf("%q should be terminal", r)
 		}
 	}
-	for _, r := range []string{holt.ReasonShuttingDown, "connection-lost", "whatever"} {
-		if holt.TerminalReason(r) {
+	for _, r := range []string{wire.ReasonShuttingDown, "connection-lost", "whatever"} {
+		if wire.TerminalReason(r) {
 			t.Errorf("%q should not be terminal", r)
 		}
 	}
@@ -159,8 +159,8 @@ func TestTerminalReason(t *testing.T) {
 
 // clientSendHello sends just the Hello frame (the first half of
 // ClientHandshake) so the server side can be tested in isolation.
-func clientSendHello(s holt.FrameStream) error {
+func clientSendHello(s wire.FrameStream) error {
 	return s.Send(&holtv1.TunnelFrame{
-		Kind: &holtv1.TunnelFrame_Hello{Hello: &holtv1.Hello{ProtocolVersion: holt.ProtocolVersion}},
+		Kind: &holtv1.TunnelFrame_Hello{Hello: &holtv1.Hello{ProtocolVersion: wire.ProtocolVersion}},
 	})
 }

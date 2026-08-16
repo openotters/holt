@@ -8,26 +8,31 @@ The `holt` CLI is one opinionated packaging (JWT auth, WebSocket
 transport, SQLite state). The library lets you bring your own auth and
 middleware. See [How it works](architecture.md) for the moving parts.
 
+Both halves live at the root of the module: `holt.NewClient` for the
+peer, `holt.NewServer` for the hub.
+
 Peer side:
 
 ```go
-dial.Run(ctx, dial.Options{
-    URL:     "wss://holt.example.com",  // ws for plaintext; http/https accepted as aliases
-    Header:  http.Header{"Authorization": {"Bearer " + token}},
-    Handler: myHandler, Version: build.Version, Logger: log,
-})
+c := holt.NewClient("wss://holt.example.com", myHandler,
+    holt.WithBearerToken(token),
+    holt.WithVersion(build.Version),
+    holt.WithLogger(log),
+)
+
+err := c.Run(ctx) // attaches, serves, redials with backoff; cancel to stop
 ```
 
-Hub side — `hub.NewServer` is `dial.Run`'s counterpart, the whole
+Hub side — `holt.NewServer` is `NewClient`'s counterpart, the whole
 server in one call:
 
 ```go
-srv := hub.NewServer(
-    hub.WithLogger(log),
-    hub.WithTunnel(hub.NewTunnel(":7000",     // where peers attach
-        hub.WithAuthBearer(peerForToken),     // token → peer id, 401s the rest
+srv := holt.NewServer(
+    holt.WithLogger(log),
+    holt.WithTunnel(holt.NewTunnel(":7000",     // where peers attach
+        holt.WithAuthBearer(peerForToken),      // token → peer id, 401s the rest
     )),
-    hub.WithProxy(hub.NewProxy(":7002")),     // reach peers: x-tunnel-peer header
+    holt.WithProxy(holt.NewProxy(":7002")),     // reach peers: x-tunnel-peer header
 )
 
 err := srv.Run(ctx) // binds (fail fast), serves, blocks; cancel to drain
@@ -36,7 +41,7 @@ err := srv.Run(ctx) // binds (fail fast), serves, blocks; cancel to drain
 client := &http.Client{Transport: srv.Registry().RoundTripper(peerID)}
 ```
 
-Zero configuration works too: `hub.NewServer().Run(ctx)` serves a
+Zero configuration works too: `holt.NewServer().Run(ctx)` serves a
 tunnel on `127.0.0.1:7000` and a proxy on `127.0.0.1:7002` with the
 **development identity** — peers name themselves with the
 `x-holt-peer` header (or get a generated name), nothing verifies the
@@ -57,28 +62,29 @@ come from something verified — never from what the peer asserts:
 ```go
 // Bearer tokens: one func from token to peer id does middleware and
 // identity both.
-hub.NewTunnel(":7000", hub.WithAuthBearer(peerForToken))
+holt.NewTunnel(":7000", holt.WithAuthBearer(peerForToken))
 
 // Any other scheme: middleware stamps the context, identity reads it
 // back (a client-cert CN here; see examples/transport-tls).
-hub.NewTunnel("", hub.WithListener(tlsLis),
-    hub.WithMiddleware(certIdentity), hub.WithIdentity(cnFromCtx))
+holt.NewTunnel("", holt.WithListener(tlsLis),
+    holt.WithMiddleware(certIdentity), holt.WithIdentity(cnFromCtx))
 
 // Inner TLS and tracing pass through to the attach handler:
-hub.NewTunnel(":7000", hub.WithHandlerOptions(hub.WithPeerTLS(cfg)))
+holt.NewTunnel(":7000", holt.WithHandlerOptions(hub.WithPeerTLS(cfg)))
 ```
 
 The proxy routes on the `x-tunnel-peer` header by default;
-`hub.WithRouting(proxy.RoutingBoth, "peers.example.com")` adds
-per-peer hostnames, and `hub.WithErrorHook` observes requests that
+`holt.WithRouting(proxy.RoutingBoth, "peers.example.com")` adds
+per-peer hostnames, and `holt.WithErrorHook` observes requests that
 could not be proxied. A request that names no peer, or names one that
 is not attached, never reaches a backend: it gets a bare page that
 says nothing about the hub (400 and 404 respectively, never a 502).
 
 ## Underneath: your own router
 
-`NewServer` assembles public pieces you can also mount yourself, for
-an application with its own HTTP server and lifecycle:
+`holt.NewServer` assembles public pieces from package `hub` you can
+also mount yourself, for an application with its own HTTP server and
+lifecycle (`dial.Run` is the same escape hatch on the client side):
 
 ```go
 registry := hub.NewRegistry(log)

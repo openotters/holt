@@ -28,6 +28,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/openotters/holt"
 	"github.com/openotters/holt/examples/certs"
 	"github.com/openotters/holt/hub"
 )
@@ -89,14 +90,14 @@ func run(addr, peerName string) error {
 		MinVersion:   tls.VersionTLS13,
 	})
 
-	srv := hub.NewServer(
-		hub.WithLogger(logger),
-		hub.WithTunnel(hub.NewTunnel("",
-			hub.WithListener(tlsLis),
-			hub.WithMiddleware(certIdentity),
-			hub.WithIdentity(identityFromCtx),
+	srv := holt.NewServer(
+		holt.WithLogger(logger),
+		holt.WithTunnel(holt.NewTunnel("",
+			holt.WithListener(tlsLis),
+			holt.WithMiddleware(certIdentity),
+			holt.WithIdentity(identityFromCtx),
 		)),
-		hub.WithProxy(nil),
+		holt.WithProxy(nil),
 	)
 
 	greetOnAttach(ctx, srv.Registry(), logger)

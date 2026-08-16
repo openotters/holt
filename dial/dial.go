@@ -26,7 +26,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 
-	"github.com/openotters/holt"
+	"github.com/openotters/holt/internal/wire"
 )
 
 const (
@@ -130,7 +130,7 @@ func Run(ctx context.Context, opts Options) error {
 			return ctx.Err()
 		}
 
-		if reason := holt.GoAwayReason(err); holt.TerminalReason(reason) {
+		if reason := wire.GoAwayReason(err); wire.TerminalReason(reason) {
 			logger.Info("hub detached the tunnel; not redialing", zap.String("reason", reason))
 
 			return nil
@@ -179,17 +179,17 @@ func attachOnce(ctx context.Context, wsURL string, opts Options, logger *zap.Log
 	}
 	defer func() { _ = c.CloseNow() }()
 
-	fs := holt.NewWSStream(ctx, c)
+	fs := wire.NewWSStream(ctx, c)
 
-	if hsErr := holt.ClientHandshake(fs, opts.Version); hsErr != nil {
+	if hsErr := wire.ClientHandshake(fs, opts.Version); hsErr != nil {
 		return false, hsErr
 	}
 
 	logger.Info("tunnel attached")
 
-	conn := holt.NewConn(fs,
-		holt.WithCloseFunc(func() error { return c.Close(websocket.StatusNormalClosure, "") }),
-		holt.WithSides("peer", "hub"))
+	conn := wire.NewConn(fs,
+		wire.WithCloseFunc(func() error { return c.Close(websocket.StatusNormalClosure, "") }),
+		wire.WithSides("peer", "hub"))
 
 	stopPings := startKeepalive(ctx, c, opts.Keepalive, logger)
 	defer stopPings()
