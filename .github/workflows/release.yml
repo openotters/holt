@@ -26,7 +26,24 @@ permissions:
   packages: write
 
 jobs:
+  # The quality gates, run against the tagged commit itself. A tag can
+  # be pushed at any commit (including one that never sat on a green
+  # main), so the release proves the checks pass here rather than
+  # trusting that they passed somewhere else.
+  lint:
+    uses: ./.github/workflows/golangci.yml
+  test:
+    uses: ./.github/workflows/test.yml
+  chart:
+    uses: ./.github/workflows/chart.yml
+  ui:
+    uses: ./.github/workflows/ui.yml
+
   release:
+    # Nothing is published unless all four pass: goreleaser writes a
+    # GitHub release, pushes images and the chart to ghcr, and updates
+    # the homebrew tap, none of which can be taken back cleanly.
+    needs: [lint, test, chart, ui]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

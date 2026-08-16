@@ -18,6 +18,10 @@ on:
       - 'cmd/holt/ui/**'
       - '.github/workflows/ui.yml'
 
+  # Called by the release workflow: the release publishes this, so
+  # it must not ship broken.
+  workflow_call:
+
 permissions:
   contents: read
 

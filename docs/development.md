@@ -25,6 +25,22 @@ is generated, not tracked: `task ui:build` populates it, and goreleaser
 rebuilds it before a release. A source checkout that skips the build
 compiles fine and the console shows a "not built" message.
 
+## Releasing
+
+A `v*` tag publishes: goreleaser writes the GitHub release, pushes the
+images and the Helm chart to ghcr, and updates the homebrew tap.
+
+The release workflow runs the lint, test, chart, and UI checks against
+the tagged commit first, and publishes nothing unless all four pass. A
+tag can be pushed at any commit, including one that never sat on a
+green main, so the gate proves the checks pass *there* rather than
+trusting they passed somewhere else.
+
+Locally, run the same checks with `task check` before tagging. Use
+`GOWORK=off` for lint and test parity: the workspace's parent
+`go.work` changes which packages the linter loads, so a run without it
+can be greener than CI.
+
 ## Layout
 
 - root package: the front door — `NewServer`, `NewClient`, and their
