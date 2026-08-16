@@ -14,10 +14,10 @@
 // where registry is a *hub.Registry (or anything else satisfying
 // Peers). Subdomain routing and an observability hook are options:
 //
-//	resolver, err := proxy.RoutingBoth.Resolver("peers.example.com")
+//	resolvers, err := proxy.RoutingBoth.Resolvers("peers.example.com")
 //	// handle err — a bad strategy/domain pair fails here, at boot
 //	p := proxy.New(registry,
-//		proxy.WithResolver(resolver),
+//		proxy.WithResolvers(resolvers...),
 //		proxy.WithErrorHook(func(ctx context.Context, reason string) {
 //			errors.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
 //		}),
@@ -63,21 +63,23 @@ const (
 // Proxy routes inbound requests to attached peers. Build it with New;
 // the zero value is not usable.
 type Proxy struct {
-	peers    Peers
-	resolver Resolver
-	onError  ErrorHook
-	reverse  *httputil.ReverseProxy
+	peers     Peers
+	resolvers []Resolver
+	onError   ErrorHook
+	reverse   *httputil.ReverseProxy
 }
 
 // Option configures a Proxy.
 type Option func(*Proxy)
 
-// WithResolver sets how the target peer is picked. Build one from
-// configuration with Routing.Resolver — which rejects unusable
-// strategy/domain pairs at boot — or compose your own from
-// ResolveByHeader, ResolveBySubdomain, and ResolveFirst.
-func WithResolver(resolver Resolver) Option {
-	return func(p *Proxy) { p.resolver = resolver }
+// WithResolvers sets how the target peer is picked: the resolvers
+// are tried in order and the first peer named wins. Build the chain
+// from configuration with Routing.Resolvers — which rejects unusable
+// strategy/domain pairs at boot — and slot in anything else that
+// implements Resolver. Repeatable; later calls append to the chain,
+// and any call replaces the header-routing default.
+func WithResolvers(resolvers ...Resolver) Option {
+	return func(p *Proxy) { p.resolvers = append(p.resolvers, resolvers...) }
 }
 
 // WithErrorHook registers an observer for requests that could not be
@@ -90,14 +92,18 @@ func WithErrorHook(hook ErrorHook) Option {
 // the x-tunnel-peer header alone.
 func New(peers Peers, opts ...Option) *Proxy {
 	p := &Proxy{
-		peers:    peers,
-		resolver: ResolveByHeader(),
-		onError:  nil,
-		reverse:  nil,
+		peers:     peers,
+		resolvers: nil, // defaulted below, after the options ran
+		onError:   nil,
+		reverse:   nil,
 	}
 
 	for _, opt := range opts {
 		opt(p)
+	}
+
+	if len(p.resolvers) == 0 {
+		p.resolvers = []Resolver{ResolveByHeader()}
 	}
 
 	p.reverse = &httputil.ReverseProxy{
@@ -124,7 +130,7 @@ const peerHost = "peer.invalid"
 // names none gets the landing page rather than a proxied request, so
 // hitting the proxy root never turns into a 502.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	peer := p.resolver.Peer(r)
+	peer := p.peer(r)
 	if peer == "" {
 		p.record(r.Context(), ReasonNoPeer)
 		writePage(w, r, http.StatusBadRequest)
@@ -136,6 +142,18 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// downstream routes the one way.
 	r.Header.Set(RouteHeader, peer)
 	p.reverse.ServeHTTP(w, r)
+}
+
+// peer runs the resolver chain: the first resolver that names a peer
+// wins, "" when none does.
+func (p *Proxy) peer(r *http.Request) string {
+	for _, resolver := range p.resolvers {
+		if peer := resolver.Peer(r); peer != "" {
+			return peer
+		}
+	}
+
+	return ""
 }
 
 // record notifies the error hook, if one is registered.

@@ -65,7 +65,9 @@ func run(hubURL, token string) error {
 	//
 	// Run blocks, redialing with backoff, until ctx ends or the
 	// hub sends a terminal GoAway.
-	if err := holt.NewClient(hubURL, mux,
+	if err := holt.NewClient(
+		hubURL,
+		mux,
 		holt.WithBearerToken(token),
 		holt.WithVersion("client-server-demo"),
 		holt.WithLogger(logger),

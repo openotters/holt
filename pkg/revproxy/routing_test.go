@@ -69,13 +69,21 @@ func TestRoutingResolverPeer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			resolver, err := tc.routing.Resolver(tc.domain)
+			resolvers, err := tc.routing.Resolvers(tc.domain)
 			if err != nil {
-				t.Fatalf("Resolver() = %v", err)
+				t.Fatalf("Resolvers() = %v", err)
 			}
 
-			if got := resolver.Peer(request(t, tc.host, tc.header)); got != tc.want {
-				t.Fatalf("Peer() = %q, want %q", got, tc.want)
+			got := ""
+
+			for _, resolver := range resolvers {
+				if got = resolver.Peer(request(t, tc.host, tc.header)); got != "" {
+					break
+				}
+			}
+
+			if got != tc.want {
+				t.Fatalf("chain resolved %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -103,16 +111,22 @@ func TestRoutingResolverErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := tc.routing.Resolver(tc.domain); !errors.Is(err, tc.want) {
-				t.Fatalf("Resolver() error = %v, want %v", err, tc.want)
+			if _, err := tc.routing.Resolvers(tc.domain); !errors.Is(err, tc.want) {
+				t.Fatalf("Resolvers() error = %v, want %v", err, tc.want)
 			}
 		})
 	}
 }
 
-// ResolveFirst composes strategies in order; custom resolvers slot in
-// next to the built-ins.
-func TestResolveFirst(t *testing.T) {
+// queryResolver is a custom Resolver — anything implementing the
+// interface slots into the chain next to the built-ins.
+type queryResolver struct{}
+
+func (queryResolver) Peer(req *http.Request) string { return req.URL.Query().Get("peer") }
+
+// The proxy tries its resolvers in order and the first peer named
+// wins; a custom implementation composes with the built-ins.
+func TestResolverChainFirstWins(t *testing.T) {
 	t.Parallel()
 
 	sub, err := revproxy.ResolveBySubdomain("peers.example.com")
@@ -120,17 +134,36 @@ func TestResolveFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resolver := revproxy.ResolveFirst(revproxy.ResolveByHeader(), sub)
+	chain := []revproxy.Resolver{revproxy.ResolveByHeader(), sub, queryResolver{}}
 
-	if got := resolver.Peer(request(t, "bob.peers.example.com", "alice")); got != "alice" {
+	peer := func(host, header, target string) string {
+		r := request(t, host, header)
+		if target != "" {
+			r.URL.RawQuery = "peer=" + target
+		}
+
+		for _, resolver := range chain {
+			if got := resolver.Peer(r); got != "" {
+				return got
+			}
+		}
+
+		return ""
+	}
+
+	if got := peer("bob.peers.example.com", "alice", "carol"); got != "alice" {
 		t.Fatalf("header should win, got %q", got)
 	}
 
-	if got := resolver.Peer(request(t, "bob.peers.example.com", "")); got != "bob" {
-		t.Fatalf("subdomain fallback, got %q", got)
+	if got := peer("bob.peers.example.com", "", "carol"); got != "bob" {
+		t.Fatalf("subdomain before the custom resolver, got %q", got)
 	}
 
-	if got := revproxy.ResolveFirst().Peer(request(t, "x", "")); got != "" {
-		t.Fatalf("empty chain resolves nothing, got %q", got)
+	if got := peer("elsewhere.example.net", "", "carol"); got != "carol" {
+		t.Fatalf("custom resolver as the last resort, got %q", got)
+	}
+
+	if got := peer("elsewhere.example.net", "", ""); got != "" {
+		t.Fatalf("nothing named resolves nothing, got %q", got)
 	}
 }

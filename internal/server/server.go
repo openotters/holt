@@ -180,7 +180,7 @@ func (s *Server) validate() error {
 	// A routing strategy that cannot resolve (unknown, or a mismatched
 	// domain) is refused here rather than served routing nothing.
 	if hasProxy && s.proxyd.Routing != "" {
-		if _, err := s.proxyd.Routing.Resolver(s.proxyd.Domain); err != nil {
+		if _, err := s.proxyd.Routing.Resolvers(s.proxyd.Domain); err != nil {
 			return fmt.Errorf("holt: %w", err)
 		}
 	}
@@ -242,22 +242,12 @@ func (s *Server) start(ctx context.Context) ([]*http.Server, error) {
 	}
 
 	if s.proxyd != nil && s.proxyd.Configured() {
-		opts := s.proxyd.Opts
+		handler, err := s.proxyHandler()
+		if err != nil {
+			closeAll(servers)
 
-		// validate already rejected an unresolvable pair; a blank
-		// strategy keeps the revproxy default (header routing).
-		if s.proxyd.Routing != "" {
-			resolver, err := s.proxyd.Routing.Resolver(s.proxyd.Domain)
-			if err != nil {
-				closeAll(servers)
-
-				return nil, fmt.Errorf("holt: %w", err)
-			}
-
-			opts = append(opts, revproxy.WithResolver(resolver))
+			return nil, err
 		}
-
-		handler := s.proxyd.Wrap(revproxy.New(s.registry, opts...))
 
 		srv, err := s.serve(ctx, "proxy", s.proxyd.Endpoint, handler)
 		if err != nil {
@@ -270,6 +260,32 @@ func (s *Server) start(ctx context.Context) ([]*http.Server, error) {
 	}
 
 	return servers, nil
+}
+
+// proxyHandler builds the data plane from the endpoint's declaration.
+// The resolver chain puts the configured strategy's resolvers first
+// (validate already rejected an unresolvable pair), then the custom
+// ones; with neither, the revproxy default (header routing) applies.
+func (s *Server) proxyHandler() (http.Handler, error) {
+	var chain []revproxy.Resolver
+
+	if s.proxyd.Routing != "" {
+		resolvers, err := s.proxyd.Routing.Resolvers(s.proxyd.Domain)
+		if err != nil {
+			return nil, fmt.Errorf("holt: %w", err)
+		}
+
+		chain = append(chain, resolvers...)
+	}
+
+	chain = append(chain, s.proxyd.Resolvers...)
+
+	opts := s.proxyd.Opts
+	if len(chain) > 0 {
+		opts = append(opts, revproxy.WithResolvers(chain...))
+	}
+
+	return s.proxyd.Wrap(revproxy.New(s.registry, opts...)), nil
 }
 
 // serve binds the endpoint (unless the caller brought a listener) and

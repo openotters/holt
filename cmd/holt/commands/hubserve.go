@@ -121,13 +121,13 @@ func (h *Hub) adminHosts() []string {
 
 // startProxy runs the routed reverse proxy that reaches peer services.
 func (h *Hub) startProxy(ctx context.Context, listeners *httpsrv.Group, rt *hubRuntime) error {
-	resolver, err := h.routing().Resolver(h.ProxyDomain)
+	resolvers, err := h.routing().Resolvers(h.ProxyDomain)
 	if err != nil {
 		return err
 	}
 
 	peers := revproxy.New(rt.registry,
-		revproxy.WithResolver(resolver),
+		revproxy.WithResolvers(resolvers...),
 		revproxy.WithErrorHook(rt.metrics.RecordProxyError),
 	)
 

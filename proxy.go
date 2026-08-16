@@ -14,8 +14,20 @@ type ProxyOption = proxy.Option
 
 // NewProxy declares the peer-reaching reverse proxy on addr. By
 // default it routes on the x-tunnel-peer header; WithRouting adds
-// subdomain routing, WithErrorHook observability.
+// subdomain routing, WithResolvers custom resolution, WithErrorHook
+// observability.
 func NewProxy(addr string, opts ...ProxyOption) *Proxy { return proxy.NewProxy(addr, opts...) }
+
+// Resolver maps an inbound proxy request to the peer it targets, or
+// "" when the request names none. The proxy tries its resolvers in
+// order and the first peer named wins — implement this to route on
+// anything the built-in strategies do not cover.
+type Resolver = revproxy.Resolver
+
+// WithResolvers appends custom resolvers to the proxy's chain, tried
+// after the ones WithRouting names (or instead of the header default
+// when no strategy is configured). Repeatable.
+func WithResolvers(resolvers ...Resolver) ProxyOption { return proxy.WithResolvers(resolvers...) }
 
 // Routing selects how the proxy picks the target peer from a request.
 type Routing = revproxy.Routing

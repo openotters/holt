@@ -172,7 +172,7 @@ func TestProxiesToAttachedPeer(t *testing.T) {
 
 	revproxy.New(
 		fakePeers{tunnels: map[string]http.RoundTripper{"alice": alice}},
-		revproxy.WithResolver(subdomains),
+		revproxy.WithResolvers(subdomains),
 	).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusTeapot {

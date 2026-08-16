@@ -19,6 +19,9 @@ type Proxy struct {
 	// resolves them at Run, so a bad pair fails before binding.
 	Routing revproxy.Routing
 	Domain  string
+
+	// Resolvers are custom resolvers appended after the strategy's.
+	Resolvers []revproxy.Resolver
 }
 
 // Option configures a Proxy; every EndpointOption is one too.
@@ -48,6 +51,13 @@ func NewProxy(addr string, opts ...Option) *Proxy {
 // proxy that routes nothing. See revproxy.Routing.
 func WithRouting(routing revproxy.Routing, domain string) Option {
 	return proxyOption(func(p *Proxy) { p.Routing, p.Domain = routing, domain })
+}
+
+// WithResolvers appends custom resolvers to the chain, tried after
+// the ones WithRouting names (or instead of the default when no
+// strategy is configured). Repeatable.
+func WithResolvers(resolvers ...revproxy.Resolver) Option {
+	return proxyOption(func(p *Proxy) { p.Resolvers = append(p.Resolvers, resolvers...) })
 }
 
 // WithErrorHook observes requests the proxy could not serve, with a

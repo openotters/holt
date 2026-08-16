@@ -65,27 +65,9 @@ func (s subdomainResolver) Peer(req *http.Request) string {
 	return strings.TrimSuffix(host, s.suffix)
 }
 
-// ResolveFirst tries each resolver in order and returns the first
-// peer named. It is how strategies compose: put the explicit signal
-// (the header) before the inferred one (the hostname).
-func ResolveFirst(resolvers ...Resolver) Resolver { return firstResolver(resolvers) }
-
-// firstResolver implements ResolveFirst.
-type firstResolver []Resolver
-
-func (f firstResolver) Peer(req *http.Request) string {
-	for _, r := range f {
-		if peer := r.Peer(req); peer != "" {
-			return peer
-		}
-	}
-
-	return ""
-}
-
 // Routing is the configuration vocabulary for the built-in
 // strategies, as spelled in CLI flags and deployment values. It is
-// turned into behavior in exactly one place — Resolver — so an
+// turned into behavior in exactly one place — Resolvers — so an
 // invalid strategy or a mismatched domain is an error there, never a
 // proxy that silently drops every request.
 type Routing string
@@ -111,33 +93,36 @@ var ErrUnusedDomain = errors.New("header routing does not use a base domain; use
 // header, subdomain, or both.
 var ErrUnknownRouting = errors.New("unknown routing strategy")
 
-// Resolver builds the resolver the configured strategy names, with
-// domain as the base domain for the subdomain strategies. Callers can
-// wrap the error with their own configuration hint; errors.Is against
-// ErrNoDomain, ErrUnusedDomain, and ErrUnknownRouting keeps working
-// through the wrap.
-func (r Routing) Resolver(domain string) (Resolver, error) {
+// Resolvers builds the resolver chain the configured strategy names
+// — tried in order, first peer named wins — with domain as the base
+// domain for the subdomain strategies. Callers can wrap the error
+// with their own configuration hint; errors.Is against ErrNoDomain,
+// ErrUnusedDomain, and ErrUnknownRouting keeps working through the
+// wrap.
+func (r Routing) Resolvers(domain string) ([]Resolver, error) {
 	switch r {
 	case RoutingHeader:
 		if strings.Trim(domain, ".") != "" {
 			return nil, fmt.Errorf("proxy routing %q: %w", r, ErrUnusedDomain)
 		}
 
-		return ResolveByHeader(), nil
+		return []Resolver{ResolveByHeader()}, nil
 	case RoutingSubdomain:
 		sub, err := ResolveBySubdomain(domain)
 		if err != nil {
 			return nil, fmt.Errorf("proxy routing %q: %w", r, err)
 		}
 
-		return sub, nil
+		return []Resolver{sub}, nil
 	case RoutingBoth:
 		sub, err := ResolveBySubdomain(domain)
 		if err != nil {
 			return nil, fmt.Errorf("proxy routing %q: %w", r, err)
 		}
 
-		return ResolveFirst(ResolveByHeader(), sub), nil
+		// The explicit signal (the header) before the inferred one
+		// (the hostname).
+		return []Resolver{ResolveByHeader(), sub}, nil
 	default:
 		return nil, fmt.Errorf("proxy routing %q: %w", r, ErrUnknownRouting)
 	}

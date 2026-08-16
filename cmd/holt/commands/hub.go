@@ -29,12 +29,12 @@ type Hub struct {
 	ProxyAddr  string `help:"Header-routed proxy to reach peer services (x-tunnel-peer)." default:"127.0.0.1:7002"`
 	State      string `help:"Directory for the hub JWT secret + state (default: ~/.holt)." type:"path"`
 
-	// Presence backend: by default the tunnel-presence directory shares
-	// the local SQLite state DB. A PostgreSQL DSN moves it to a shared
-	// database instead, so a fleet of hubs can see which peer is
-	// attached where. The JWT secret and blocklist stay local either
-	// way — this is presence only.
-	DirectoryDSN string        `help:"PostgreSQL DSN for a shared presence directory (e.g. postgres://user:pass@host/db). Empty keeps presence in the local SQLite state." name:"directory-dsn"`
+	// Storage backend for tunnel presence AND the peer denylist: by
+	// default both share the local SQLite state DB. A PostgreSQL DSN
+	// moves them to a shared database instead, so a fleet of hubs sees
+	// which peer is attached where and shares its blocks. The JWT
+	// secret stays local either way.
+	DirectoryDSN string        `help:"PostgreSQL DSN for a shared presence directory + blocklist (e.g. postgres://user:pass@host/db). Empty keeps both in the local SQLite state." name:"directory-dsn"`
 	UI           bool          `help:"Serve the web console (and its enroll endpoint) on the admin listener."`
 	UIPath       string        `help:"Serve the console from this directory instead of the embedded build." type:"path"`
 	TokenTTL     time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
@@ -87,7 +87,7 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 	// Subdomain routing without a domain to strip would match every
 	// host and route to nonsense; a domain the strategy never reads is
 	// just as misleading. Fail at boot, not per request.
-	if _, err := h.routing().Resolver(h.ProxyDomain); err != nil {
+	if _, err := h.routing().Resolvers(h.ProxyDomain); err != nil {
 		return fmt.Errorf("%w (--proxy-routing / --proxy-domain)", err)
 	}
 
@@ -99,8 +99,8 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 		return err
 	}
 
-	// Everything else (blocklist, tunnel presence) lives in a SQLite DB
-	// alongside it.
+	// The local SQLite DB alongside it is the default backend for
+	// tunnel presence and the blocklist (see openBackends).
 	st, err := store.Open(h.State)
 	if err != nil {
 		return err
