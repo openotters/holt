@@ -8,6 +8,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/openotters/holt/pkg/reqlog"
 )
 
 // instrumentName is the OTel instrumentation scope for the proxy.
@@ -54,57 +56,28 @@ func (m *metrics) recordError(ctx context.Context, reason string) {
 }
 
 // observe wraps one request with the in-flight, duration and
-// per-status-code counters. The status code is the only attribute:
-// a peer label would multiply every series by the fleet size.
-func (m *metrics) observe(w http.ResponseWriter, r *http.Request, serve func(http.ResponseWriter, *http.Request)) {
+// per-status-code counters, and returns what the request became —
+// the peer it reached, the status, and how long it took — so the
+// caller can report it. The status code is the only metric attribute:
+// a peer label would multiply every series by the fleet size, which
+// is why the peer travels through the hook instead.
+func (m *metrics) observe(
+	w http.ResponseWriter, r *http.Request, serve func(http.ResponseWriter, *http.Request) string,
+) (string, int, time.Duration) {
 	ctx := r.Context()
 
 	m.inflight.Add(ctx, 1)
 	defer m.inflight.Add(ctx, -1)
 
 	start := time.Now()
-	rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+	rec := reqlog.NewRecorder(w)
 
-	serve(rec, r)
+	peer := serve(rec, r)
+	took := time.Since(start)
 
-	attrs := metric.WithAttributes(attribute.Int("code", rec.status))
+	attrs := metric.WithAttributes(attribute.Int("code", rec.Status()))
 	m.requests.Add(ctx, 1, attrs)
-	m.duration.Record(ctx, time.Since(start).Seconds(), attrs)
+	m.duration.Record(ctx, took.Seconds(), attrs)
+
+	return peer, rec.Status(), took
 }
-
-// statusRecorder captures the response status code for the metrics.
-// It forwards Flush and Unwrap, so streaming responses (the proxy
-// flushes immediately) and any handler that unwraps the writer keep
-// working through it.
-type statusRecorder struct {
-	http.ResponseWriter
-	status  int
-	written bool
-}
-
-func (s *statusRecorder) WriteHeader(code int) {
-	if !s.written {
-		s.status = code
-		s.written = true
-	}
-
-	s.ResponseWriter.WriteHeader(code)
-}
-
-func (s *statusRecorder) Write(b []byte) (int, error) {
-	s.written = true
-
-	return s.ResponseWriter.Write(b)
-}
-
-// Flush keeps the proxy's immediate flushing working: without it the
-// wrapper would hide the underlying Flusher and responses would buffer.
-func (s *statusRecorder) Flush() {
-	if f, ok := s.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
-}
-
-// Unwrap lets http.ResponseController reach the real writer (hijack,
-// deadlines), which the standard library looks for.
-func (s *statusRecorder) Unwrap() http.ResponseWriter { return s.ResponseWriter }

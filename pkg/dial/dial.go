@@ -28,6 +28,7 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/openotters/holt/internal/wire"
+	"github.com/openotters/holt/pkg/reqlog"
 	"github.com/openotters/holt/pkg/tunneltype"
 )
 
@@ -80,6 +81,12 @@ type Options struct {
 	// is 1 while a tunnel is up). Optional: without it the global
 	// provider is used, a no-op until an SDK is installed.
 	MeterProvider metric.MeterProvider
+
+	// RequestHook reports every request this peer served over the
+	// tunnel, once its handler is done. Nothing is stored. The holt
+	// CLI prints it, which is what makes `holt expose` show traffic
+	// as it happens.
+	RequestHook reqlog.Hook
 
 	// TunnelType is what this peer carries, declared at attach so the
 	// hub records it, reports it, and can refuse what it cannot serve.
@@ -287,10 +294,20 @@ func attachOnce(
 		served = tlsConn
 	}
 
+	// Every request the peer serves is counted, and reported to the
+	// hook when there is one.
+	handler := reqlog.Middleware(func(ev reqlog.Event) {
+		obs.recordRequest(ctx, ev.Status, ev.Duration)
+
+		if opts.RequestHook != nil {
+			opts.RequestHook(ev)
+		}
+	}, opts.Handler)
+
 	srv := &http2.Server{ReadIdleTimeout: readIdleTimeout}
 	srv.ServeConn(served, &http2.ServeConnOpts{
 		Context: ctx,
-		Handler: opts.Handler,
+		Handler: handler,
 	})
 
 	if lastErr := conn.LastError(); lastErr != nil {

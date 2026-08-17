@@ -31,8 +31,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httputil"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/openotters/holt/pkg/reqlog"
 )
 
 // Peers is the live-tunnel half of the hub the proxy dials through.
@@ -68,6 +71,7 @@ type Proxy struct {
 	peers     Peers
 	resolvers []Resolver
 	onError   ErrorHook
+	onRequest reqlog.Hook
 	metrics   *metrics
 	reverse   *httputil.ReverseProxy
 }
@@ -92,6 +96,15 @@ func WithErrorHook(hook ErrorHook) Option {
 	return func(p *Proxy) { p.onError = hook }
 }
 
+// WithRequestHook reports every request the proxy carried, once the
+// response is done: which peer it went to, what it was, what came
+// back, and how long it took including the tunnel hop. Nothing is
+// stored; what the hook does with the event is the caller's business.
+// The holt CLI prints it.
+func WithRequestHook(hook reqlog.Hook) Option {
+	return func(p *Proxy) { p.onRequest = hook }
+}
+
 // WithMeterProvider sets the OTel MeterProvider the data-plane
 // instruments are built from (holt.proxy.requests, .request.duration,
 // .inflight, .errors). Optional: without it the global provider is
@@ -107,6 +120,7 @@ func New(peers Peers, opts ...Option) *Proxy {
 		peers:     peers,
 		resolvers: nil, // defaulted below, after the options ran
 		onError:   nil,
+		onRequest: nil,
 		metrics:   nil,
 		reverse:   nil,
 	}
@@ -147,23 +161,38 @@ const peerHost = "peer.invalid"
 // names none gets the landing page rather than a proxied request, so
 // hitting the proxy root never turns into a 502.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	p.metrics.observe(w, r, p.serve)
+	method, path := r.Method, r.URL.Path
+
+	peer, status, took := p.metrics.observe(w, r, p.serve)
+	if p.onRequest == nil {
+		return
+	}
+
+	// Reported after the response, on this goroutine: a hook that
+	// blocks holds the request it describes, which is the caller's
+	// problem to keep cheap.
+	p.onRequest(reqlog.Event{
+		At: time.Now(), Peer: peer, Method: method, Path: path, Status: status, Duration: took,
+	})
 }
 
-// serve is the routing itself, wrapped by the instruments above.
-func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
+// serve is the routing itself, wrapped by the instruments above. It
+// returns the peer it routed to, empty when the request named none.
+func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) string {
 	peer := p.peer(r)
 	if peer == "" {
 		p.record(r.Context(), ReasonNoPeer)
 		writePage(w, r, http.StatusBadRequest)
 
-		return
+		return ""
 	}
 
 	// A subdomain hit is normalised onto the header here, so everything
 	// downstream routes the one way.
 	r.Header.Set(RouteHeader, peer)
 	p.reverse.ServeHTTP(w, r)
+
+	return peer
 }
 
 // peer runs the resolver chain: the first resolver that names a peer

@@ -6,8 +6,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt/internal/client"
+	"github.com/openotters/holt/internal/proxy"
 	"github.com/openotters/holt/internal/server"
 	"github.com/openotters/holt/internal/utils"
+	"github.com/openotters/holt/pkg/reqlog"
 )
 
 // SharedOption configures either half: it is accepted by both
@@ -63,4 +65,40 @@ func WithListener(lis net.Listener) EndpointOption {
 // outermost. Repeatable; later calls append.
 func WithMiddleware(middleware ...Middleware) EndpointOption {
 	return endpointOption(func(e *utils.Endpoint) { e.Middleware = append(e.Middleware, middleware...) })
+}
+
+// RequestEvent is one request crossing a tunnel: what it was, what
+// came back, how long it took, and (on the hub) which peer it went to.
+type RequestEvent = reqlog.Event
+
+// RequestHook receives one RequestEvent per request, after the
+// response. It runs on the request's goroutine, so keep it cheap.
+type RequestHook = reqlog.Hook
+
+// WatchOption configures a live request view. It fits either end: on
+// NewProxy the hub reports every request it carried for every peer, on
+// NewClient the peer reports the ones its own handler served.
+type WatchOption interface {
+	ProxyOption
+	ClientOption
+}
+
+// watchOption implements WatchOption over both halves.
+type watchOption struct {
+	proxy  ProxyOption
+	client ClientOption
+}
+
+func (o watchOption) ApplyProxy(p *Proxy)   { o.proxy.ApplyProxy(p) }
+func (o watchOption) ApplyClient(c *Client) { o.client.ApplyClient(c) }
+
+// WithRequestHook reports every request as it completes — the live
+// view the CLI prints, available to anything embedding either half.
+// Nothing is stored; what the hook does with the event is yours.
+// The hub's duration includes the tunnel hop, the peer's does not.
+func WithRequestHook(hook RequestHook) WatchOption {
+	return watchOption{
+		proxy:  proxy.WithRequestHook(hook),
+		client: client.WithRequestHook(hook),
+	}
 }

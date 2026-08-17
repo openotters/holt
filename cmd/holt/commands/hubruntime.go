@@ -11,6 +11,7 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/admin"
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
 	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
+	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/pkg/blocklist"
 	"github.com/openotters/holt/pkg/directory/sqldir"
 	"github.com/openotters/holt/pkg/jwtauth"
@@ -30,6 +31,7 @@ type hubRuntime struct {
 	metrics  *hubmetrics.Metrics
 	info     admin.HubInfo
 	logger   *zap.Logger
+	out      *style.Output
 }
 
 // newRuntime wires the shared pieces together over the opened
@@ -37,7 +39,7 @@ type hubRuntime struct {
 // previous run are cleared here, before any listener can accept an
 // attach.
 func (h *Hub) newRuntime(
-	ctx context.Context, commons *c.Commons, logger *zap.Logger,
+	ctx context.Context, commons *c.Commons, logger *zap.Logger, out *style.Output,
 	dir *sqldir.Directory, blockStore blocklist.Store, identity hubsecret.Store, secret []byte,
 ) (*hubRuntime, error) {
 	registry := registry.NewRegistry(logger, registry.WithHubID(hostname()), registry.WithDirectory(dir))
@@ -58,6 +60,7 @@ func (h *Hub) newRuntime(
 		metrics:  hubmetrics.New(commons.Version.Version(), commons.Version.Commit()),
 		info:     h.adminInfo(commons),
 		logger:   logger,
+		out:      out,
 	}, nil
 }
 

@@ -59,6 +59,7 @@ What you get:
   reach it directly
 - a WebSocket transport, so the tunnel passes through Cloudflare,
   ingresses and access proxies (gRPC does not pass there)
+- a live view of the requests going through, on both ends
 - a web console, Prometheus metrics and a Grafana dashboard
 - a Helm chart, and a shared PostgreSQL when you run several hubs
 
@@ -81,6 +82,14 @@ Then reach the peer *through* the hub:
 
 ```sh
 curl -H 'x-tunnel-peer: web' http://127.0.0.1:7202/
+```
+
+Both commands print the traffic as it happens, so you see what your
+service answered without opening a log file:
+
+```
+15:04:05  GET    /                          200  1ms
+15:04:06  GET    /missing                   404  628µs
 ```
 
 Drop `--peer` and it enrolls under a generated name (`cosy-eddy-aec23e`); from another

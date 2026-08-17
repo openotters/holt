@@ -34,6 +34,8 @@ type metrics struct {
 	attaches metric.Int64Counter     // successful attaches
 	failures metric.Int64Counter     // failed attempts, by reason
 	sessions metric.Float64Histogram // how long a tunnel lasted, seconds
+	requests metric.Int64Counter     // requests served, by status code
+	served   metric.Float64Histogram // how long the peer's handler took
 
 	// attached is 1 while a tunnel is up, read by an observable gauge
 	// on every scrape rather than written on a schedule.
@@ -54,6 +56,10 @@ func newMetrics(mp metric.MeterProvider) *metrics {
 		metric.WithDescription("Attach attempts that failed, by reason"))
 	m.sessions, _ = meter.Float64Histogram("holt.peer.session.duration",
 		metric.WithUnit("s"), metric.WithDescription("How long an attached tunnel lasted"))
+	m.requests, _ = meter.Int64Counter("holt.peer.requests",
+		metric.WithDescription("Requests this peer served over the tunnel, by status code"))
+	m.served, _ = meter.Float64Histogram("holt.peer.request.duration",
+		metric.WithUnit("s"), metric.WithDescription("How long this peer's handler took"))
 
 	_, _ = meter.Int64ObservableGauge("holt.peer.attached",
 		metric.WithDescription("1 while this peer has a live tunnel, 0 otherwise"),
@@ -81,6 +87,15 @@ func (m *metrics) recordAttach(ctx context.Context) {
 func (m *metrics) recordDetach(ctx context.Context, since time.Time) {
 	m.attached.Store(0)
 	m.sessions.Record(ctx, time.Since(since).Seconds())
+}
+
+// recordRequest counts one request the peer served. The duration is
+// the handler's alone: unlike the hub's, it carries no tunnel hop, so
+// comparing the two shows what the tunnel costs.
+func (m *metrics) recordRequest(ctx context.Context, status int, took time.Duration) {
+	attrs := metric.WithAttributes(attribute.Int("code", status))
+	m.requests.Add(ctx, 1, attrs)
+	m.served.Record(ctx, took.Seconds(), attrs)
 }
 
 // recordFailure counts an attempt that never became a tunnel.

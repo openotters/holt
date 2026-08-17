@@ -54,10 +54,17 @@ had to redial. `holt expose --metrics` serves them (default
 | `holt_peer_attaches_total` | counter | |
 | `holt_peer_attach_failures_total` | counter | `reason` (dial, handshake) |
 | `holt_peer_session_duration_seconds` | histogram | how long each tunnel lasted |
+| `holt_peer_requests_total` | counter | `code` |
+| `holt_peer_request_duration_seconds` | histogram | `code` |
 
 A peer that flaps shows it here as a rising failure count and a
 session histogram full of short sessions, while the hub only sees
 tunnels coming and going.
+
+The request series are the same requests the hub counts, timed at the
+other end: the peer's duration is its local service answering, the
+hub's also carries the tunnel hop. Comparing the two is how you tell a
+slow service from a slow tunnel.
 
 The console's connection status menu links to the `/metrics` endpoint
 when it is enabled.

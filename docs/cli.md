@@ -192,8 +192,9 @@ Two ready-made peers consume the token:
   can read and alter the traffic.
 
   `--metrics` serves the peer's own instruments on `127.0.0.1:7210`
-  (attaches, failed attempts by reason, session duration), which is
-  how a flapping peer shows itself from the side that knows.
+  (attaches, failed attempts by reason, session duration, requests
+  served by code), which is how a flapping peer shows itself from the
+  side that knows.
 - [`cmd/starter-client`](../cmd/starter-client): a minimal template that
   serves a built-in demo; copy it to write your own. See
   [Examples](examples.md).
@@ -208,6 +209,35 @@ curl -H 'x-tunnel-peer: alice' http://localhost:7202/
 ```
 
 Whatever the peer serves over the tunnel is reachable this way.
+
+### Watch the traffic
+
+Both ends print what goes through, as it happens:
+
+```
+15:04:05  GET    /                          200  1ms
+15:04:05  GET    /about                     200  635µs
+15:04:06  GET    /missing                   404  628µs
+```
+
+`holt expose` prints the requests its own service answered. `holt hub`
+prints every request it carried, with the peer first since several
+tunnels share that output:
+
+```
+15:04:05  alice        GET    /about        200  12ms
+15:04:05  docs         GET    /index.html   200  8ms
+```
+
+Nothing is stored, it is a live view only. The hub's duration includes
+the tunnel hop and the peer's does not, so a slow line on one side and
+a fast one on the other points at the network between them rather than
+at the service.
+
+With `--log-format json` the lines become debug logs instead, so a peer
+serving steady traffic does not fill a log collector by default; `-D`
+turns them on. For history rather than a live view, use the metrics:
+see [Observability](observability.md).
 
 ### Routing strategies
 

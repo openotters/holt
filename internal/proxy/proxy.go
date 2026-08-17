@@ -5,6 +5,7 @@ package proxy
 
 import (
 	"github.com/openotters/holt/internal/utils"
+	"github.com/openotters/holt/pkg/reqlog"
 	"github.com/openotters/holt/pkg/revproxy"
 )
 
@@ -64,4 +65,10 @@ func WithResolvers(resolvers ...revproxy.Resolver) Option {
 // low-cardinality reason. See revproxy.ErrorHook.
 func WithErrorHook(hook revproxy.ErrorHook) Option {
 	return proxyOption(func(p *Proxy) { p.Opts = append(p.Opts, revproxy.WithErrorHook(hook)) })
+}
+
+// WithRequestHook reports every request the proxy carried, once the
+// response is done. See reqlog.Hook.
+func WithRequestHook(hook reqlog.Hook) Option {
+	return proxyOption(func(p *Proxy) { p.Opts = append(p.Opts, revproxy.WithRequestHook(hook)) })
 }

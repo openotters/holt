@@ -23,6 +23,7 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/pkg/dial"
 	"github.com/openotters/holt/pkg/peername"
+	"github.com/openotters/holt/pkg/reqlog"
 	"github.com/openotters/holt/pkg/revproxy"
 	"github.com/openotters/holt/pkg/token"
 )
@@ -155,6 +156,8 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 		Handler: local,
 		Version: "holt-expose " + commons.Version.Version(),
 		Logger:  logger,
+		// What the tunnel carried, live, as it happens.
+		RequestHook: requestPrinter(out, logger),
 	})
 
 	// Ctrl-C is a normal way to stop exposing, not an error to print.
@@ -163,6 +166,22 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 	}
 
 	return err
+}
+
+// requestPrinter is the live view of what comes through the tunnel:
+// a line per request while a terminal is watching, a debug log line
+// when the output is JSON (a peer serving steady traffic should not
+// fill a log collector by default).
+func requestPrinter(out *style.Output, logger *zap.Logger) reqlog.Hook {
+	if out.Pretty {
+		return func(ev reqlog.Event) { fmt.Println(style.Request(ev)) }
+	}
+
+	return func(ev reqlog.Event) {
+		logger.Debug("request",
+			zap.String("method", ev.Method), zap.String("path", ev.Path),
+			zap.Int("status", ev.Status), zap.Duration("took", ev.Duration))
+	}
 }
 
 // serveMetrics installs the OTel SDK provider and serves the peer's

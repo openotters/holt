@@ -177,6 +177,26 @@ holt.NewTunnel(":7200", holt.WithHandlerOptions(holt.WithTracerProvider(tp)))
 See [Observability](observability.md) for the instruments and the
 CLI's built-in Prometheus endpoint.
 
+### Watching requests
+
+`WithRequestHook` reports each request as it completes, and fits
+either half — the hub reports everything it carried, the peer reports
+what its own handler served:
+
+```go
+watch := holt.WithRequestHook(func(ev holt.RequestEvent) {
+    log.Printf("%s %s %d %s", ev.Method, ev.Path, ev.Status, ev.Duration)
+})
+
+holt.NewProxy(":7202", watch)          // ev.Peer says which tunnel
+holt.NewClient(hubURL, handler, watch) // ev.Peer is empty: only one
+```
+
+Nothing is stored, and the hook runs on the request's goroutine after
+the response, so keep it cheap (print, count, or hand off to a
+channel). The hub's duration includes the tunnel hop and the peer's
+does not. This is what `holt hub` and `holt expose` print.
+
 ---
 
 [← Observability](observability.md)  ·  [Docs home](README.md)  ·  [Examples →](examples.md)

@@ -129,7 +129,12 @@ func (h *Hub) startProxy(ctx context.Context, listeners *httpsrv.Group, rt *hubR
 	// The proxy records its own data-plane metrics (requests, duration,
 	// in-flight, routing errors) against the global provider --metrics
 	// installed above, so the CLI adds no instrumentation of its own.
-	peers := revproxy.New(rt.registry, revproxy.WithResolvers(resolvers...))
+	peers := revproxy.New(rt.registry,
+		revproxy.WithResolvers(resolvers...),
+		// The hub's own live view: every request it carried, for
+		// every peer, which is why the peer leads the line here.
+		revproxy.WithRequestHook(requestPrinter(rt.out, rt.logger)),
+	)
 
 	return listeners.Start(ctx, "proxy", h.ProxyAddr, peers)
 }

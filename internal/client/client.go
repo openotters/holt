@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt/pkg/dial"
+	"github.com/openotters/holt/pkg/reqlog"
 )
 
 // Client is the assembled peer: a persistent attach loop that dials
@@ -102,6 +103,12 @@ func WithKeepalive(every time.Duration) Option {
 // (observability).
 func WithVersion(version string) Option {
 	return clientOption(func(c *Client) { c.opts.Version = version })
+}
+
+// WithRequestHook reports every request the handler served over the
+// tunnel, once the response is done. See reqlog.Hook.
+func WithRequestHook(hook reqlog.Hook) Option {
+	return clientOption(func(c *Client) { c.opts.RequestHook = hook })
 }
 
 // WithTunnelTLS encrypts the payload end-to-end INSIDE the tunnel:
