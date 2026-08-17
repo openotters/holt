@@ -6,6 +6,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/openotters/holt/pkg/tunneltype"
 )
 
 // instrumentName is the OTel instrumentation scope for this module.
@@ -26,7 +28,7 @@ type metrics struct {
 // and correct on scrape rather than only after the first attach.
 // Instrument-creation errors are swallowed into no-op instruments — a
 // metrics backend must never break tunnel handling.
-func newMetrics(mp metric.MeterProvider, activeFn func() int64) *metrics {
+func newMetrics(mp metric.MeterProvider, activeFn func() map[string]int64) *metrics {
 	if mp == nil {
 		mp = otel.GetMeterProvider()
 	}
@@ -41,30 +43,42 @@ func newMetrics(mp metric.MeterProvider, activeFn func() int64) *metrics {
 	_, _ = meter.Int64ObservableGauge("holt.tunnels.active",
 		metric.WithDescription("Currently attached reverse tunnels"),
 		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
-			o.Observe(activeFn())
+			// Every carried type is observed on every scrape, at zero
+			// when none is attached. Observing only what is live would
+			// make the series disappear on an idle hub, and a graph of
+			// "no data" reads as broken rather than as zero.
+			live := activeFn()
+			for _, kind := range []tunneltype.Type{tunneltype.HTTP, tunneltype.HTTPS} {
+				o.Observe(live[kind.String()], metric.WithAttributes(attribute.String("type", kind.String())))
+			}
 
 			return nil
 		}))
 
 	// Seed the attaches counter so the series shows at 0 before the
-	// first attach, instead of being absent on a fresh hub.
-	attaches.Add(context.Background(), 0)
+	// first attach, instead of being absent on a fresh hub. Seeded per
+	// type, or the seed would sit as an unlabelled series beside the
+	// labelled ones.
+	for _, kind := range []tunneltype.Type{tunneltype.HTTP, tunneltype.HTTPS} {
+		attaches.Add(context.Background(), 0, metric.WithAttributes(attribute.String("type", kind.String())))
+	}
 
 	return &metrics{attaches: attaches, detaches: detaches}
 }
 
-func (m *metrics) recordAttach(ctx context.Context) {
+func (m *metrics) recordAttach(ctx context.Context, kind string) {
 	if m == nil {
 		return
 	}
 
-	m.attaches.Add(ctx, 1)
+	m.attaches.Add(ctx, 1, metric.WithAttributes(attribute.String("type", kind)))
 }
 
-func (m *metrics) recordDetach(ctx context.Context, reason string) {
+func (m *metrics) recordDetach(ctx context.Context, reason, kind string) {
 	if m == nil {
 		return
 	}
 
-	m.detaches.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
+	m.detaches.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("reason", reason), attribute.String("type", kind)))
 }

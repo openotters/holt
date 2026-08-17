@@ -28,6 +28,7 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/openotters/holt/internal/wire"
+	"github.com/openotters/holt/pkg/tunneltype"
 )
 
 const (
@@ -80,6 +81,12 @@ type Options struct {
 	// provider is used, a no-op until an SDK is installed.
 	MeterProvider metric.MeterProvider
 
+	// TunnelType is what this peer carries, declared at attach so the
+	// hub records it, reports it, and can refuse what it cannot serve.
+	// Empty means http, or https when TLSConfig is set: the payload is
+	// TLS end to end then, which is what https names here.
+	TunnelType tunneltype.Type
+
 	// TLSConfig, when set, encrypts the payload end-to-end INSIDE the
 	// tunnel: after the plaintext holt handshake the peer runs a
 	// TLS server over the stream and serves Handler over HTTPS. The
@@ -88,6 +95,21 @@ type Options struct {
 	// stays encrypted even if that hop is plaintext or terminated
 	// at a proxy. NextProtos is forced to h2.
 	TLSConfig *tls.Config
+}
+
+// tunnelType is what this peer declares at attach: the explicit
+// setting, or https when the payload is encrypted end to end and http
+// otherwise.
+func (o Options) tunnelType() tunneltype.Type {
+	if o.TunnelType != "" {
+		return o.TunnelType
+	}
+
+	if o.TLSConfig != nil {
+		return tunneltype.HTTPS
+	}
+
+	return tunneltype.HTTP
 }
 
 // NormalizeURL maps a tunnel URL to its WebSocket form: ws and wss
@@ -221,7 +243,7 @@ func attachOnce(
 
 	fs := wire.NewWSStream(ctx, c)
 
-	if hsErr := wire.ClientHandshake(fs, opts.Version); hsErr != nil {
+	if hsErr := wire.ClientHandshake(fs, opts.Version, opts.tunnelType().Proto()); hsErr != nil {
 		obs.recordFailure(ctx, reasonHandshake)
 
 		return false, hsErr

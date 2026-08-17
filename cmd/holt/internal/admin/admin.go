@@ -95,6 +95,7 @@ func (s *Service) ListTunnels(
 			Peer:           t.Peer,
 			PeerVersion:    t.PeerVersion,
 			AttachedAtUnix: t.AttachedAt.Unix(),
+			TunnelType:     t.Type.String(),
 		})
 	}
 
@@ -198,6 +199,7 @@ func (s *Service) WatchTunnels(
 				Peer:           t.Peer,
 				PeerVersion:    t.PeerVersion,
 				AttachedAtUnix: t.AttachedAt.Unix(),
+				TunnelType:     t.Type.String(),
 			},
 		}); err != nil {
 			return err
@@ -226,6 +228,7 @@ func (s *Service) WatchTunnels(
 				if t, live := s.registry.Tunnel(ev.Peer); live {
 					out.Info.PeerVersion = t.PeerVersion
 					out.Info.AttachedAtUnix = t.AttachedAt.Unix()
+					out.Info.TunnelType = t.Type.String()
 				}
 			}
 

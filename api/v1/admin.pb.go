@@ -7,12 +7,11 @@
 package holtv1
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -76,8 +75,11 @@ type TunnelInfo struct {
 	Peer           string                 `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
 	PeerVersion    string                 `protobuf:"bytes,2,opt,name=peer_version,json=peerVersion,proto3" json:"peer_version,omitempty"`
 	AttachedAtUnix int64                  `protobuf:"varint,3,opt,name=attached_at_unix,json=attachedAtUnix,proto3" json:"attached_at_unix,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// What the peer said it carries: "http", "https", or "" from a peer
+	// older than the field.
+	TunnelType    string `protobuf:"bytes,4,opt,name=tunnel_type,json=tunnelType,proto3" json:"tunnel_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TunnelInfo) Reset() {
@@ -129,6 +131,13 @@ func (x *TunnelInfo) GetAttachedAtUnix() int64 {
 		return x.AttachedAtUnix
 	}
 	return 0
+}
+
+func (x *TunnelInfo) GetTunnelType() string {
+	if x != nil {
+		return x.TunnelType
+	}
+	return ""
 }
 
 type ListTunnelsRequest struct {
@@ -880,12 +889,14 @@ var File_v1_admin_proto protoreflect.FileDescriptor
 
 const file_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x0ev1/admin.proto\x12\x12openotters.holt.v1\"m\n" +
+	"\x0ev1/admin.proto\x12\x12openotters.holt.v1\"\x8e\x01\n" +
 	"\n" +
 	"TunnelInfo\x12\x12\n" +
 	"\x04peer\x18\x01 \x01(\tR\x04peer\x12!\n" +
 	"\fpeer_version\x18\x02 \x01(\tR\vpeerVersion\x12(\n" +
-	"\x10attached_at_unix\x18\x03 \x01(\x03R\x0eattachedAtUnix\"\x14\n" +
+	"\x10attached_at_unix\x18\x03 \x01(\x03R\x0eattachedAtUnix\x12\x1f\n" +
+	"\vtunnel_type\x18\x04 \x01(\tR\n" +
+	"tunnelType\"\x14\n" +
 	"\x12ListTunnelsRequest\"O\n" +
 	"\x13ListTunnelsResponse\x128\n" +
 	"\atunnels\x18\x01 \x03(\v2\x1e.openotters.holt.v1.TunnelInfoR\atunnels\"?\n" +

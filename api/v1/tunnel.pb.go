@@ -7,12 +7,11 @@
 package holtv1
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -21,6 +20,69 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+// TunnelType is what a peer carries over its tunnel. HTTP and HTTPS
+// are what the hub serves today: both are an HTTP handler on the peer,
+// HTTPS meaning the payload is TLS end to end (the peer runs a TLS
+// server inside the tunnel and the hub dials it with a matching
+// client config), so it stays encrypted even where the outer hop is
+// terminated at a proxy. TCP and TLS name raw byte streams, which the
+// hub does not carry yet: they are here so a peer that learns to ask
+// for one meets a hub that can refuse it by name.
+type TunnelType int32
+
+const (
+	TunnelType_TUNNEL_TYPE_UNSPECIFIED TunnelType = 0 // a peer older than this field: HTTP
+	TunnelType_TUNNEL_TYPE_HTTP        TunnelType = 1
+	TunnelType_TUNNEL_TYPE_HTTPS       TunnelType = 2
+	TunnelType_TUNNEL_TYPE_TCP         TunnelType = 3 // reserved, not carried yet
+	TunnelType_TUNNEL_TYPE_TLS         TunnelType = 4 // reserved, not carried yet
+)
+
+// Enum value maps for TunnelType.
+var (
+	TunnelType_name = map[int32]string{
+		0: "TUNNEL_TYPE_UNSPECIFIED",
+		1: "TUNNEL_TYPE_HTTP",
+		2: "TUNNEL_TYPE_HTTPS",
+		3: "TUNNEL_TYPE_TCP",
+		4: "TUNNEL_TYPE_TLS",
+	}
+	TunnelType_value = map[string]int32{
+		"TUNNEL_TYPE_UNSPECIFIED": 0,
+		"TUNNEL_TYPE_HTTP":        1,
+		"TUNNEL_TYPE_HTTPS":       2,
+		"TUNNEL_TYPE_TCP":         3,
+		"TUNNEL_TYPE_TLS":         4,
+	}
+)
+
+func (x TunnelType) Enum() *TunnelType {
+	p := new(TunnelType)
+	*p = x
+	return p
+}
+
+func (x TunnelType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TunnelType) Descriptor() protoreflect.EnumDescriptor {
+	return file_v1_tunnel_proto_enumTypes[0].Descriptor()
+}
+
+func (TunnelType) Type() protoreflect.EnumType {
+	return &file_v1_tunnel_proto_enumTypes[0]
+}
+
+func (x TunnelType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TunnelType.Descriptor instead.
+func (TunnelType) EnumDescriptor() ([]byte, []int) {
+	return file_v1_tunnel_proto_rawDescGZIP(), []int{0}
+}
 
 type TunnelFrame struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -140,8 +202,12 @@ type Hello struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	ProtocolVersion uint32                 `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"` // tunnel framing version; currently 1
 	PeerVersion     string                 `protobuf:"bytes,2,opt,name=peer_version,json=peerVersion,proto3" json:"peer_version,omitempty"`              // peer build version, observability only
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// What travels through the tunnel. An enum rather than a string on
+	// purpose: the value reaches a metric label, and a peer must not be
+	// able to invent one.
+	TunnelType    TunnelType `protobuf:"varint,3,opt,name=tunnel_type,json=tunnelType,proto3,enum=openotters.holt.v1.TunnelType" json:"tunnel_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Hello) Reset() {
@@ -186,6 +252,13 @@ func (x *Hello) GetPeerVersion() string {
 		return x.PeerVersion
 	}
 	return ""
+}
+
+func (x *Hello) GetTunnelType() TunnelType {
+	if x != nil {
+		return x.TunnelType
+	}
+	return TunnelType_TUNNEL_TYPE_UNSPECIFIED
 }
 
 type Welcome struct {
@@ -300,14 +373,23 @@ const file_v1_tunnel_proto_rawDesc = "" +
 	"\awelcome\x18\x02 \x01(\v2\x1b.openotters.holt.v1.WelcomeH\x00R\awelcome\x12\x14\n" +
 	"\x04data\x18\x03 \x01(\fH\x00R\x04data\x125\n" +
 	"\ago_away\x18\x04 \x01(\v2\x1a.openotters.holt.v1.GoAwayH\x00R\x06goAwayB\x06\n" +
-	"\x04kind\"U\n" +
+	"\x04kind\"\x96\x01\n" +
 	"\x05Hello\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12!\n" +
-	"\fpeer_version\x18\x02 \x01(\tR\vpeerVersion\"4\n" +
+	"\fpeer_version\x18\x02 \x01(\tR\vpeerVersion\x12?\n" +
+	"\vtunnel_type\x18\x03 \x01(\x0e2\x1e.openotters.holt.v1.TunnelTypeR\n" +
+	"tunnelType\"4\n" +
 	"\aWelcome\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\" \n" +
 	"\x06GoAway\x12\x16\n" +
-	"\x06reason\x18\x01 \x01(\tR\x06reasonB*Z(github.com/openotters/holt/api/v1;holtv1b\x06proto3"
+	"\x06reason\x18\x01 \x01(\tR\x06reason*\x80\x01\n" +
+	"\n" +
+	"TunnelType\x12\x1b\n" +
+	"\x17TUNNEL_TYPE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10TUNNEL_TYPE_HTTP\x10\x01\x12\x15\n" +
+	"\x11TUNNEL_TYPE_HTTPS\x10\x02\x12\x13\n" +
+	"\x0fTUNNEL_TYPE_TCP\x10\x03\x12\x13\n" +
+	"\x0fTUNNEL_TYPE_TLS\x10\x04B*Z(github.com/openotters/holt/api/v1;holtv1b\x06proto3"
 
 var (
 	file_v1_tunnel_proto_rawDescOnce sync.Once
@@ -321,22 +403,25 @@ func file_v1_tunnel_proto_rawDescGZIP() []byte {
 	return file_v1_tunnel_proto_rawDescData
 }
 
+var file_v1_tunnel_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_v1_tunnel_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_v1_tunnel_proto_goTypes = []any{
-	(*TunnelFrame)(nil), // 0: openotters.holt.v1.TunnelFrame
-	(*Hello)(nil),       // 1: openotters.holt.v1.Hello
-	(*Welcome)(nil),     // 2: openotters.holt.v1.Welcome
-	(*GoAway)(nil),      // 3: openotters.holt.v1.GoAway
+	(TunnelType)(0),     // 0: openotters.holt.v1.TunnelType
+	(*TunnelFrame)(nil), // 1: openotters.holt.v1.TunnelFrame
+	(*Hello)(nil),       // 2: openotters.holt.v1.Hello
+	(*Welcome)(nil),     // 3: openotters.holt.v1.Welcome
+	(*GoAway)(nil),      // 4: openotters.holt.v1.GoAway
 }
 var file_v1_tunnel_proto_depIdxs = []int32{
-	1, // 0: openotters.holt.v1.TunnelFrame.hello:type_name -> openotters.holt.v1.Hello
-	2, // 1: openotters.holt.v1.TunnelFrame.welcome:type_name -> openotters.holt.v1.Welcome
-	3, // 2: openotters.holt.v1.TunnelFrame.go_away:type_name -> openotters.holt.v1.GoAway
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2, // 0: openotters.holt.v1.TunnelFrame.hello:type_name -> openotters.holt.v1.Hello
+	3, // 1: openotters.holt.v1.TunnelFrame.welcome:type_name -> openotters.holt.v1.Welcome
+	4, // 2: openotters.holt.v1.TunnelFrame.go_away:type_name -> openotters.holt.v1.GoAway
+	0, // 3: openotters.holt.v1.Hello.tunnel_type:type_name -> openotters.holt.v1.TunnelType
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_v1_tunnel_proto_init() }
@@ -355,13 +440,14 @@ func file_v1_tunnel_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_tunnel_proto_rawDesc), len(file_v1_tunnel_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_v1_tunnel_proto_goTypes,
 		DependencyIndexes: file_v1_tunnel_proto_depIdxs,
+		EnumInfos:         file_v1_tunnel_proto_enumTypes,
 		MessageInfos:      file_v1_tunnel_proto_msgTypes,
 	}.Build()
 	File_v1_tunnel_proto = out.File

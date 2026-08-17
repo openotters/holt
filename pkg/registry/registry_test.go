@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/tunneltype"
 )
 
 func TestRegistry_AttachDetach(t *testing.T) {
@@ -21,7 +22,7 @@ func TestRegistry_AttachDetach(t *testing.T) {
 	defer cancel()
 
 	events := r.Watch(ctx)
-	detach := r.Attach("peer-1", "v1", nil, func(string) {})
+	detach := r.Attach("peer-1", "v1", tunneltype.HTTP, nil, func(string) {})
 
 	if !r.Attached("peer-1") {
 		t.Fatal("not attached after Attach")
@@ -57,8 +58,8 @@ func TestRegistry_SupersededClosesLoser(t *testing.T) {
 
 	var closedWith string
 
-	loser := r.Attach("p", "v1", nil, func(reason string) { closedWith = reason })
-	_ = r.Attach("p", "v2", nil, func(string) {})
+	loser := r.Attach("p", "v1", tunneltype.HTTP, nil, func(reason string) { closedWith = reason })
+	_ = r.Attach("p", "v2", tunneltype.HTTP, nil, func(string) {})
 
 	if closedWith != "superseded" {
 		t.Fatalf("loser closed with %q", closedWith)

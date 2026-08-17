@@ -215,6 +215,7 @@ export function App() {
 								<TableHeader>
 									<TableRow>
 										<TableHead>Peer</TableHead>
+										<TableHead>Type</TableHead>
 										<TableHead>Status</TableHead>
 										<TableHead>Version</TableHead>
 										<TableHead>Attached</TableHead>
@@ -245,6 +246,9 @@ export function App() {
 													) : (
 														t.peer
 													)}
+												</TableCell>
+												<TableCell className="text-muted-foreground">
+													{t.tunnelType || "http"}
 												</TableCell>
 												<TableCell>
 													<StatusBadge status="attached" />

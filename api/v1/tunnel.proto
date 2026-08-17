@@ -35,6 +35,26 @@ message TunnelFrame {
 message Hello {
   uint32 protocol_version = 1; // tunnel framing version; currently 1
   string peer_version     = 2; // peer build version, observability only
+  // What travels through the tunnel. An enum rather than a string on
+  // purpose: the value reaches a metric label, and a peer must not be
+  // able to invent one.
+  TunnelType tunnel_type  = 3;
+}
+
+// TunnelType is what a peer carries over its tunnel. HTTP and HTTPS
+// are what the hub serves today: both are an HTTP handler on the peer,
+// HTTPS meaning the payload is TLS end to end (the peer runs a TLS
+// server inside the tunnel and the hub dials it with a matching
+// client config), so it stays encrypted even where the outer hop is
+// terminated at a proxy. TCP and TLS name raw byte streams, which the
+// hub does not carry yet: they are here so a peer that learns to ask
+// for one meets a hub that can refuse it by name.
+enum TunnelType {
+  TUNNEL_TYPE_UNSPECIFIED = 0; // a peer older than this field: HTTP
+  TUNNEL_TYPE_HTTP        = 1;
+  TUNNEL_TYPE_HTTPS       = 2;
+  TUNNEL_TYPE_TCP         = 3; // reserved, not carried yet
+  TUNNEL_TYPE_TLS         = 4; // reserved, not carried yet
 }
 
 message Welcome {

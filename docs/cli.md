@@ -272,6 +272,14 @@ remote hub.
 
 ## Manage tunnels
 
+Every tunnel has a **type**, which the peer declares when it attaches
+and the hub records: `http` today, or `https` when the payload is
+encrypted end to end (the peer serves TLS inside the tunnel). `tcp`
+and `tls` name raw byte streams, which the hub does not carry yet: a
+peer asking for one is refused at the handshake rather than attaching
+and failing later. `holt ls` shows the type, the console has a column
+for it, and the tunnel metrics carry it as a label.
+
 ```sh
 holt ls                 # list live tunnels
 holt kill alice         # disconnect the tunnel; the peer MAY reconnect

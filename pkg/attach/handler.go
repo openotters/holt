@@ -26,6 +26,7 @@ import (
 
 	"github.com/openotters/holt/internal/wire"
 	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/tunneltype"
 )
 
 // pingInterval / pingTimeout drive the inner HTTP/2 session's PING
@@ -146,7 +147,22 @@ func (h *Handler) serve(ctx context.Context, peer string, c *websocket.Conn) {
 		return
 	}
 
-	span.SetAttributes(attribute.String("holt.peer_version", hello.GetPeerVersion()))
+	// What the peer says it carries. A type the hub cannot serve is
+	// refused here, by name, rather than attaching and failing later
+	// in a way nobody can read.
+	kind := tunneltype.FromProto(hello.GetTunnelType())
+	if !kind.Carried() {
+		span.SetStatus(codes.Error, "unsupported tunnel type")
+		h.logger.Warn("refused a tunnel type this hub does not carry",
+			zap.String("peer", peer), zap.String("type", kind.String()))
+
+		return
+	}
+
+	span.SetAttributes(
+		attribute.String("holt.peer_version", hello.GetPeerVersion()),
+		attribute.String("holt.tunnel_type", kind.String()),
+	)
 
 	logger := h.logger.With(zap.String("peer", peer))
 	logger.Info("tunnel attached")
@@ -173,7 +189,7 @@ func (h *Handler) serve(ctx context.Context, peer string, c *websocket.Conn) {
 		closeSession(errors.New(reason))
 	}
 
-	detach := h.registry.Attach(peer, hello.GetPeerVersion(), cc, closeTunnel)
+	detach := h.registry.Attach(peer, hello.GetPeerVersion(), kind, cc, closeTunnel)
 
 	// The ReadIdleTimeout PING closes a dead session, but only the
 	// session notices. Poll its state and turn a dead session into a

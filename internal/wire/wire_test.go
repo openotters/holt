@@ -137,7 +137,7 @@ func TestHandshake_RoundTrip(t *testing.T) {
 	client := &fakeStream{queued: server.sent}
 	// Re-send hello (ClientHandshake sends then receives); a fresh
 	// stream that already has Welcome queued lets us assert accept.
-	if hsErr := wire.ClientHandshake(client, "test"); hsErr != nil {
+	if hsErr := wire.ClientHandshake(client, "test", holtv1.TunnelType_TUNNEL_TYPE_HTTP); hsErr != nil {
 		t.Fatalf("client handshake: %v", hsErr)
 	}
 }

@@ -17,9 +17,9 @@ The `holt` CLI can expose the instruments as Prometheus metrics with
 
 | Metric | Type | Labels |
 |--------|------|--------|
-| `holt_tunnels_active` | gauge | |
-| `holt_tunnels_attaches_total` | counter | |
-| `holt_tunnels_detaches_total` | counter | `reason` |
+| `holt_tunnels_active` | gauge | `type` (http, https) |
+| `holt_tunnels_attaches_total` | counter | `type` |
+| `holt_tunnels_detaches_total` | counter | `reason`, `type` |
 | `holt_tunnels_rejected_total` | counter | `reason` (unauthorized, blocked, invalid-peer-name) |
 | `holt_proxy_requests_total` | counter | `code` |
 | `holt_proxy_request_duration_seconds` | histogram | `code` |

@@ -24,6 +24,7 @@ import (
 
 	"github.com/openotters/holt/internal/wire"
 	"github.com/openotters/holt/pkg/directory"
+	"github.com/openotters/holt/pkg/tunneltype"
 )
 
 // ErrPeerDetached is returned by the per-peer RoundTripper when no
@@ -59,6 +60,8 @@ type TunnelInfo struct {
 	Peer        string
 	PeerVersion string
 	AttachedAt  time.Time
+	// Type is what the peer said it carries (http, https).
+	Type tunneltype.Type
 }
 
 // entry is one live tunnel: the hub-side HTTP/2 session, the close
@@ -68,6 +71,7 @@ type entry struct {
 	cc         *http2.ClientConn
 	close      func(reason string)
 	version    string
+	kind       tunneltype.Type
 	attachedAt time.Time
 }
 
@@ -112,7 +116,7 @@ func WithDirectory(dir directory.Directory) Option {
 // Optional — without it the global provider is used, which is a no-op
 // until the application installs an SDK.
 func WithMeterProvider(mp metric.MeterProvider) Option {
-	return func(r *Registry) { r.metrics = newMetrics(mp, func() int64 { return int64(r.CountTunnels()) }) }
+	return func(r *Registry) { r.metrics = newMetrics(mp, r.countByType) }
 }
 
 // NewRegistry builds a Registry. By default it keeps presence
@@ -131,7 +135,7 @@ func NewRegistry(logger *zap.Logger, opts ...Option) *Registry {
 	}
 
 	if r.metrics == nil {
-		r.metrics = newMetrics(nil, func() int64 { return int64(r.CountTunnels()) })
+		r.metrics = newMetrics(nil, r.countByType)
 	}
 
 	return r
@@ -155,10 +159,10 @@ func (r *Registry) ClearStale(ctx context.Context) error {
 // entry (a superseding attach can't be clobbered by the loser's
 // cleanup).
 func (r *Registry) Attach(
-	peer, version string, cc *http2.ClientConn, closeTunnel func(reason string),
+	peer, version string, kind tunneltype.Type, cc *http2.ClientConn, closeTunnel func(reason string),
 ) func(reason string) {
 	now := time.Now()
-	e := &entry{cc: cc, close: closeTunnel, version: version, attachedAt: now}
+	e := &entry{cc: cc, close: closeTunnel, version: version, kind: kind, attachedAt: now}
 
 	r.mu.Lock()
 	old := r.conns[peer]
@@ -170,7 +174,7 @@ func (r *Registry) Attach(
 		old.close("superseded")
 	}
 
-	r.metrics.recordAttach(context.Background())
+	r.metrics.recordAttach(context.Background(), kind.String())
 	r.dirAttach(directory.PeerRecord{Peer: peer, Hub: r.hubID, PeerVersion: version, AttachedAt: now})
 
 	var once sync.Once
@@ -191,7 +195,7 @@ func (r *Registry) Attach(
 				return // superseded — the newer tunnel owns the slot
 			}
 
-			r.metrics.recordDetach(context.Background(), reason)
+			r.metrics.recordDetach(context.Background(), reason, e.kind.String())
 			r.dirDetach(peer)
 		})
 	}
@@ -218,7 +222,7 @@ func (r *Registry) Tunnel(peer string) (TunnelInfo, bool) {
 		return TunnelInfo{}, false
 	}
 
-	return TunnelInfo{Peer: peer, PeerVersion: e.version, AttachedAt: e.attachedAt}, true
+	return TunnelInfo{Peer: peer, PeerVersion: e.version, AttachedAt: e.attachedAt, Type: e.kind}, true
 }
 
 // ListTunnels returns every live tunnel this hub owns, ordered by
@@ -229,7 +233,9 @@ func (r *Registry) ListTunnels() []TunnelInfo {
 
 	out := make([]TunnelInfo, 0, len(r.conns))
 	for peer, e := range r.conns {
-		out = append(out, TunnelInfo{Peer: peer, PeerVersion: e.version, AttachedAt: e.attachedAt})
+		out = append(out, TunnelInfo{
+			Peer: peer, PeerVersion: e.version, AttachedAt: e.attachedAt, Type: e.kind,
+		})
 	}
 
 	// Small n; insertion sort keeps output stable without importing sort.
@@ -248,6 +254,20 @@ func (r *Registry) CountTunnels() int {
 	defer r.mu.Unlock()
 
 	return len(r.conns)
+}
+
+// countByType is how many tunnels of each type are live. The active
+// gauge reads it on every scrape.
+func (r *Registry) countByType() map[string]int64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	out := make(map[string]int64, len(r.conns))
+	for _, e := range r.conns {
+		out[e.kind.String()]++
+	}
+
+	return out
 }
 
 // StopTunnel force-closes peer's tunnel with reason and reports

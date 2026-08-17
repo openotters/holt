@@ -21,6 +21,7 @@ import (
 	"github.com/openotters/holt/pkg/attach"
 	"github.com/openotters/holt/pkg/dial"
 	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/tunneltype"
 )
 
 // TestEncryptedTunnel proves payload TLS INSIDE the tunnel: the peer
@@ -41,6 +42,12 @@ func TestEncryptedTunnel(t *testing.T) {
 
 		registry := runHubAndPeer(t, hubTLS, peerTLS, okHandler())
 		waitAttached(t, registry, "peer")
+
+		// The payload is TLS end to end here, which is what the https
+		// tunnel type names: the hub should have recorded it as such.
+		if info, ok := registry.Tunnel("peer"); !ok || info.Type != tunneltype.HTTPS {
+			t.Fatalf("tunnel type = %q (found %v), want https", info.Type, ok)
+		}
 
 		body, err := tlsGet(t, registry, "peer")
 		if err != nil {
@@ -89,6 +96,12 @@ func TestMutualTLSTunnel(t *testing.T) {
 
 		registry := runHubAndPeer(t, hubTLS, peerTLS, okHandler())
 		waitAttached(t, registry, "peer")
+
+		// The payload is TLS end to end here, which is what the https
+		// tunnel type names: the hub should have recorded it as such.
+		if info, ok := registry.Tunnel("peer"); !ok || info.Type != tunneltype.HTTPS {
+			t.Fatalf("tunnel type = %q (found %v), want https", info.Type, ok)
+		}
 
 		body, err := tlsGet(t, registry, "peer")
 		if err != nil || body != "secret ok" {

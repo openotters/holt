@@ -2,15 +2,15 @@
 // @generated from file v1/tunnel.proto (package openotters.holt.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file v1/tunnel.proto.
  */
 export const file_v1_tunnel: GenFile = /*@__PURE__*/
-  fileDesc("Cg92MS90dW5uZWwucHJvdG8SEm9wZW5vdHRlcnMuaG9sdC52MSKwAQoLVHVubmVsRnJhbWUSKgoFaGVsbG8YASABKAsyGS5vcGVub3R0ZXJzLmhvbHQudjEuSGVsbG9IABIuCgd3ZWxjb21lGAIgASgLMhsub3Blbm90dGVycy5ob2x0LnYxLldlbGNvbWVIABIOCgRkYXRhGAMgASgMSAASLQoHZ29fYXdheRgEIAEoCzIaLm9wZW5vdHRlcnMuaG9sdC52MS5Hb0F3YXlIAEIGCgRraW5kIjcKBUhlbGxvEhgKEHByb3RvY29sX3ZlcnNpb24YASABKA0SFAoMcGVlcl92ZXJzaW9uGAIgASgJIiMKB1dlbGNvbWUSGAoQcHJvdG9jb2xfdmVyc2lvbhgBIAEoDSIYCgZHb0F3YXkSDgoGcmVhc29uGAEgASgJQipaKGdpdGh1Yi5jb20vb3Blbm90dGVycy9ob2x0L2FwaS92MTtob2x0djFiBnByb3RvMw");
+  fileDesc("Cg92MS90dW5uZWwucHJvdG8SEm9wZW5vdHRlcnMuaG9sdC52MSKwAQoLVHVubmVsRnJhbWUSKgoFaGVsbG8YASABKAsyGS5vcGVub3R0ZXJzLmhvbHQudjEuSGVsbG9IABIuCgd3ZWxjb21lGAIgASgLMhsub3Blbm90dGVycy5ob2x0LnYxLldlbGNvbWVIABIOCgRkYXRhGAMgASgMSAASLQoHZ29fYXdheRgEIAEoCzIaLm9wZW5vdHRlcnMuaG9sdC52MS5Hb0F3YXlIAEIGCgRraW5kImwKBUhlbGxvEhgKEHByb3RvY29sX3ZlcnNpb24YASABKA0SFAoMcGVlcl92ZXJzaW9uGAIgASgJEjMKC3R1bm5lbF90eXBlGAMgASgOMh4ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbFR5cGUiIwoHV2VsY29tZRIYChBwcm90b2NvbF92ZXJzaW9uGAEgASgNIhgKBkdvQXdheRIOCgZyZWFzb24YASABKAkqgAEKClR1bm5lbFR5cGUSGwoXVFVOTkVMX1RZUEVfVU5TUEVDSUZJRUQQABIUChBUVU5ORUxfVFlQRV9IVFRQEAESFQoRVFVOTkVMX1RZUEVfSFRUUFMQAhITCg9UVU5ORUxfVFlQRV9UQ1AQAxITCg9UVU5ORUxfVFlQRV9UTFMQBEIqWihnaXRodWIuY29tL29wZW5vdHRlcnMvaG9sdC9hcGkvdjE7aG9sdHYxYgZwcm90bzM");
 
 /**
  * @generated from message openotters.holt.v1.TunnelFrame
@@ -78,6 +78,15 @@ export type Hello = Message<"openotters.holt.v1.Hello"> & {
    * @generated from field: string peer_version = 2;
    */
   peerVersion: string;
+
+  /**
+   * What travels through the tunnel. An enum rather than a string on
+   * purpose: the value reaches a metric label, and a peer must not be
+   * able to invent one.
+   *
+   * @generated from field: openotters.holt.v1.TunnelType tunnel_type = 3;
+   */
+  tunnelType: TunnelType;
 };
 
 /**
@@ -133,4 +142,55 @@ export type GoAway = Message<"openotters.holt.v1.GoAway"> & {
  */
 export const GoAwaySchema: GenMessage<GoAway> = /*@__PURE__*/
   messageDesc(file_v1_tunnel, 3);
+
+/**
+ * TunnelType is what a peer carries over its tunnel. HTTP and HTTPS
+ * are what the hub serves today: both are an HTTP handler on the peer,
+ * HTTPS meaning the payload is TLS end to end (the peer runs a TLS
+ * server inside the tunnel and the hub dials it with a matching
+ * client config), so it stays encrypted even where the outer hop is
+ * terminated at a proxy. TCP and TLS name raw byte streams, which the
+ * hub does not carry yet: they are here so a peer that learns to ask
+ * for one meets a hub that can refuse it by name.
+ *
+ * @generated from enum openotters.holt.v1.TunnelType
+ */
+export enum TunnelType {
+  /**
+   * a peer older than this field: HTTP
+   *
+   * @generated from enum value: TUNNEL_TYPE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: TUNNEL_TYPE_HTTP = 1;
+   */
+  HTTP = 1,
+
+  /**
+   * @generated from enum value: TUNNEL_TYPE_HTTPS = 2;
+   */
+  HTTPS = 2,
+
+  /**
+   * reserved, not carried yet
+   *
+   * @generated from enum value: TUNNEL_TYPE_TCP = 3;
+   */
+  TCP = 3,
+
+  /**
+   * reserved, not carried yet
+   *
+   * @generated from enum value: TUNNEL_TYPE_TLS = 4;
+   */
+  TLS = 4,
+}
+
+/**
+ * Describes the enum openotters.holt.v1.TunnelType.
+ */
+export const TunnelTypeSchema: GenEnum<TunnelType> = /*@__PURE__*/
+  enumDesc(file_v1_tunnel, 0);
 

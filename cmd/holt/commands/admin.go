@@ -42,10 +42,18 @@ func (l *Ls) Run(ctx context.Context, _ *c.Commons) error {
 	rows := make([][]string, 0, len(tunnels))
 	for _, t := range tunnels {
 		age := kubeAge(time.Since(time.Unix(t.GetAttachedAtUnix(), 0)))
-		rows = append(rows, []string{t.GetPeer(), t.GetPeerVersion(), age})
+
+		// A hub older than the type field reports none: show http,
+		// which is all such a hub could have been carrying.
+		kind := t.GetTunnelType()
+		if kind == "" {
+			kind = "http"
+		}
+
+		rows = append(rows, []string{t.GetPeer(), kind, t.GetPeerVersion(), age})
 	}
 
-	fmt.Println(style.List([]string{"PEER", "VERSION", "AGE"}, rows))
+	fmt.Println(style.List([]string{"PEER", "TYPE", "VERSION", "AGE"}, rows))
 
 	return nil
 }

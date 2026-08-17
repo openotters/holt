@@ -13,6 +13,7 @@ import (
 	"github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/cmd/holt/internal/admin"
 	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/tunneltype"
 )
 
 func TestAdminService(t *testing.T) {
@@ -26,8 +27,8 @@ func TestAdminService(t *testing.T) {
 	// StopTunnel actually removes the entry — as the real handler does
 	// when the session closes.
 	var detachAlice, detachBob func(string)
-	detachAlice = reg.Attach("alice", "v1", nil, func(r string) { detachAlice(r) })
-	detachBob = reg.Attach("bob", "v2", nil, func(r string) { detachBob(r) })
+	detachAlice = reg.Attach("alice", "v1", tunneltype.HTTP, nil, func(r string) { detachAlice(r) })
+	detachBob = reg.Attach("bob", "v2", tunneltype.HTTP, nil, func(r string) { detachBob(r) })
 	_ = detachAlice
 
 	resp, err := svc.ListTunnels(ctx, connect.NewRequest(&holtv1.ListTunnelsRequest{}))
@@ -84,7 +85,7 @@ func TestAdminService_Block(t *testing.T) {
 	ctx := context.Background()
 
 	var detach func(string)
-	detach = reg.Attach("alice", "v1", nil, func(r string) { detach(r) })
+	detach = reg.Attach("alice", "v1", tunneltype.HTTP, nil, func(r string) { detach(r) })
 
 	// BlockPeer closes the tunnel and records the block.
 	resp, err := svc.BlockPeer(ctx, connect.NewRequest(&holtv1.BlockPeerRequest{Peer: "alice"}))
@@ -141,7 +142,7 @@ func TestWatchTunnels(t *testing.T) {
 
 	// One tunnel up before subscribing: it must arrive as the snapshot.
 	var detachAlice func(string)
-	detachAlice = reg.Attach("alice", "v1", nil, func(r string) { detachAlice(r) })
+	detachAlice = reg.Attach("alice", "v1", tunneltype.HTTP, nil, func(r string) { detachAlice(r) })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -171,7 +172,7 @@ func TestWatchTunnels(t *testing.T) {
 
 	// Live attach.
 	var detachBob func(string)
-	detachBob = reg.Attach("bob", "v2", nil, func(r string) { detachBob(r) })
+	detachBob = reg.Attach("bob", "v2", tunneltype.HTTP, nil, func(r string) { detachBob(r) })
 	_ = detachBob
 
 	if ev := next(); ev.GetKind() != holtv1.TunnelEvent_KIND_ATTACHED || ev.GetInfo().GetPeer() != "bob" {
@@ -200,7 +201,7 @@ func TestInfo(t *testing.T) {
 
 	reg := registry.NewRegistry(zap.NewNop())
 	var detach func(string)
-	detach = reg.Attach("alice", "v1", nil, func(r string) { detach(r) })
+	detach = reg.Attach("alice", "v1", tunneltype.HTTP, nil, func(r string) { detach(r) })
 
 	svc := admin.NewService(reg, admin.WithInfo(admin.HubInfo{
 		Version:       "1.2.3",

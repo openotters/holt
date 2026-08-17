@@ -8,6 +8,7 @@ import (
 
 	"github.com/openotters/holt/pkg/directory"
 	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/tunneltype"
 )
 
 // TestRegistry_DirectoryProjection confirms the Registry mirrors live
@@ -23,7 +24,7 @@ func TestRegistry_DirectoryProjection(t *testing.T) {
 
 	ctx := context.Background()
 
-	detach := r.Attach("peer-1", "v1", nil, func(string) {})
+	detach := r.Attach("peer-1", "v1", tunneltype.HTTP, nil, func(string) {})
 
 	rec, ok, err := r.LookupPeer(ctx, "peer-1")
 	if err != nil || !ok {
@@ -79,7 +80,7 @@ func TestRegistry_MetricsNoopByDefault(t *testing.T) {
 
 	r := registry.NewRegistry(zap.NewNop())
 
-	detach := r.Attach("p", "v1", nil, func(string) {})
+	detach := r.Attach("p", "v1", tunneltype.HTTP, nil, func(string) {})
 	if r.CountTunnels() != 1 {
 		t.Fatal("attach not recorded")
 	}

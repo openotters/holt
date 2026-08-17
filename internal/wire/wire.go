@@ -278,11 +278,12 @@ var _ net.Conn = (*Conn)(nil)
 
 // ClientHandshake sends Hello and requires Welcome as the first
 // reply. Called by the dial side on a fresh stream.
-func ClientHandshake(stream FrameStream, peerVersion string) error {
+func ClientHandshake(stream FrameStream, peerVersion string, tunnelType holtv1.TunnelType) error {
 	hello := &holtv1.TunnelFrame{
 		Kind: &holtv1.TunnelFrame_Hello{Hello: &holtv1.Hello{
 			ProtocolVersion: ProtocolVersion,
 			PeerVersion:     peerVersion,
+			TunnelType:      tunnelType,
 		}},
 	}
 	if err := stream.Send(hello); err != nil {

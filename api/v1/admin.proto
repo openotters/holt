@@ -46,6 +46,9 @@ message TunnelInfo {
   string peer             = 1;
   string peer_version     = 2;
   int64  attached_at_unix = 3;
+  // What the peer said it carries: "http", "https", or "" from a peer
+  // older than the field.
+  string tunnel_type      = 4;
 }
 
 message ListTunnelsRequest {}
