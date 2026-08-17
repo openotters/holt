@@ -16,9 +16,10 @@
   `curl` command to reach that peer through the proxy.
 - a per-peer **Traffic** button: the requests the hub carried to that
   peer, live, as a table. Filter it (a path fragment, a method, `5`
-  for every 5xx), sort any column, and click a row to open everything
-  the hub knows about that request: host, query, protocol, client,
-  user agent, both sizes, and the duration with the tunnel hop in it.
+  for every 5xx), sort any column, and click a row to open the request
+  as a structured entry: a foldable JSON tree carrying the host,
+  query, protocol, client, user agent, both sizes and the duration
+  (tunnel hop included), with a button to copy the whole thing.
   It is per peer on purpose — a fleet's traffic in one list is
   unreadable — and the hub does the filtering, so watching one peer
   never ships you the others'.

@@ -1,6 +1,7 @@
-import { ChevronDown, ChevronRight, Radio, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Radio, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { type JsonValue, JsonView } from "@/components/json-view";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type LiveRequest, useLiveRequests } from "@/lib/use-request-stream";
@@ -199,20 +200,7 @@ function Row({
 			{expanded && (
 				<TableRow className="hover:bg-transparent">
 					<TableCell className="p-0" colSpan={6}>
-						<dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1 border-border/60 border-l-2 bg-muted/30 px-4 py-3 text-sm">
-							<Detail label="when">{new Date(request.at).toLocaleString()}</Detail>
-							<Detail label="peer">{request.peer || "—"}</Detail>
-							<Detail label="host">{request.host || "—"}</Detail>
-							<Detail label="path">{request.path}</Detail>
-							{request.query && <Detail label="query">{request.query}</Detail>}
-							<Detail label="protocol">{request.proto || "—"}</Detail>
-							<Detail label="client">{request.remoteAddr || "—"}</Detail>
-							<Detail label="user agent">{request.userAgent || "—"}</Detail>
-							<Detail label="request size">{formatBytes(request.requestBytes)}</Detail>
-							<Detail label="response size">{formatBytes(request.responseBytes)}</Detail>
-							<Detail label="status">{request.status === 0 ? "no response" : request.status}</Detail>
-							<Detail label="took">{formatTook(request.tookMs)}</Detail>
-						</dl>
+						<Details request={request} />
 					</TableCell>
 				</TableRow>
 			)}
@@ -220,14 +208,58 @@ function Row({
 	);
 }
 
-// Detail is one label/value pair in an expanded row.
-function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+// Details is the whole request as a structured entry: everything the
+// hub knows, foldable, and copyable as JSON so it can be pasted into
+// an issue or a shell without retyping.
+function Details({ request }: { request: LiveRequest }) {
+	const [copied, setCopied] = useState(false);
+	const entry = asEntry(request);
+
+	async function copy() {
+		await navigator.clipboard.writeText(JSON.stringify(entry, null, 2));
+		setCopied(true);
+		setTimeout(() => setCopied(false), 1200);
+	}
+
 	return (
-		<>
-			<dt className="text-muted-foreground text-xs">{label}</dt>
-			<dd className="break-all font-mono text-xs">{children}</dd>
-		</>
+		<div className="relative border-border/60 border-l-2 bg-muted/30 py-3">
+			<Button
+				className="absolute top-2 right-3 h-7 gap-1.5 text-xs"
+				onClick={copy}
+				size="sm"
+				variant="ghost"
+			>
+				{copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+				{copied ? "copied" : "copy"}
+			</Button>
+			<JsonView value={entry} />
+		</div>
 	);
+}
+
+// asEntry shapes a request the way a log entry reads: what it was at
+// the top, the HTTP details grouped under one key. Absent values are
+// null rather than missing, so two entries line up when read one after
+// the other.
+function asEntry(r: LiveRequest): JsonValue {
+	return {
+		timestamp: new Date(r.at).toISOString(),
+		peer: r.peer || null,
+		latency: formatTook(r.tookMs),
+		httpRequest: {
+			method: r.method,
+			path: r.path,
+			query: r.query || null,
+			host: r.host || null,
+			status: r.status,
+			protocol: r.proto || null,
+			remoteIp: r.remoteAddr || null,
+			userAgent: r.userAgent || null,
+			requestSize: r.requestBytes < 0 ? null : r.requestBytes,
+			responseSize: r.responseBytes,
+			latencyMs: Number(r.tookMs.toFixed(3)),
+		},
+	};
 }
 
 // SortHead is a column header that sorts, and shows which way.
@@ -304,14 +336,4 @@ function formatTook(ms: number): string {
 	if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
 	if (ms >= 1) return `${Math.round(ms)}ms`;
 	return `${Math.round(ms * 1000)}µs`;
-}
-
-// formatBytes renders a size, and says so when there was none to
-// declare (a streamed body, or no body at all).
-function formatBytes(bytes: number): string {
-	if (bytes < 0) return "unknown";
-	if (bytes === 0) return "0 B";
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kB`;
-	return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
