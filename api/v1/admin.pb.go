@@ -760,7 +760,8 @@ func (x *WatchRequestsRequest) GetPeer() string {
 }
 
 // RequestEvent is one request the hub proxied to a peer, reported once
-// its response completed.
+// its response completed. Metadata only: no header values beyond the
+// few named here, and never a body.
 type RequestEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Peer          string                 `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
@@ -769,6 +770,13 @@ type RequestEvent struct {
 	Status        int32                  `protobuf:"varint,4,opt,name=status,proto3" json:"status,omitempty"`                           // 0 when the request never got a response
 	DurationUs    int64                  `protobuf:"varint,5,opt,name=duration_us,json=durationUs,proto3" json:"duration_us,omitempty"` // microseconds, hub side, tunnel hop included
 	AtUnixMillis  int64                  `protobuf:"varint,6,opt,name=at_unix_millis,json=atUnixMillis,proto3" json:"at_unix_millis,omitempty"`
+	Query         string                 `protobuf:"bytes,7,opt,name=query,proto3" json:"query,omitempty"`                              // raw query string, without "?"
+	Host          string                 `protobuf:"bytes,8,opt,name=host,proto3" json:"host,omitempty"`                                // authority the request carried
+	Proto         string                 `protobuf:"bytes,9,opt,name=proto,proto3" json:"proto,omitempty"`                              // "HTTP/1.1", "HTTP/2.0"
+	RemoteAddr    string                 `protobuf:"bytes,10,opt,name=remote_addr,json=remoteAddr,proto3" json:"remote_addr,omitempty"` // who the hub saw connecting
+	UserAgent     string                 `protobuf:"bytes,11,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
+	RequestBytes  int64                  `protobuf:"varint,12,opt,name=request_bytes,json=requestBytes,proto3" json:"request_bytes,omitempty"`    // declared Content-Length, -1 when unknown
+	ResponseBytes int64                  `protobuf:"varint,13,opt,name=response_bytes,json=responseBytes,proto3" json:"response_bytes,omitempty"` // what the peer's handler wrote
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -841,6 +849,55 @@ func (x *RequestEvent) GetDurationUs() int64 {
 func (x *RequestEvent) GetAtUnixMillis() int64 {
 	if x != nil {
 		return x.AtUnixMillis
+	}
+	return 0
+}
+
+func (x *RequestEvent) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *RequestEvent) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *RequestEvent) GetProto() string {
+	if x != nil {
+		return x.Proto
+	}
+	return ""
+}
+
+func (x *RequestEvent) GetRemoteAddr() string {
+	if x != nil {
+		return x.RemoteAddr
+	}
+	return ""
+}
+
+func (x *RequestEvent) GetUserAgent() string {
+	if x != nil {
+		return x.UserAgent
+	}
+	return ""
+}
+
+func (x *RequestEvent) GetRequestBytes() int64 {
+	if x != nil {
+		return x.RequestBytes
+	}
+	return 0
+}
+
+func (x *RequestEvent) GetResponseBytes() int64 {
+	if x != nil {
+		return x.ResponseBytes
 	}
 	return 0
 }
@@ -1061,7 +1118,7 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\rKIND_ATTACHED\x10\x01\x12\x11\n" +
 	"\rKIND_DETACHED\x10\x02\"*\n" +
 	"\x14WatchRequestsRequest\x12\x12\n" +
-	"\x04peer\x18\x01 \x01(\tR\x04peer\"\xad\x01\n" +
+	"\x04peer\x18\x01 \x01(\tR\x04peer\"\xf9\x02\n" +
 	"\fRequestEvent\x12\x12\n" +
 	"\x04peer\x18\x01 \x01(\tR\x04peer\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12\x12\n" +
@@ -1069,7 +1126,17 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\x05R\x06status\x12\x1f\n" +
 	"\vduration_us\x18\x05 \x01(\x03R\n" +
 	"durationUs\x12$\n" +
-	"\x0eat_unix_millis\x18\x06 \x01(\x03R\fatUnixMillis\"\r\n" +
+	"\x0eat_unix_millis\x18\x06 \x01(\x03R\fatUnixMillis\x12\x14\n" +
+	"\x05query\x18\a \x01(\tR\x05query\x12\x12\n" +
+	"\x04host\x18\b \x01(\tR\x04host\x12\x14\n" +
+	"\x05proto\x18\t \x01(\tR\x05proto\x12\x1f\n" +
+	"\vremote_addr\x18\n" +
+	" \x01(\tR\n" +
+	"remoteAddr\x12\x1d\n" +
+	"\n" +
+	"user_agent\x18\v \x01(\tR\tuserAgent\x12#\n" +
+	"\rrequest_bytes\x18\f \x01(\x03R\frequestBytes\x12%\n" +
+	"\x0eresponse_bytes\x18\r \x01(\x03R\rresponseBytes\"\r\n" +
 	"\vInfoRequest\"\x97\x03\n" +
 	"\fInfoResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +

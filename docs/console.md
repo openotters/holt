@@ -15,14 +15,19 @@
   per-peer **Kill**, **Block**, and a **Call** button that shows the
   `curl` command to reach that peer through the proxy.
 - a per-peer **Traffic** button: the requests the hub carried to that
-  peer, live, newest first, with the status and how long each took
-  (the tunnel hop included). It is per peer on purpose — a fleet's
-  traffic in one list is unreadable — and the hub does the filtering,
-  so watching one peer never ships you the others'. Nothing is
-  stored: the hub holds a handful of recent requests in memory so the
-  panel is not blank when it opens, forgets them on restart, and
-  closing the panel loses the rest. This is the hub's live view;
-  `holt hub` itself logs no requests.
+  peer, live, as a table. Filter it (a path fragment, a method, `5`
+  for every 5xx), sort any column, and click a row to open everything
+  the hub knows about that request: host, query, protocol, client,
+  user agent, both sizes, and the duration with the tunnel hop in it.
+  It is per peer on purpose — a fleet's traffic in one list is
+  unreadable — and the hub does the filtering, so watching one peer
+  never ships you the others'.
+
+  Nothing is stored: the hub keeps the last `--traffic-buffer`
+  requests in memory (100 by default, `0` keeps none) so the table is
+  not blank when it opens, forgets them on restart, and closing the
+  panel loses the rest. Metadata only, never a body. This is the
+  hub's live view; `holt hub` itself logs no requests.
 - an **Add peer** dialog that mints a join token (shown in full, one
   click to copy).
 - an **Install holt** card, collapsed by default: a tile per method

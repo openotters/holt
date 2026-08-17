@@ -57,13 +57,13 @@ func (m *metrics) recordError(ctx context.Context, reason string) {
 
 // observe wraps one request with the in-flight, duration and
 // per-status-code counters, and returns what the request became —
-// the peer it reached, the status, and how long it took — so the
-// caller can report it. The status code is the only metric attribute:
-// a peer label would multiply every series by the fleet size, which
-// is why the peer travels through the hook instead.
+// the peer it reached, the recorded response, and how long it took —
+// so the caller can report it. The status code is the only metric
+// attribute: a peer label would multiply every series by the fleet
+// size, which is why the peer travels through the hook instead.
 func (m *metrics) observe(
 	w http.ResponseWriter, r *http.Request, serve func(http.ResponseWriter, *http.Request) string,
-) (string, int, time.Duration) {
+) (string, *reqlog.Recorder, time.Duration) {
 	ctx := r.Context()
 
 	m.inflight.Add(ctx, 1)
@@ -79,5 +79,5 @@ func (m *metrics) observe(
 	m.requests.Add(ctx, 1, attrs)
 	m.duration.Record(ctx, took.Seconds(), attrs)
 
-	return peer, rec.Status(), took
+	return peer, rec, took
 }

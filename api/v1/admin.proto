@@ -118,14 +118,22 @@ message WatchRequestsRequest {
 }
 
 // RequestEvent is one request the hub proxied to a peer, reported once
-// its response completed.
+// its response completed. Metadata only: no header values beyond the
+// few named here, and never a body.
 message RequestEvent {
-  string peer          = 1;
-  string method        = 2;
-  string path          = 3;
-  int32  status        = 4; // 0 when the request never got a response
-  int64  duration_us   = 5; // microseconds, hub side, tunnel hop included
+  string peer           = 1;
+  string method         = 2;
+  string path           = 3;
+  int32  status         = 4; // 0 when the request never got a response
+  int64  duration_us    = 5; // microseconds, hub side, tunnel hop included
   int64  at_unix_millis = 6;
+  string query          = 7;  // raw query string, without "?"
+  string host           = 8;  // authority the request carried
+  string proto          = 9;  // "HTTP/1.1", "HTTP/2.0"
+  string remote_addr    = 10; // who the hub saw connecting
+  string user_agent     = 11;
+  int64  request_bytes  = 12; // declared Content-Length, -1 when unknown
+  int64  response_bytes = 13; // what the peer's handler wrote
 }
 
 message InfoRequest {}

@@ -31,6 +31,9 @@ func TestWatchRequests(t *testing.T) {
 	broker.Publish(reqlog.Event{
 		At: time.Now(), Peer: "alice", Method: http.MethodGet, Path: "/before",
 		Status: http.StatusOK, Duration: 12 * time.Millisecond,
+		Query: "ref=twitter", Host: "shop.example.com", Proto: "HTTP/1.1",
+		RemoteAddr: "10.0.0.9:54321", UserAgent: "curl/8.7.1",
+		RequestBytes: 7, ResponseBytes: 640,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -61,6 +64,14 @@ func TestWatchRequests(t *testing.T) {
 	if replayed.GetStatus() != http.StatusOK || replayed.GetDurationUs() != 12_000 {
 		t.Errorf("replayed status=%d duration=%dµs, want 200 / 12000µs",
 			replayed.GetStatus(), replayed.GetDurationUs())
+	}
+
+	// Everything an expanded row shows has to survive the wire.
+	if replayed.GetQuery() != "ref=twitter" || replayed.GetHost() != "shop.example.com" ||
+		replayed.GetProto() != "HTTP/1.1" || replayed.GetRemoteAddr() != "10.0.0.9:54321" ||
+		replayed.GetUserAgent() != "curl/8.7.1" ||
+		replayed.GetRequestBytes() != 7 || replayed.GetResponseBytes() != 640 {
+		t.Errorf("details lost on the wire: %+v", replayed)
 	}
 
 	broker.Publish(reqlog.Event{

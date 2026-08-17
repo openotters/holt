@@ -48,6 +48,7 @@ spec:
             - --proxy-addr=0.0.0.0:{{ .Values.service.proxy.port }}
             - --state=/data
             - --token-ttl={{ .Values.hub.tokenTTL }}
+            - --traffic-buffer={{ .Values.hub.trafficBuffer }}
             {{- with include "holt.advertiseAddr" . }}
             - --advertise-addr={{ . }}
             {{- end }}

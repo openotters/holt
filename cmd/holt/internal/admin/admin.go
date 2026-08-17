@@ -281,12 +281,19 @@ func (s *Service) WatchRequests(
 			}
 
 			if err := stream.Send(&holtv1.RequestEvent{
-				Peer:         ev.Peer,
-				Method:       ev.Method,
-				Path:         ev.Path,
-				Status:       int32(ev.Status), //nolint:gosec // an HTTP status is three digits
-				DurationUs:   ev.Duration.Microseconds(),
-				AtUnixMillis: ev.At.UnixMilli(),
+				Peer:          ev.Peer,
+				Method:        ev.Method,
+				Path:          ev.Path,
+				Status:        int32(ev.Status), //nolint:gosec // an HTTP status is three digits
+				DurationUs:    ev.Duration.Microseconds(),
+				AtUnixMillis:  ev.At.UnixMilli(),
+				Query:         ev.Query,
+				Host:          ev.Host,
+				Proto:         ev.Proto,
+				RemoteAddr:    ev.RemoteAddr,
+				UserAgent:     ev.UserAgent,
+				RequestBytes:  ev.RequestBytes,
+				ResponseBytes: ev.ResponseBytes,
 			}); err != nil {
 				return err
 			}

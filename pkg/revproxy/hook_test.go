@@ -30,12 +30,19 @@ func TestRequestHookReportsCarriedRequest(t *testing.T) {
 
 	proxy := revproxy.New(peers, revproxy.WithRequestHook(func(ev reqlog.Event) { got = ev }))
 
-	req := httptest.NewRequest(http.MethodGet, "http://placeholder/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://shop.example.com/status?deep=1", nil)
 	req.Header.Set(revproxy.RouteHeader, "alice")
+	req.Header.Set("User-Agent", "curl/8.7.1")
 	proxy.ServeHTTP(httptest.NewRecorder(), req)
 
 	if got.Peer != "alice" {
 		t.Errorf("peer = %q, want alice", got.Peer)
+	}
+
+	// The details a console row opens to, read before routing rewrote
+	// anything.
+	if got.Query != "deep=1" || got.Host != "shop.example.com" || got.UserAgent != "curl/8.7.1" {
+		t.Errorf("details = query %q host %q agent %q", got.Query, got.Host, got.UserAgent)
 	}
 
 	if got.Method != http.MethodGet || got.Path != "/status" {

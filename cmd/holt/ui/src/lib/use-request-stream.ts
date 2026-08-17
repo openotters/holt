@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Admin, type RequestEvent } from "@/gen/v1/admin_pb";
 import { transport } from "@/lib/transport";
 
-// One request the hub carried, as the panel shows it.
+// One request the hub carried, as the panel shows it. Metadata only:
+// the hub sends no header values beyond these and never a body.
 export type LiveRequest = {
 	id: number; // client-side key; the hub sends no id
 	at: number; // hub clock, ms
@@ -13,6 +14,13 @@ export type LiveRequest = {
 	path: string;
 	status: number; // 0 when the request never got a response
 	tookMs: number;
+	query: string;
+	host: string;
+	proto: string;
+	remoteAddr: string;
+	userAgent: string;
+	requestBytes: number; // -1 when the request did not declare one
+	responseBytes: number;
 };
 
 // How many requests the view keeps. Nothing is stored anywhere: this
@@ -77,6 +85,13 @@ export function useLiveRequests(peer: string) {
 				path: ev.path,
 				status: ev.status,
 				tookMs: Number(ev.durationUs) / 1000,
+				query: ev.query,
+				host: ev.host,
+				proto: ev.proto,
+				remoteAddr: ev.remoteAddr,
+				userAgent: ev.userAgent,
+				requestBytes: Number(ev.requestBytes),
+				responseBytes: Number(ev.responseBytes),
 			};
 			setRequests((rs) => [entry, ...rs].slice(0, requestCap));
 		}

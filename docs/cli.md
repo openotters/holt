@@ -228,13 +228,16 @@ With `--log-format json` the same events come out as fields
 The hub does not log requests: one serving a fleet would drown its own
 output. It shows them in the **web console** instead (`holt hub --ui`):
 each peer's row has a **Traffic** button that opens that peer's
-requests, live as they happen. One peer at a time is the point, and
-the hub filters the stream, so watching a peer never carries the rest
-of the fleet to your browser.
+requests in a table you can filter, sort, and open a row of for the
+details (host, query, protocol, client, user agent, sizes). One peer
+at a time is the point, and the hub filters the stream, so watching a
+peer never carries the rest of the fleet to your browser.
 
 Nothing is stored on either side, it is a view, not a log. The hub
-keeps a handful of recent requests in memory so the panel is not blank
-when it opens, and they are gone when it restarts.
+keeps the last `--traffic-buffer` requests in memory (100 by default,
+`0` keeps none) so the table is not blank when it opens, and they are
+gone when it restarts. It is metadata only: no header values beyond
+the few shown, and never a body.
 
 The hub times the tunnel hop and the peer does not, so a request that
 looks slow in the console and fast on the peer points at the network

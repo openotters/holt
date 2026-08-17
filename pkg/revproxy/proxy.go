@@ -161,19 +161,22 @@ const peerHost = "peer.invalid"
 // names none gets the landing page rather than a proxied request, so
 // hitting the proxy root never turns into a 502.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	method, path := r.Method, r.URL.Path
+	// Read the request before serving it: routing rewrites headers,
+	// and the reverse proxy is free to touch the URL it was handed.
+	ev := reqlog.From(r)
 
-	peer, status, took := p.metrics.observe(w, r, p.serve)
+	peer, rec, took := p.metrics.observe(w, r, p.serve)
 	if p.onRequest == nil {
 		return
 	}
 
+	ev.At, ev.Peer = time.Now(), peer
+	ev.Status, ev.ResponseBytes, ev.Duration = rec.Status(), rec.Written(), took
+
 	// Reported after the response, on this goroutine: a hook that
 	// blocks holds the request it describes, which is the caller's
 	// problem to keep cheap.
-	p.onRequest(reqlog.Event{
-		At: time.Now(), Peer: peer, Method: method, Path: path, Status: status, Duration: took,
-	})
+	p.onRequest(ev)
 }
 
 // serve is the routing itself, wrapped by the instruments above. It

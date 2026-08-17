@@ -1,8 +1,10 @@
 package reqlog_test
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/openotters/holt/pkg/reqlog"
@@ -111,5 +113,53 @@ func TestRecorderFlushes(t *testing.T) {
 
 	if rec.Unwrap() != http.ResponseWriter(under) {
 		t.Error("unwrap did not return the underlying writer")
+	}
+}
+
+// The event carries the request as received, so a details view can be
+// built from it: what was asked, over what, by whom, and how big both
+// halves were.
+func TestMiddlewareReportsDetails(t *testing.T) {
+	t.Parallel()
+
+	var got reqlog.Event
+
+	handler := reqlog.Middleware(
+		func(ev reqlog.Event) { got = ev },
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// A handler is free to drain the body and rewrite the URL
+			// it was given; the event must not depend on either.
+			_, _ = io.Copy(io.Discard, r.Body)
+			r.URL.Path = "/rewritten"
+
+			_, _ = w.Write([]byte("response body"))
+		}),
+	)
+
+	req := httptest.NewRequest(http.MethodPost, "/orders?ref=twitter&utm=x", strings.NewReader(`{"a":1}`))
+	req.Host = "shop.example.com"
+	req.Header.Set("User-Agent", "curl/8.7.1")
+	req.RemoteAddr = "10.0.0.9:54321"
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	if got.Path != "/orders" || got.Query != "ref=twitter&utm=x" {
+		t.Errorf("path/query = %q %q, want /orders and the raw query", got.Path, got.Query)
+	}
+
+	if got.Host != "shop.example.com" || got.UserAgent != "curl/8.7.1" || got.RemoteAddr != "10.0.0.9:54321" {
+		t.Errorf("host/agent/client = %q %q %q", got.Host, got.UserAgent, got.RemoteAddr)
+	}
+
+	if got.Proto == "" {
+		t.Error("event carries no protocol")
+	}
+
+	if got.RequestBytes != 7 {
+		t.Errorf("request bytes = %d, want 7", got.RequestBytes)
+	}
+
+	if got.ResponseBytes != int64(len("response body")) {
+		t.Errorf("response bytes = %d, want %d", got.ResponseBytes, len("response body"))
 	}
 }

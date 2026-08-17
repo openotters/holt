@@ -64,8 +64,19 @@ func (h *Hub) newRuntime(
 		metrics:  hubmetrics.New(commons.Version.Version(), commons.Version.Commit()),
 		info:     h.adminInfo(commons),
 		logger:   logger,
-		requests: reqlog.NewBroker(0),
+		requests: reqlog.NewBroker(trafficWindow(h.TrafficBuffer)),
 	}, nil
+}
+
+// trafficWindow maps the flag onto the broker's convention, where 0
+// means "the default" and a negative number means "keep none": an
+// operator who asks for 0 wants none, not the default.
+func trafficWindow(events int) int {
+	if events <= 0 {
+		return -1
+	}
+
+	return events
 }
 
 // hostname identifies this hub in the shared presence directory, so a

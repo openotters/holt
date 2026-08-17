@@ -223,6 +223,9 @@ the rest of the knobs.
 - `hub.externalURL`: public proxy URL shown in the console's Call
   command; auto-derived from the proxy ingress host when set.
 - `hub.maxConns`: cap concurrent tunnel connections.
+- `hub.trafficBuffer`: recent proxied requests kept in memory to seed
+  the console's traffic view (100; `0` keeps none). Nothing is written
+  anywhere and the window dies with the pod.
 - `hub.tokenTTL`, `hub.logLevel`, `resources`, `nodeSelector`,
   `tolerations`, `affinity`: as usual.
 

@@ -34,10 +34,17 @@ type Hub struct {
 	// moves them to a shared database instead, so a fleet of hubs sees
 	// which peer is attached where and shares its blocks. The JWT
 	// secret stays local either way.
-	DirectoryDSN string        `help:"PostgreSQL DSN for a shared presence directory + blocklist (e.g. postgres://user:pass@host/db). Empty keeps both in the local SQLite state." name:"directory-dsn"`
-	UI           bool          `help:"Serve the web console (and its enroll endpoint) on the admin listener."`
-	UIPath       string        `help:"Serve the console from this directory instead of the embedded build." type:"path"`
-	TokenTTL     time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
+	DirectoryDSN string `help:"PostgreSQL DSN for a shared presence directory + blocklist (e.g. postgres://user:pass@host/db). Empty keeps both in the local SQLite state." name:"directory-dsn"`
+	UI           bool   `help:"Serve the web console (and its enroll endpoint) on the admin listener."`
+	UIPath       string `help:"Serve the console from this directory instead of the embedded build." type:"path"`
+
+	// The console's traffic view is live, and this is the only memory
+	// behind it: enough recent requests that a panel opened mid-traffic
+	// is not blank. Nothing is written anywhere, and the window dies
+	// with the process. 0 keeps none, so a panel shows only what
+	// happens after it opens.
+	TrafficBuffer int           `help:"Recent proxied requests kept in memory for the console's traffic view (0 keeps none)." default:"100" name:"traffic-buffer"`
+	TokenTTL      time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
 
 	// Public tunnel URL stamped into join tokens (what peers dial). Its
 	// scheme selects the peer transport: wss dials TLS under the
