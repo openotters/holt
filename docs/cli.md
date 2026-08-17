@@ -238,8 +238,26 @@ peer never carries the rest of the fleet to your browser.
 Nothing is stored on either side, it is a view, not a log. The hub
 keeps the last `--traffic-buffer` requests in memory (100 by default,
 `0` keeps none) so the table is not blank when it opens, and they are
-gone when it restarts. It is metadata only: no header values beyond
-the few shown, and never a body.
+gone when it restarts.
+
+What a request shows beyond its metadata:
+
+| Flag | Default | Effect |
+|---|---|---|
+| `--traffic-payloads` | on | capture headers and bodies for the view |
+| `--no-traffic-payloads` | | metadata only: method, path, status, timing |
+| `--traffic-body-size` | `4096` | bytes kept of each body (`0` keeps headers only) |
+
+Headers whose value is a credential (`authorization`, `cookie`,
+`x-api-key`, ...) are reported as `<redacted>` whichever way this is
+set: the console has no auth of its own, and a token on screen is a
+token leaked. Bodies are captured up to the limit and marked truncated
+past it; a body whose content type is not text (an image, a download)
+is named rather than shown. Nothing is written to disk, and the
+capture lives in the same in-memory window as the rest.
+
+Turn payloads off (`--no-traffic-payloads`) wherever what your peers
+carry should not be readable from the console.
 
 The hub times the tunnel hop and the peer does not, so a request that
 looks slow in the console and fast on the peer points at the network

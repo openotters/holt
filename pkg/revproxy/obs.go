@@ -63,6 +63,7 @@ func (m *metrics) recordError(ctx context.Context, reason string) {
 // size, which is why the peer travels through the hook instead.
 func (m *metrics) observe(
 	w http.ResponseWriter, r *http.Request, serve func(http.ResponseWriter, *http.Request) string,
+	capture ...reqlog.Option,
 ) (string, *reqlog.Recorder, time.Duration) {
 	ctx := r.Context()
 
@@ -70,7 +71,7 @@ func (m *metrics) observe(
 	defer m.inflight.Add(ctx, -1)
 
 	start := time.Now()
-	rec := reqlog.NewRecorder(w)
+	rec := reqlog.NewRecorder(w, capture...)
 
 	peer := serve(rec, r)
 	took := time.Since(start)

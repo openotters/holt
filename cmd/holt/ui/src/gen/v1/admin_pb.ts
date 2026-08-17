@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file v1/admin.proto.
  */
 export const file_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("Cg52MS9hZG1pbi5wcm90bxISb3Blbm90dGVycy5ob2x0LnYxIl8KClR1bm5lbEluZm8SDAoEcGVlchgBIAEoCRIUCgxwZWVyX3ZlcnNpb24YAiABKAkSGAoQYXR0YWNoZWRfYXRfdW5peBgDIAEoAxITCgt0dW5uZWxfdHlwZRgEIAEoCSIUChJMaXN0VHVubmVsc1JlcXVlc3QiRgoTTGlzdFR1bm5lbHNSZXNwb25zZRIvCgd0dW5uZWxzGAEgAygLMh4ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEluZm8iMQoRU3RvcFR1bm5lbFJlcXVlc3QSDAoEcGVlchgBIAEoCRIOCgZyZWFzb24YAiABKAkiJQoSU3RvcFR1bm5lbFJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIAoQQmxvY2tQZWVyUmVxdWVzdBIMCgRwZWVyGAEgASgJIiQKEUJsb2NrUGVlclJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIgoSVW5ibG9ja1BlZXJSZXF1ZXN0EgwKBHBlZXIYASABKAkiFQoTVW5ibG9ja1BlZXJSZXNwb25zZSI0CgtCbG9ja2VkUGVlchIMCgRwZWVyGAEgASgJEhcKD2Jsb2NrZWRfYXRfdW5peBgCIAEoAyIUChJMaXN0QmxvY2tlZFJlcXVlc3QiRQoTTGlzdEJsb2NrZWRSZXNwb25zZRIuCgVwZWVycxgBIAMoCzIfLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja2VkUGVlciIVChNXYXRjaFR1bm5lbHNSZXF1ZXN0IsMBCgtUdW5uZWxFdmVudBIyCgRraW5kGAEgASgOMiQub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50LktpbmQSLAoEaW5mbxgCIAEoCzIeLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxJbmZvEg4KBnJlYXNvbhgDIAEoCSJCCgRLaW5kEhQKEEtJTkRfVU5TUEVDSUZJRUQQABIRCg1LSU5EX0FUVEFDSEVEEAESEQoNS0lORF9ERVRBQ0hFRBACIiQKFFdhdGNoUmVxdWVzdHNSZXF1ZXN0EgwKBHBlZXIYASABKAki+wEKDFJlcXVlc3RFdmVudBIMCgRwZWVyGAEgASgJEg4KBm1ldGhvZBgCIAEoCRIMCgRwYXRoGAMgASgJEg4KBnN0YXR1cxgEIAEoBRITCgtkdXJhdGlvbl91cxgFIAEoAxIWCg5hdF91bml4X21pbGxpcxgGIAEoAxINCgVxdWVyeRgHIAEoCRIMCgRob3N0GAggASgJEg0KBXByb3RvGAkgASgJEhMKC3JlbW90ZV9hZGRyGAogASgJEhIKCnVzZXJfYWdlbnQYCyABKAkSFQoNcmVxdWVzdF9ieXRlcxgMIAEoAxIWCg5yZXNwb25zZV9ieXRlcxgNIAEoAyINCgtJbmZvUmVxdWVzdCKHAgoMSW5mb1Jlc3BvbnNlEg8KB3ZlcnNpb24YASABKAkSDgoGY29tbWl0GAIgASgJEg8KB3R1bm5lbHMYAyABKAMSDwoHYmxvY2tlZBgEIAEoAxIWCg5hZHZlcnRpc2VfYWRkchgFIAEoCRISCgpwcm94eV9hZGRyGAYgASgJEhQKDHJvdXRlX2hlYWRlchgHIAEoCRIUCgxtZXRyaWNzX2FkZHIYCCABKAkSFAoMZXh0ZXJuYWxfdXJsGAkgASgJEhkKEXRva2VuX3R0bF9zZWNvbmRzGAogASgDEhUKDXByb3h5X3JvdXRpbmcYCyABKAkSFAoMcHJveHlfZG9tYWluGAwgASgJMuQFCgVBZG1pbhJeCgtMaXN0VHVubmVscxImLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0VHVubmVsc1JlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdFR1bm5lbHNSZXNwb25zZRJbCgpTdG9wVHVubmVsEiUub3Blbm90dGVycy5ob2x0LnYxLlN0b3BUdW5uZWxSZXF1ZXN0GiYub3Blbm90dGVycy5ob2x0LnYxLlN0b3BUdW5uZWxSZXNwb25zZRJYCglCbG9ja1BlZXISJC5vcGVub3R0ZXJzLmhvbHQudjEuQmxvY2tQZWVyUmVxdWVzdBolLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja1BlZXJSZXNwb25zZRJeCgtVbmJsb2NrUGVlchImLm9wZW5vdHRlcnMuaG9sdC52MS5VbmJsb2NrUGVlclJlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuVW5ibG9ja1BlZXJSZXNwb25zZRJeCgtMaXN0QmxvY2tlZBImLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0QmxvY2tlZFJlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdEJsb2NrZWRSZXNwb25zZRJaCgxXYXRjaFR1bm5lbHMSJy5vcGVub3R0ZXJzLmhvbHQudjEuV2F0Y2hUdW5uZWxzUmVxdWVzdBofLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxFdmVudDABEl0KDVdhdGNoUmVxdWVzdHMSKC5vcGVub3R0ZXJzLmhvbHQudjEuV2F0Y2hSZXF1ZXN0c1JlcXVlc3QaIC5vcGVub3R0ZXJzLmhvbHQudjEuUmVxdWVzdEV2ZW50MAESSQoESW5mbxIfLm9wZW5vdHRlcnMuaG9sdC52MS5JbmZvUmVxdWVzdBogLm9wZW5vdHRlcnMuaG9sdC52MS5JbmZvUmVzcG9uc2VCKlooZ2l0aHViLmNvbS9vcGVub3R0ZXJzL2hvbHQvYXBpL3YxO2hvbHR2MWIGcHJvdG8z");
+  fileDesc("Cg52MS9hZG1pbi5wcm90bxISb3Blbm90dGVycy5ob2x0LnYxIl8KClR1bm5lbEluZm8SDAoEcGVlchgBIAEoCRIUCgxwZWVyX3ZlcnNpb24YAiABKAkSGAoQYXR0YWNoZWRfYXRfdW5peBgDIAEoAxITCgt0dW5uZWxfdHlwZRgEIAEoCSIUChJMaXN0VHVubmVsc1JlcXVlc3QiRgoTTGlzdFR1bm5lbHNSZXNwb25zZRIvCgd0dW5uZWxzGAEgAygLMh4ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEluZm8iMQoRU3RvcFR1bm5lbFJlcXVlc3QSDAoEcGVlchgBIAEoCRIOCgZyZWFzb24YAiABKAkiJQoSU3RvcFR1bm5lbFJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIAoQQmxvY2tQZWVyUmVxdWVzdBIMCgRwZWVyGAEgASgJIiQKEUJsb2NrUGVlclJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIgoSVW5ibG9ja1BlZXJSZXF1ZXN0EgwKBHBlZXIYASABKAkiFQoTVW5ibG9ja1BlZXJSZXNwb25zZSI0CgtCbG9ja2VkUGVlchIMCgRwZWVyGAEgASgJEhcKD2Jsb2NrZWRfYXRfdW5peBgCIAEoAyIUChJMaXN0QmxvY2tlZFJlcXVlc3QiRQoTTGlzdEJsb2NrZWRSZXNwb25zZRIuCgVwZWVycxgBIAMoCzIfLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja2VkUGVlciIVChNXYXRjaFR1bm5lbHNSZXF1ZXN0IsMBCgtUdW5uZWxFdmVudBIyCgRraW5kGAEgASgOMiQub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50LktpbmQSLAoEaW5mbxgCIAEoCzIeLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxJbmZvEg4KBnJlYXNvbhgDIAEoCSJCCgRLaW5kEhQKEEtJTkRfVU5TUEVDSUZJRUQQABIRCg1LSU5EX0FUVEFDSEVEEAESEQoNS0lORF9ERVRBQ0hFRBACIiQKFFdhdGNoUmVxdWVzdHNSZXF1ZXN0EgwKBHBlZXIYASABKAki6wQKDFJlcXVlc3RFdmVudBIMCgRwZWVyGAEgASgJEg4KBm1ldGhvZBgCIAEoCRIMCgRwYXRoGAMgASgJEg4KBnN0YXR1cxgEIAEoBRITCgtkdXJhdGlvbl91cxgFIAEoAxIWCg5hdF91bml4X21pbGxpcxgGIAEoAxINCgVxdWVyeRgHIAEoCRIMCgRob3N0GAggASgJEg0KBXByb3RvGAkgASgJEhMKC3JlbW90ZV9hZGRyGAogASgJEhIKCnVzZXJfYWdlbnQYCyABKAkSFQoNcmVxdWVzdF9ieXRlcxgMIAEoAxIWCg5yZXNwb25zZV9ieXRlcxgNIAEoAxJNCg9yZXF1ZXN0X2hlYWRlcnMYDiADKAsyNC5vcGVub3R0ZXJzLmhvbHQudjEuUmVxdWVzdEV2ZW50LlJlcXVlc3RIZWFkZXJzRW50cnkSTwoQcmVzcG9uc2VfaGVhZGVycxgPIAMoCzI1Lm9wZW5vdHRlcnMuaG9sdC52MS5SZXF1ZXN0RXZlbnQuUmVzcG9uc2VIZWFkZXJzRW50cnkSLgoMcmVxdWVzdF9ib2R5GBAgASgLMhgub3Blbm90dGVycy5ob2x0LnYxLkJvZHkSLwoNcmVzcG9uc2VfYm9keRgRIAEoCzIYLm9wZW5vdHRlcnMuaG9sdC52MS5Cb2R5GjUKE1JlcXVlc3RIZWFkZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARo2ChRSZXNwb25zZUhlYWRlcnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkkKBEJvZHkSDwoHY29udGVudBgBIAEoDBIMCgRzaXplGAIgASgDEhEKCXRydW5jYXRlZBgDIAEoCBIPCgdza2lwcGVkGAQgASgJIg0KC0luZm9SZXF1ZXN0IocCCgxJbmZvUmVzcG9uc2USDwoHdmVyc2lvbhgBIAEoCRIOCgZjb21taXQYAiABKAkSDwoHdHVubmVscxgDIAEoAxIPCgdibG9ja2VkGAQgASgDEhYKDmFkdmVydGlzZV9hZGRyGAUgASgJEhIKCnByb3h5X2FkZHIYBiABKAkSFAoMcm91dGVfaGVhZGVyGAcgASgJEhQKDG1ldHJpY3NfYWRkchgIIAEoCRIUCgxleHRlcm5hbF91cmwYCSABKAkSGQoRdG9rZW5fdHRsX3NlY29uZHMYCiABKAMSFQoNcHJveHlfcm91dGluZxgLIAEoCRIUCgxwcm94eV9kb21haW4YDCABKAky5AUKBUFkbWluEl4KC0xpc3RUdW5uZWxzEiYub3Blbm90dGVycy5ob2x0LnYxLkxpc3RUdW5uZWxzUmVxdWVzdBonLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0VHVubmVsc1Jlc3BvbnNlElsKClN0b3BUdW5uZWwSJS5vcGVub3R0ZXJzLmhvbHQudjEuU3RvcFR1bm5lbFJlcXVlc3QaJi5vcGVub3R0ZXJzLmhvbHQudjEuU3RvcFR1bm5lbFJlc3BvbnNlElgKCUJsb2NrUGVlchIkLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja1BlZXJSZXF1ZXN0GiUub3Blbm90dGVycy5ob2x0LnYxLkJsb2NrUGVlclJlc3BvbnNlEl4KC1VuYmxvY2tQZWVyEiYub3Blbm90dGVycy5ob2x0LnYxLlVuYmxvY2tQZWVyUmVxdWVzdBonLm9wZW5vdHRlcnMuaG9sdC52MS5VbmJsb2NrUGVlclJlc3BvbnNlEl4KC0xpc3RCbG9ja2VkEiYub3Blbm90dGVycy5ob2x0LnYxLkxpc3RCbG9ja2VkUmVxdWVzdBonLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0QmxvY2tlZFJlc3BvbnNlEloKDFdhdGNoVHVubmVscxInLm9wZW5vdHRlcnMuaG9sdC52MS5XYXRjaFR1bm5lbHNSZXF1ZXN0Gh8ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50MAESXQoNV2F0Y2hSZXF1ZXN0cxIoLm9wZW5vdHRlcnMuaG9sdC52MS5XYXRjaFJlcXVlc3RzUmVxdWVzdBogLm9wZW5vdHRlcnMuaG9sdC52MS5SZXF1ZXN0RXZlbnQwARJJCgRJbmZvEh8ub3Blbm90dGVycy5ob2x0LnYxLkluZm9SZXF1ZXN0GiAub3Blbm90dGVycy5ob2x0LnYxLkluZm9SZXNwb25zZUIqWihnaXRodWIuY29tL29wZW5vdHRlcnMvaG9sdC9hcGkvdjE7aG9sdHYxYgZwcm90bzM");
 
 /**
  * @generated from message openotters.holt.v1.TunnelInfo
@@ -417,6 +417,33 @@ export type RequestEvent = Message<"openotters.holt.v1.RequestEvent"> & {
    * @generated from field: int64 response_bytes = 13;
    */
   responseBytes: bigint;
+
+  /**
+   * Headers as they crossed, with credential-carrying values redacted
+   * ("authorization", "cookie", ...). Empty when the hub captures no
+   * payload.
+   *
+   * @generated from field: map<string, string> request_headers = 14;
+   */
+  requestHeaders: { [key: string]: string };
+
+  /**
+   * @generated from field: map<string, string> response_headers = 15;
+   */
+  responseHeaders: { [key: string]: string };
+
+  /**
+   * Bounded captures of the payloads. Empty when capture is off, when
+   * there was no body, or when the content type was not worth showing.
+   *
+   * @generated from field: openotters.holt.v1.Body request_body = 16;
+   */
+  requestBody?: Body | undefined;
+
+  /**
+   * @generated from field: openotters.holt.v1.Body response_body = 17;
+   */
+  responseBody?: Body | undefined;
 };
 
 /**
@@ -425,6 +452,49 @@ export type RequestEvent = Message<"openotters.holt.v1.RequestEvent"> & {
  */
 export const RequestEventSchema: GenMessage<RequestEvent> = /*@__PURE__*/
   messageDesc(file_v1_admin, 15);
+
+/**
+ * Body is what the hub kept of one side's payload: a bounded prefix,
+ * or the reason it kept nothing.
+ *
+ * @generated from message openotters.holt.v1.Body
+ */
+export type Body = Message<"openotters.holt.v1.Body"> & {
+  /**
+   * captured prefix, empty when skipped
+   *
+   * @generated from field: bytes content = 1;
+   */
+  content: Uint8Array;
+
+  /**
+   * total bytes that crossed
+   *
+   * @generated from field: int64 size = 2;
+   */
+  size: bigint;
+
+  /**
+   * the body was longer than the limit
+   *
+   * @generated from field: bool truncated = 3;
+   */
+  truncated: boolean;
+
+  /**
+   * "", "disabled" or "binary"
+   *
+   * @generated from field: string skipped = 4;
+   */
+  skipped: string;
+};
+
+/**
+ * Describes the message openotters.holt.v1.Body.
+ * Use `create(BodySchema)` to create a new message.
+ */
+export const BodySchema: GenMessage<Body> = /*@__PURE__*/
+  messageDesc(file_v1_admin, 16);
 
 /**
  * @generated from message openotters.holt.v1.InfoRequest
@@ -437,7 +507,7 @@ export type InfoRequest = Message<"openotters.holt.v1.InfoRequest"> & {
  * Use `create(InfoRequestSchema)` to create a new message.
  */
 export const InfoRequestSchema: GenMessage<InfoRequest> = /*@__PURE__*/
-  messageDesc(file_v1_admin, 16);
+  messageDesc(file_v1_admin, 17);
 
 /**
  * @generated from message openotters.holt.v1.InfoResponse
@@ -532,7 +602,7 @@ export type InfoResponse = Message<"openotters.holt.v1.InfoResponse"> & {
  * Use `create(InfoResponseSchema)` to create a new message.
  */
 export const InfoResponseSchema: GenMessage<InfoResponse> = /*@__PURE__*/
-  messageDesc(file_v1_admin, 17);
+  messageDesc(file_v1_admin, 18);
 
 /**
  * Admin is the hub's management surface: enumerate live tunnels and

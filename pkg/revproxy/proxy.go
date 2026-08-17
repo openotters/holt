@@ -72,6 +72,7 @@ type Proxy struct {
 	resolvers []Resolver
 	onError   ErrorHook
 	onRequest reqlog.Hook
+	capture   []reqlog.Option
 	metrics   *metrics
 	reverse   *httputil.ReverseProxy
 }
@@ -105,6 +106,19 @@ func WithRequestHook(hook reqlog.Hook) Option {
 	return func(p *Proxy) { p.onRequest = hook }
 }
 
+// WithRequestCapture adds the payload to what the request hook
+// reports: the headers (credential values redacted) and up to limit
+// bytes of each body. Off by default — a proxy that keeps no payload
+// cannot leak one, and streaming costs nothing.
+//
+// Capture is bounded per request and never stored by the proxy; what
+// happens to it afterwards is the hook's business.
+func WithRequestCapture(limit int) Option {
+	return func(p *Proxy) {
+		p.capture = []reqlog.Option{reqlog.WithHeaders(), reqlog.WithBodyLimit(limit)}
+	}
+}
+
 // WithMeterProvider sets the OTel MeterProvider the data-plane
 // instruments are built from (holt.proxy.requests, .request.duration,
 // .inflight, .errors). Optional: without it the global provider is
@@ -121,6 +135,7 @@ func New(peers Peers, opts ...Option) *Proxy {
 		resolvers: nil, // defaulted below, after the options ran
 		onError:   nil,
 		onRequest: nil,
+		capture:   nil,
 		metrics:   nil,
 		reverse:   nil,
 	}
@@ -165,13 +180,30 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// and the reverse proxy is free to touch the URL it was handed.
 	ev := reqlog.From(r)
 
-	peer, rec, took := p.metrics.observe(w, r, p.serve)
+	var (
+		reqBody     *reqlog.BodyCapture
+		contentType string
+	)
+
+	if p.capture != nil && p.onRequest != nil {
+		ev.RequestHeaders = reqlog.Headers(r.Header)
+		contentType = r.Header.Get("Content-Type")
+		reqBody = reqlog.CaptureRequestBody(r, reqlog.BodyLimit(p.capture...))
+	}
+
+	peer, rec, took := p.metrics.observe(w, r, p.serve, p.capture...)
 	if p.onRequest == nil {
 		return
 	}
 
 	ev.At, ev.Peer = time.Now(), peer
 	ev.Status, ev.ResponseBytes, ev.Duration = rec.Status(), rec.Written(), took
+
+	if p.capture != nil {
+		ev.ResponseHeaders = reqlog.Headers(rec.Header())
+		ev.RequestBody = reqBody.Body(contentType)
+		ev.ResponseBody = rec.Body()
+	}
 
 	// Reported after the response, on this goroutine: a hook that
 	// blocks holds the request it describes, which is the caller's

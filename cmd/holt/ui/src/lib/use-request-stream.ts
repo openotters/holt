@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Admin, type RequestEvent } from "@/gen/v1/admin_pb";
 import { transport } from "@/lib/transport";
 
-// One request the hub carried, as the panel shows it. Metadata only:
-// the hub sends no header values beyond these and never a body.
+// One request the hub carried, as the panel shows it.
 export type LiveRequest = {
 	id: number; // client-side key; the hub sends no id
 	at: number; // hub clock, ms
@@ -21,6 +20,19 @@ export type LiveRequest = {
 	userAgent: string;
 	requestBytes: number; // -1 when the request did not declare one
 	responseBytes: number;
+	requestHeaders: Record<string, string>;
+	responseHeaders: Record<string, string>;
+	requestBody: CapturedBody | null;
+	responseBody: CapturedBody | null;
+};
+
+// CapturedBody is what the hub kept of a payload: a bounded prefix, or
+// the reason it kept nothing.
+export type CapturedBody = {
+	content: string;
+	size: number;
+	truncated: boolean;
+	skipped: string; // "", "disabled" or "binary"
 };
 
 // How many requests the view keeps. Nothing is stored anywhere: this
@@ -39,6 +51,20 @@ const requestCap = 200;
 //
 // An Unimplemented hub (one older than the request view) leaves
 // supported false, so the caller can say so instead of spinning.
+// asBody decodes a captured payload. The hub sends bytes, since a
+// body is whatever the client sent and not necessarily text; anything
+// that is not valid UTF-8 comes back with replacement characters
+// rather than failing the row.
+function asBody(body: RequestEvent["requestBody"]): CapturedBody | null {
+	if (!body) return null;
+	return {
+		content: new TextDecoder().decode(body.content),
+		size: Number(body.size),
+		truncated: body.truncated,
+		skipped: body.skipped,
+	};
+}
+
 export function useLiveRequests(peer: string) {
 	const [requests, setRequests] = useState<LiveRequest[]>([]);
 	const [live, setLive] = useState(false);
@@ -92,6 +118,10 @@ export function useLiveRequests(peer: string) {
 				userAgent: ev.userAgent,
 				requestBytes: Number(ev.requestBytes),
 				responseBytes: Number(ev.responseBytes),
+				requestHeaders: ev.requestHeaders,
+				responseHeaders: ev.responseHeaders,
+				requestBody: asBody(ev.requestBody),
+				responseBody: asBody(ev.responseBody),
 			};
 			setRequests((rs) => [entry, ...rs].slice(0, requestCap));
 		}

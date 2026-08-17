@@ -50,6 +50,16 @@ type Event struct {
 	RequestBytes int64
 	// ResponseBytes is what the handler actually wrote.
 	ResponseBytes int64
+	// RequestHeaders and ResponseHeaders are the headers as they
+	// crossed, with credential-carrying values redacted (see Headers).
+	// Nil when the reporting end does not collect them.
+	RequestHeaders  map[string]string
+	ResponseHeaders map[string]string
+	// RequestBody and ResponseBody are bounded captures of the
+	// payloads, empty unless the reporting end was built with a body
+	// limit. See Body.
+	RequestBody  Body
+	ResponseBody Body
 	// Status is the response code, 0 when the request never got one
 	// (the connection died first).
 	Status int
@@ -78,18 +88,58 @@ func From(r *http.Request) Event {
 // or hand off to a channel.
 type Hook func(Event)
 
+// Option configures what a Middleware or Recorder collects.
+type Option func(*config)
+
+// config is what the options build up.
+type config struct {
+	headers   bool
+	bodyLimit int
+}
+
+// WithHeaders reports the request and response headers, with
+// credential-carrying values redacted (see Headers).
+func WithHeaders() Option {
+	return func(c *config) { c.headers = true }
+}
+
+// WithBodyLimit captures up to limit bytes of each body, request and
+// response. 0 (the default) captures none, which is the only setting
+// that costs nothing and the only one that cannot leak a payload into
+// whatever reads the events.
+func WithBodyLimit(limit int) Option {
+	return func(c *config) { c.bodyLimit = limit }
+}
+
 // Middleware wraps a handler so every request it serves is reported.
 // It is what the peer side uses, and it works on any http.Handler.
-func Middleware(hook Hook, next http.Handler) http.Handler {
+//
+// By default it reports metadata only. WithHeaders and WithBodyLimit
+// add the payload, bounded, for a caller that wants to see what
+// crossed.
+func Middleware(hook Hook, next http.Handler, opts ...Option) http.Handler {
 	if hook == nil {
 		return next
+	}
+
+	var cfg config
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Read from the request before the handler runs: a handler is
 		// free to consume the body and rewrite the URL it was given.
 		ev := From(r)
-		rec := NewRecorder(w)
+
+		if cfg.headers {
+			ev.RequestHeaders = Headers(r.Header)
+		}
+
+		reqBody := CaptureRequestBody(r, cfg.bodyLimit)
+		contentType := r.Header.Get("Content-Type")
+
+		rec := NewRecorder(w, opts...)
 		start := time.Now()
 
 		next.ServeHTTP(rec, r)
@@ -98,6 +148,12 @@ func Middleware(hook Hook, next http.Handler) http.Handler {
 		ev.Status = rec.Status()
 		ev.ResponseBytes = rec.Written()
 		ev.Duration = time.Since(start)
+		ev.RequestBody = reqBody.Body(contentType)
+		ev.ResponseBody = rec.Body()
+
+		if cfg.headers {
+			ev.ResponseHeaders = Headers(rec.Header())
+		}
 
 		hook(ev)
 	})
@@ -111,14 +167,25 @@ type Recorder struct {
 	status  int
 	written bool
 	bytes   int64
+	capture BodyCapture
 }
 
 // NewRecorder wraps w. Until the handler writes, the status reads as
 // 200, which is what net/http sends for a handler that writes a body
-// without calling WriteHeader.
-func NewRecorder(w http.ResponseWriter) *Recorder {
-	return &Recorder{ResponseWriter: w, status: http.StatusOK}
+// without calling WriteHeader. With WithBodyLimit it also keeps a
+// bounded prefix of the response, readable afterwards with Body.
+func NewRecorder(w http.ResponseWriter, opts ...Option) *Recorder {
+	var cfg config
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	return &Recorder{ResponseWriter: w, status: http.StatusOK, capture: BodyCapture{limit: cfg.bodyLimit}}
 }
+
+// Body is what was captured of the response, judged against the
+// content type the handler declared.
+func (r *Recorder) Body() Body { return r.capture.Body(r.Header().Get("Content-Type")) }
 
 // Status is the code the handler sent.
 func (r *Recorder) Status() int { return r.status }
@@ -137,6 +204,7 @@ func (r *Recorder) Write(b []byte) (int, error) {
 
 	n, err := r.ResponseWriter.Write(b)
 	r.bytes += int64(n)
+	r.capture.write(b[:n])
 
 	return n, err
 }

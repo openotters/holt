@@ -192,6 +192,13 @@ holt.NewProxy(":7202", watch)          // ev.Peer says which tunnel
 holt.NewClient(hubURL, handler, watch) // ev.Peer is empty: only one
 ```
 
+By default an event is metadata. `holt.WithRequestCapture(4096)` on
+the proxy (or `reqlog.WithHeaders()` and `reqlog.WithBodyLimit(n)` on
+the peer's middleware) adds the headers and a bounded slice of each
+body, with credential-carrying header values redacted, bodies marked
+truncated past the limit, and non-text content types named rather
+than kept.
+
 Nothing is stored, and the hook runs on the request's goroutine after
 the response, so keep it cheap (print, count, or hand off to a
 channel). The hub's duration includes the tunnel hop and the peer's

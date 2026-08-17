@@ -43,8 +43,18 @@ type Hub struct {
 	// is not blank. Nothing is written anywhere, and the window dies
 	// with the process. 0 keeps none, so a panel shows only what
 	// happens after it opens.
-	TrafficBuffer int           `help:"Recent proxied requests kept in memory for the console's traffic view (0 keeps none)." default:"100" name:"traffic-buffer"`
-	TokenTTL      time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
+	TrafficBuffer int `help:"Recent proxied requests kept in memory for the console's traffic view (0 keeps none)." default:"100" name:"traffic-buffer"`
+
+	// What the console shows of a request beyond its metadata. Headers
+	// and a bounded slice of each body make a request debuggable rather
+	// than merely counted; they also put what peers carry in front of a
+	// console that has no auth of its own, so both are switchable
+	// (--no-traffic-payloads, --traffic-body-size=0) and
+	// credential-carrying header values are redacted either way.
+	TrafficPayloads bool `help:"Capture request/response headers and bodies for the console's traffic view." default:"true" negatable:"" name:"traffic-payloads"`
+	TrafficBodySize int  `help:"Bytes of each body kept for the console's traffic view (0 keeps headers only)." default:"4096" name:"traffic-body-size"`
+
+	TokenTTL time.Duration `help:"Lifetime of JWTs minted by enroll." default:"24h"`
 
 	// Public tunnel URL stamped into join tokens (what peers dial). Its
 	// scheme selects the peer transport: wss dials TLS under the

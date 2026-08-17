@@ -133,15 +133,22 @@ func (h *Hub) startProxy(ctx context.Context, listeners *httpsrv.Group, rt *hubR
 	// The proxy records its own data-plane metrics (requests, duration,
 	// in-flight, routing errors) against the global provider --metrics
 	// installed above, so the CLI adds no instrumentation of its own.
-	peers := revproxy.New(rt.registry,
+	options := []revproxy.Option{
 		revproxy.WithResolvers(resolvers...),
 		// Carried requests go to whoever is watching the console, not
 		// to the hub's log: a hub serving a fleet would drown its own
 		// output, and the console is where you go to watch traffic.
 		revproxy.WithRequestHook(rt.requests.Hook()),
-	)
+	}
 
-	return listeners.Start(ctx, "proxy", h.ProxyAddr, peers)
+	// Payload capture is opt-out rather than always-on: it is what
+	// makes the view useful, and it is also the only part of it that
+	// puts what peers carry in front of a console reader.
+	if h.TrafficPayloads {
+		options = append(options, revproxy.WithRequestCapture(h.TrafficBodySize))
+	}
+
+	return listeners.Start(ctx, "proxy", h.ProxyAddr, revproxy.New(rt.registry, options...))
 }
 
 // startMetrics serves the OTel Prometheus exporter on /metrics.

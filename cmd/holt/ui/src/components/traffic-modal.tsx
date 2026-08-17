@@ -5,7 +5,7 @@ import { type JsonValue, JsonView } from "@/components/json-view";
 import { Button } from "@/components/ui/button";
 import { type HubConfig, curlFor, requestFormats } from "@/lib/reach";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { type LiveRequest, useLiveRequests } from "@/lib/use-request-stream";
+import { type CapturedBody, type LiveRequest, useLiveRequests } from "@/lib/use-request-stream";
 
 // The columns that can be sorted on. Time descending is the live feed;
 // any other order is a view over the window, still updating underneath.
@@ -363,11 +363,11 @@ function CopyAsMenu({
 }
 
 // asEntry shapes a request the way a log entry reads: what it was at
-// the top, the HTTP details grouped under one key. Absent values are
-// null rather than missing, so two entries line up when read one after
-// the other.
+// the top, the HTTP details grouped under one key, then each half's
+// headers and body. Absent values are null rather than missing, so two
+// entries line up when read one after the other.
 function asEntry(r: LiveRequest): JsonValue {
-	return {
+	const entry: Record<string, JsonValue> = {
 		timestamp: new Date(r.at).toISOString(),
 		peer: r.peer || null,
 		latency: formatTook(r.tookMs),
@@ -385,6 +385,42 @@ function asEntry(r: LiveRequest): JsonValue {
 			latencyMs: Number(r.tookMs.toFixed(3)),
 		},
 	};
+
+	// Only present when the hub captures payloads: a request that
+	// carried nothing says so with an absent key rather than an empty
+	// one, and a hub with capture off shows none of these at all.
+	if (r.requestHeaders && Object.keys(r.requestHeaders).length > 0) {
+		entry.requestHeaders = r.requestHeaders;
+	}
+
+	if (r.requestBody) entry.requestBody = asBodyValue(r.requestBody);
+
+	if (r.responseHeaders && Object.keys(r.responseHeaders).length > 0) {
+		entry.responseHeaders = r.responseHeaders;
+	}
+
+	if (r.responseBody) entry.responseBody = asBodyValue(r.responseBody);
+
+	return entry;
+}
+
+// asBodyValue renders a captured payload: the content when there is
+// some, otherwise why there is not. A truncated body says so next to
+// the size it was cut from, so nobody reads a prefix as the whole.
+function asBodyValue(body: CapturedBody): JsonValue {
+	if (body.skipped === "disabled") {
+		return { bytes: body.size, captured: false, reason: "capture is off on this hub" };
+	}
+
+	if (body.skipped === "binary") {
+		return { bytes: body.size, captured: false, reason: "not a text content type" };
+	}
+
+	if (body.truncated) {
+		return { bytes: body.size, truncated: true, content: body.content };
+	}
+
+	return { bytes: body.size, content: body.content };
 }
 
 // SortHead is a column header that sorts, and shows which way.

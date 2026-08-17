@@ -49,6 +49,11 @@ spec:
             - --state=/data
             - --token-ttl={{ .Values.hub.tokenTTL }}
             - --traffic-buffer={{ .Values.hub.trafficBuffer }}
+            {{- if .Values.hub.trafficPayloads }}
+            - --traffic-body-size={{ .Values.hub.trafficBodySize }}
+            {{- else }}
+            - --no-traffic-payloads
+            {{- end }}
             {{- with include "holt.advertiseAddr" . }}
             - --advertise-addr={{ . }}
             {{- end }}

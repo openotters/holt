@@ -281,23 +281,42 @@ func (s *Service) WatchRequests(
 			}
 
 			if err := stream.Send(&holtv1.RequestEvent{
-				Peer:          ev.Peer,
-				Method:        ev.Method,
-				Path:          ev.Path,
-				Status:        int32(ev.Status), //nolint:gosec // an HTTP status is three digits
-				DurationUs:    ev.Duration.Microseconds(),
-				AtUnixMillis:  ev.At.UnixMilli(),
-				Query:         ev.Query,
-				Host:          ev.Host,
-				Proto:         ev.Proto,
-				RemoteAddr:    ev.RemoteAddr,
-				UserAgent:     ev.UserAgent,
-				RequestBytes:  ev.RequestBytes,
-				ResponseBytes: ev.ResponseBytes,
+				Peer:            ev.Peer,
+				Method:          ev.Method,
+				Path:            ev.Path,
+				Status:          int32(ev.Status), //nolint:gosec // an HTTP status is three digits
+				DurationUs:      ev.Duration.Microseconds(),
+				AtUnixMillis:    ev.At.UnixMilli(),
+				Query:           ev.Query,
+				Host:            ev.Host,
+				Proto:           ev.Proto,
+				RemoteAddr:      ev.RemoteAddr,
+				UserAgent:       ev.UserAgent,
+				RequestBytes:    ev.RequestBytes,
+				ResponseBytes:   ev.ResponseBytes,
+				RequestHeaders:  ev.RequestHeaders,
+				ResponseHeaders: ev.ResponseHeaders,
+				RequestBody:     asProtoBody(ev.RequestBody),
+				ResponseBody:    asProtoBody(ev.ResponseBody),
 			}); err != nil {
 				return err
 			}
 		}
+	}
+}
+
+// asProtoBody carries a captured body over the wire, or nothing when
+// there was nothing to carry.
+func asProtoBody(b reqlog.Body) *holtv1.Body {
+	if b.Size == 0 && b.Skipped == "" {
+		return nil
+	}
+
+	return &holtv1.Body{
+		Content:   b.Content,
+		Size:      b.Size,
+		Truncated: b.Truncated,
+		Skipped:   b.Skipped,
 	}
 }
 

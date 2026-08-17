@@ -29,11 +29,17 @@
   unreadable — and the hub does the filtering, so watching one peer
   never ships you the others'.
 
+  The entry carries the headers and a bounded slice of each body
+  (`--traffic-body-size`, 4 KiB by default). Credential-carrying
+  header values are always `<redacted>`, a body past the limit is
+  marked truncated, and one that is not text is named rather than
+  shown. `--no-traffic-payloads` keeps the view to metadata only.
+
   Nothing is stored: the hub keeps the last `--traffic-buffer`
   requests in memory (100 by default, `0` keeps none) so the table is
   not blank when it opens, forgets them on restart, and closing the
-  panel loses the rest. Metadata only, never a body. This is the
-  hub's live view; `holt hub` itself logs no requests.
+  panel loses the rest. This is the hub's live view; `holt hub` itself
+  logs no requests.
 - an **Add peer** dialog that mints a join token (shown in full, one
   click to copy).
 - an **Install holt** card, collapsed by default: a tile per method

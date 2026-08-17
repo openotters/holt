@@ -72,3 +72,9 @@ func WithErrorHook(hook revproxy.ErrorHook) Option {
 func WithRequestHook(hook reqlog.Hook) Option {
 	return proxyOption(func(p *Proxy) { p.Opts = append(p.Opts, revproxy.WithRequestHook(hook)) })
 }
+
+// WithRequestCapture adds headers and bounded bodies to what the
+// request hook reports. See revproxy.WithRequestCapture.
+func WithRequestCapture(limit int) Option {
+	return proxyOption(func(p *Proxy) { p.Opts = append(p.Opts, revproxy.WithRequestCapture(limit)) })
+}

@@ -25,6 +25,13 @@ hub:
   # the pod; 0 keeps none, so a panel shows only what happens after it
   # opens.
   trafficBuffer: 100
+  # Capture headers and bodies for that view. Headers have their
+  # credential-carrying values redacted either way; turn this off to
+  # keep the view to metadata only, which is the only setting that
+  # cannot put a payload in front of a console reader.
+  trafficPayloads: true
+  # Bytes of each body kept (0 keeps headers only).
+  trafficBodySize: 4096
   # Public tunnel URL stamped into join tokens (what peers dial). The
   # pod binds 0.0.0.0, which peers cannot dial, so set this to the
   # reachable URL. The scheme picks the peer transport:

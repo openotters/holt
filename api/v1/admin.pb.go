@@ -777,6 +777,15 @@ type RequestEvent struct {
 	UserAgent     string                 `protobuf:"bytes,11,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
 	RequestBytes  int64                  `protobuf:"varint,12,opt,name=request_bytes,json=requestBytes,proto3" json:"request_bytes,omitempty"`    // declared Content-Length, -1 when unknown
 	ResponseBytes int64                  `protobuf:"varint,13,opt,name=response_bytes,json=responseBytes,proto3" json:"response_bytes,omitempty"` // what the peer's handler wrote
+	// Headers as they crossed, with credential-carrying values redacted
+	// ("authorization", "cookie", ...). Empty when the hub captures no
+	// payload.
+	RequestHeaders  map[string]string `protobuf:"bytes,14,rep,name=request_headers,json=requestHeaders,proto3" json:"request_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ResponseHeaders map[string]string `protobuf:"bytes,15,rep,name=response_headers,json=responseHeaders,proto3" json:"response_headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Bounded captures of the payloads. Empty when capture is off, when
+	// there was no body, or when the content type was not worth showing.
+	RequestBody   *Body `protobuf:"bytes,16,opt,name=request_body,json=requestBody,proto3" json:"request_body,omitempty"`
+	ResponseBody  *Body `protobuf:"bytes,17,opt,name=response_body,json=responseBody,proto3" json:"response_body,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -902,6 +911,104 @@ func (x *RequestEvent) GetResponseBytes() int64 {
 	return 0
 }
 
+func (x *RequestEvent) GetRequestHeaders() map[string]string {
+	if x != nil {
+		return x.RequestHeaders
+	}
+	return nil
+}
+
+func (x *RequestEvent) GetResponseHeaders() map[string]string {
+	if x != nil {
+		return x.ResponseHeaders
+	}
+	return nil
+}
+
+func (x *RequestEvent) GetRequestBody() *Body {
+	if x != nil {
+		return x.RequestBody
+	}
+	return nil
+}
+
+func (x *RequestEvent) GetResponseBody() *Body {
+	if x != nil {
+		return x.ResponseBody
+	}
+	return nil
+}
+
+// Body is what the hub kept of one side's payload: a bounded prefix,
+// or the reason it kept nothing.
+type Body struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Content       []byte                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`      // captured prefix, empty when skipped
+	Size          int64                  `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`           // total bytes that crossed
+	Truncated     bool                   `protobuf:"varint,3,opt,name=truncated,proto3" json:"truncated,omitempty"` // the body was longer than the limit
+	Skipped       string                 `protobuf:"bytes,4,opt,name=skipped,proto3" json:"skipped,omitempty"`      // "", "disabled" or "binary"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Body) Reset() {
+	*x = Body{}
+	mi := &file_v1_admin_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Body) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Body) ProtoMessage() {}
+
+func (x *Body) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_admin_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Body.ProtoReflect.Descriptor instead.
+func (*Body) Descriptor() ([]byte, []int) {
+	return file_v1_admin_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *Body) GetContent() []byte {
+	if x != nil {
+		return x.Content
+	}
+	return nil
+}
+
+func (x *Body) GetSize() int64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *Body) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+func (x *Body) GetSkipped() string {
+	if x != nil {
+		return x.Skipped
+	}
+	return ""
+}
+
 type InfoRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -910,7 +1017,7 @@ type InfoRequest struct {
 
 func (x *InfoRequest) Reset() {
 	*x = InfoRequest{}
-	mi := &file_v1_admin_proto_msgTypes[16]
+	mi := &file_v1_admin_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -922,7 +1029,7 @@ func (x *InfoRequest) String() string {
 func (*InfoRequest) ProtoMessage() {}
 
 func (x *InfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_admin_proto_msgTypes[16]
+	mi := &file_v1_admin_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -935,7 +1042,7 @@ func (x *InfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InfoRequest.ProtoReflect.Descriptor instead.
 func (*InfoRequest) Descriptor() ([]byte, []int) {
-	return file_v1_admin_proto_rawDescGZIP(), []int{16}
+	return file_v1_admin_proto_rawDescGZIP(), []int{17}
 }
 
 type InfoResponse struct {
@@ -963,7 +1070,7 @@ type InfoResponse struct {
 
 func (x *InfoResponse) Reset() {
 	*x = InfoResponse{}
-	mi := &file_v1_admin_proto_msgTypes[17]
+	mi := &file_v1_admin_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -975,7 +1082,7 @@ func (x *InfoResponse) String() string {
 func (*InfoResponse) ProtoMessage() {}
 
 func (x *InfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_admin_proto_msgTypes[17]
+	mi := &file_v1_admin_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -988,7 +1095,7 @@ func (x *InfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InfoResponse.ProtoReflect.Descriptor instead.
 func (*InfoResponse) Descriptor() ([]byte, []int) {
-	return file_v1_admin_proto_rawDescGZIP(), []int{17}
+	return file_v1_admin_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *InfoResponse) GetVersion() string {
@@ -1118,7 +1225,7 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\rKIND_ATTACHED\x10\x01\x12\x11\n" +
 	"\rKIND_DETACHED\x10\x02\"*\n" +
 	"\x14WatchRequestsRequest\x12\x12\n" +
-	"\x04peer\x18\x01 \x01(\tR\x04peer\"\xf9\x02\n" +
+	"\x04peer\x18\x01 \x01(\tR\x04peer\"\xbd\x06\n" +
 	"\fRequestEvent\x12\x12\n" +
 	"\x04peer\x18\x01 \x01(\tR\x04peer\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12\x12\n" +
@@ -1136,7 +1243,22 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\n" +
 	"user_agent\x18\v \x01(\tR\tuserAgent\x12#\n" +
 	"\rrequest_bytes\x18\f \x01(\x03R\frequestBytes\x12%\n" +
-	"\x0eresponse_bytes\x18\r \x01(\x03R\rresponseBytes\"\r\n" +
+	"\x0eresponse_bytes\x18\r \x01(\x03R\rresponseBytes\x12]\n" +
+	"\x0frequest_headers\x18\x0e \x03(\v24.openotters.holt.v1.RequestEvent.RequestHeadersEntryR\x0erequestHeaders\x12`\n" +
+	"\x10response_headers\x18\x0f \x03(\v25.openotters.holt.v1.RequestEvent.ResponseHeadersEntryR\x0fresponseHeaders\x12;\n" +
+	"\frequest_body\x18\x10 \x01(\v2\x18.openotters.holt.v1.BodyR\vrequestBody\x12=\n" +
+	"\rresponse_body\x18\x11 \x01(\v2\x18.openotters.holt.v1.BodyR\fresponseBody\x1aA\n" +
+	"\x13RequestHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aB\n" +
+	"\x14ResponseHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"l\n" +
+	"\x04Body\x12\x18\n" +
+	"\acontent\x18\x01 \x01(\fR\acontent\x12\x12\n" +
+	"\x04size\x18\x02 \x01(\x03R\x04size\x12\x1c\n" +
+	"\ttruncated\x18\x03 \x01(\bR\ttruncated\x12\x18\n" +
+	"\askipped\x18\x04 \x01(\tR\askipped\"\r\n" +
 	"\vInfoRequest\"\x97\x03\n" +
 	"\fInfoResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\x12\x16\n" +
@@ -1177,7 +1299,7 @@ func file_v1_admin_proto_rawDescGZIP() []byte {
 }
 
 var file_v1_admin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_v1_admin_proto_goTypes = []any{
 	(TunnelEvent_Kind)(0),        // 0: openotters.holt.v1.TunnelEvent.Kind
 	(*TunnelInfo)(nil),           // 1: openotters.holt.v1.TunnelInfo
@@ -1196,35 +1318,42 @@ var file_v1_admin_proto_goTypes = []any{
 	(*TunnelEvent)(nil),          // 14: openotters.holt.v1.TunnelEvent
 	(*WatchRequestsRequest)(nil), // 15: openotters.holt.v1.WatchRequestsRequest
 	(*RequestEvent)(nil),         // 16: openotters.holt.v1.RequestEvent
-	(*InfoRequest)(nil),          // 17: openotters.holt.v1.InfoRequest
-	(*InfoResponse)(nil),         // 18: openotters.holt.v1.InfoResponse
+	(*Body)(nil),                 // 17: openotters.holt.v1.Body
+	(*InfoRequest)(nil),          // 18: openotters.holt.v1.InfoRequest
+	(*InfoResponse)(nil),         // 19: openotters.holt.v1.InfoResponse
+	nil,                          // 20: openotters.holt.v1.RequestEvent.RequestHeadersEntry
+	nil,                          // 21: openotters.holt.v1.RequestEvent.ResponseHeadersEntry
 }
 var file_v1_admin_proto_depIdxs = []int32{
 	1,  // 0: openotters.holt.v1.ListTunnelsResponse.tunnels:type_name -> openotters.holt.v1.TunnelInfo
 	10, // 1: openotters.holt.v1.ListBlockedResponse.peers:type_name -> openotters.holt.v1.BlockedPeer
 	0,  // 2: openotters.holt.v1.TunnelEvent.kind:type_name -> openotters.holt.v1.TunnelEvent.Kind
 	1,  // 3: openotters.holt.v1.TunnelEvent.info:type_name -> openotters.holt.v1.TunnelInfo
-	2,  // 4: openotters.holt.v1.Admin.ListTunnels:input_type -> openotters.holt.v1.ListTunnelsRequest
-	4,  // 5: openotters.holt.v1.Admin.StopTunnel:input_type -> openotters.holt.v1.StopTunnelRequest
-	6,  // 6: openotters.holt.v1.Admin.BlockPeer:input_type -> openotters.holt.v1.BlockPeerRequest
-	8,  // 7: openotters.holt.v1.Admin.UnblockPeer:input_type -> openotters.holt.v1.UnblockPeerRequest
-	11, // 8: openotters.holt.v1.Admin.ListBlocked:input_type -> openotters.holt.v1.ListBlockedRequest
-	13, // 9: openotters.holt.v1.Admin.WatchTunnels:input_type -> openotters.holt.v1.WatchTunnelsRequest
-	15, // 10: openotters.holt.v1.Admin.WatchRequests:input_type -> openotters.holt.v1.WatchRequestsRequest
-	17, // 11: openotters.holt.v1.Admin.Info:input_type -> openotters.holt.v1.InfoRequest
-	3,  // 12: openotters.holt.v1.Admin.ListTunnels:output_type -> openotters.holt.v1.ListTunnelsResponse
-	5,  // 13: openotters.holt.v1.Admin.StopTunnel:output_type -> openotters.holt.v1.StopTunnelResponse
-	7,  // 14: openotters.holt.v1.Admin.BlockPeer:output_type -> openotters.holt.v1.BlockPeerResponse
-	9,  // 15: openotters.holt.v1.Admin.UnblockPeer:output_type -> openotters.holt.v1.UnblockPeerResponse
-	12, // 16: openotters.holt.v1.Admin.ListBlocked:output_type -> openotters.holt.v1.ListBlockedResponse
-	14, // 17: openotters.holt.v1.Admin.WatchTunnels:output_type -> openotters.holt.v1.TunnelEvent
-	16, // 18: openotters.holt.v1.Admin.WatchRequests:output_type -> openotters.holt.v1.RequestEvent
-	18, // 19: openotters.holt.v1.Admin.Info:output_type -> openotters.holt.v1.InfoResponse
-	12, // [12:20] is the sub-list for method output_type
-	4,  // [4:12] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+	20, // 4: openotters.holt.v1.RequestEvent.request_headers:type_name -> openotters.holt.v1.RequestEvent.RequestHeadersEntry
+	21, // 5: openotters.holt.v1.RequestEvent.response_headers:type_name -> openotters.holt.v1.RequestEvent.ResponseHeadersEntry
+	17, // 6: openotters.holt.v1.RequestEvent.request_body:type_name -> openotters.holt.v1.Body
+	17, // 7: openotters.holt.v1.RequestEvent.response_body:type_name -> openotters.holt.v1.Body
+	2,  // 8: openotters.holt.v1.Admin.ListTunnels:input_type -> openotters.holt.v1.ListTunnelsRequest
+	4,  // 9: openotters.holt.v1.Admin.StopTunnel:input_type -> openotters.holt.v1.StopTunnelRequest
+	6,  // 10: openotters.holt.v1.Admin.BlockPeer:input_type -> openotters.holt.v1.BlockPeerRequest
+	8,  // 11: openotters.holt.v1.Admin.UnblockPeer:input_type -> openotters.holt.v1.UnblockPeerRequest
+	11, // 12: openotters.holt.v1.Admin.ListBlocked:input_type -> openotters.holt.v1.ListBlockedRequest
+	13, // 13: openotters.holt.v1.Admin.WatchTunnels:input_type -> openotters.holt.v1.WatchTunnelsRequest
+	15, // 14: openotters.holt.v1.Admin.WatchRequests:input_type -> openotters.holt.v1.WatchRequestsRequest
+	18, // 15: openotters.holt.v1.Admin.Info:input_type -> openotters.holt.v1.InfoRequest
+	3,  // 16: openotters.holt.v1.Admin.ListTunnels:output_type -> openotters.holt.v1.ListTunnelsResponse
+	5,  // 17: openotters.holt.v1.Admin.StopTunnel:output_type -> openotters.holt.v1.StopTunnelResponse
+	7,  // 18: openotters.holt.v1.Admin.BlockPeer:output_type -> openotters.holt.v1.BlockPeerResponse
+	9,  // 19: openotters.holt.v1.Admin.UnblockPeer:output_type -> openotters.holt.v1.UnblockPeerResponse
+	12, // 20: openotters.holt.v1.Admin.ListBlocked:output_type -> openotters.holt.v1.ListBlockedResponse
+	14, // 21: openotters.holt.v1.Admin.WatchTunnels:output_type -> openotters.holt.v1.TunnelEvent
+	16, // 22: openotters.holt.v1.Admin.WatchRequests:output_type -> openotters.holt.v1.RequestEvent
+	19, // 23: openotters.holt.v1.Admin.Info:output_type -> openotters.holt.v1.InfoResponse
+	16, // [16:24] is the sub-list for method output_type
+	8,  // [8:16] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_v1_admin_proto_init() }
@@ -1238,7 +1367,7 @@ func file_v1_admin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_admin_proto_rawDesc), len(file_v1_admin_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   18,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

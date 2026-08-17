@@ -58,6 +58,10 @@ export const requestFormats: RequestFormat[] = [
 
 // curlFor rebuilds a request as a curl command that replays it through
 // the hub. It is what you paste into a terminal to ask again.
+//
+// The body rides along when the hub captured it whole. A truncated
+// capture is left out: a command that sent a prefix would look like a
+// reproduction and behave like something else.
 export function curlFor(request: LiveRequest, peer: string, config: HubConfig): string {
 	const parts = ["curl"];
 
@@ -70,9 +74,38 @@ export function curlFor(request: LiveRequest, peer: string, config: HubConfig): 
 		parts.push("-H", `'${header[0]}: ${header[1]}'`);
 	}
 
+	const contentType = headerValue(request.requestHeaders, "content-type");
+	if (contentType) {
+		parts.push("-H", `'content-type: ${contentType}'`);
+	}
+
+	const body = replayableBody(request);
+	if (body) {
+		parts.push("-d", `'${body.replace(/'/g, "'\\''")}'`);
+	}
+
 	parts.push(`'${urlFor(request, peer, config)}'`);
 
 	return parts.join(" ");
+}
+
+// replayableBody is the request body when the hub captured all of it,
+// and nothing otherwise.
+function replayableBody(request: LiveRequest): string {
+	const body = request.requestBody;
+	if (!body || body.skipped || body.truncated || !body.content) return "";
+
+	return body.content;
+}
+
+// headerValue reads a header case-insensitively out of the captured
+// map, which keeps whatever casing the client sent.
+function headerValue(headers: Record<string, string> | undefined, name: string): string {
+	if (!headers) return "";
+
+	const found = Object.entries(headers).find(([k]) => k.toLowerCase() === name);
+
+	return found ? found[1] : "";
 }
 
 // powershellFor is the same request for a Windows terminal.

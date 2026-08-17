@@ -134,6 +134,24 @@ message RequestEvent {
   string user_agent     = 11;
   int64  request_bytes  = 12; // declared Content-Length, -1 when unknown
   int64  response_bytes = 13; // what the peer's handler wrote
+  // Headers as they crossed, with credential-carrying values redacted
+  // ("authorization", "cookie", ...). Empty when the hub captures no
+  // payload.
+  map<string, string> request_headers  = 14;
+  map<string, string> response_headers = 15;
+  // Bounded captures of the payloads. Empty when capture is off, when
+  // there was no body, or when the content type was not worth showing.
+  Body request_body  = 16;
+  Body response_body = 17;
+}
+
+// Body is what the hub kept of one side's payload: a bounded prefix,
+// or the reason it kept nothing.
+message Body {
+  bytes  content   = 1; // captured prefix, empty when skipped
+  int64  size      = 2; // total bytes that crossed
+  bool   truncated = 3; // the body was longer than the limit
+  string skipped   = 4; // "", "disabled" or "binary"
 }
 
 message InfoRequest {}

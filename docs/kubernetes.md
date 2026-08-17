@@ -226,6 +226,11 @@ the rest of the knobs.
 - `hub.trafficBuffer`: recent proxied requests kept in memory to seed
   the console's traffic view (100; `0` keeps none). Nothing is written
   anywhere and the window dies with the pod.
+- `hub.trafficPayloads` / `hub.trafficBodySize`: whether that view
+  carries headers and bodies, and how many bytes of each body (true,
+  4096). Credential-carrying header values are redacted either way;
+  set `trafficPayloads: false` where payloads must not be readable
+  from the console.
 - `hub.tokenTTL`, `hub.logLevel`, `resources`, `nodeSelector`,
   `tolerations`, `affinity`: as usual.
 

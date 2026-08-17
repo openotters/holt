@@ -53,3 +53,8 @@ type ErrorHook = revproxy.ErrorHook
 
 // WithErrorHook observes requests the proxy could not serve.
 func WithErrorHook(hook ErrorHook) ProxyOption { return proxy.WithErrorHook(hook) }
+
+// WithRequestCapture adds the payload to what WithRequestHook reports:
+// the headers (credential values redacted) and up to limit bytes of
+// each body. Off by default; nothing is stored either way.
+func WithRequestCapture(limit int) ProxyOption { return proxy.WithRequestCapture(limit) }
