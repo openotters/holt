@@ -81,10 +81,10 @@ type AdminClient interface {
 	// a fresh snapshot.
 	WatchTunnels(context.Context, *connect.Request[v1.WatchTunnelsRequest]) (*connect.ServerStreamForClient[v1.TunnelEvent], error)
 	// WatchRequests streams the requests the hub's proxy carried, as
-	// each response completes. Nothing is stored: a subscriber gets the
-	// few the hub still holds in memory (gone on restart), then what
-	// happens next. Events are dropped rather than slowing a request
-	// when a client cannot keep up.
+	// each response completes, for one peer or for all of them. Nothing
+	// is stored: a subscriber gets the few the hub still holds in memory
+	// (gone on restart), then what happens next. Events are dropped
+	// rather than slowing a request when a client cannot keep up.
 	WatchRequests(context.Context, *connect.Request[v1.WatchRequestsRequest]) (*connect.ServerStreamForClient[v1.RequestEvent], error)
 	// Info reports a snapshot of the hub: build version, live counts, and
 	// the addresses an operator needs (advertise, proxy, metrics). It is
@@ -236,10 +236,10 @@ type AdminHandler interface {
 	// a fresh snapshot.
 	WatchTunnels(context.Context, *connect.Request[v1.WatchTunnelsRequest], *connect.ServerStream[v1.TunnelEvent]) error
 	// WatchRequests streams the requests the hub's proxy carried, as
-	// each response completes. Nothing is stored: a subscriber gets the
-	// few the hub still holds in memory (gone on restart), then what
-	// happens next. Events are dropped rather than slowing a request
-	// when a client cannot keep up.
+	// each response completes, for one peer or for all of them. Nothing
+	// is stored: a subscriber gets the few the hub still holds in memory
+	// (gone on restart), then what happens next. Events are dropped
+	// rather than slowing a request when a client cannot keep up.
 	WatchRequests(context.Context, *connect.Request[v1.WatchRequestsRequest], *connect.ServerStream[v1.RequestEvent]) error
 	// Info reports a snapshot of the hub: build version, live counts, and
 	// the addresses an operator needs (advertise, proxy, metrics). It is

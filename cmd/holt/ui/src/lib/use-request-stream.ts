@@ -15,20 +15,23 @@ export type LiveRequest = {
 	tookMs: number;
 };
 
-// How many requests the panel keeps. Nothing is stored anywhere: this
-// is a browser-side window over a live stream, and reloading the page
-// starts it over (the hub replays only the handful it still holds).
+// How many requests the view keeps. Nothing is stored anywhere: this
+// is a browser-side window over a live stream, and closing it starts
+// over (the hub replays only the handful it still holds).
 const requestCap = 200;
 
-// Subscribes to Admin.WatchRequests and keeps the newest requests,
-// newest first. Resubscribes when the stream drops (hub restart, a
-// client too slow to keep up), which replays whatever the hub still
-// holds — hence the dedupe-free cap: a small replay overlap is
-// harmless in a live view.
+// Subscribes to Admin.WatchRequests for one peer and keeps the newest
+// requests, newest first. The peer goes to the hub, which filters
+// there: a console watching one peer of a fleet is never sent the
+// rest. Passing "" watches every peer.
 //
-// An Unimplemented hub (one running without the request view) leaves
-// supported false, so the panel can say so instead of spinning.
-export function useLiveRequests() {
+// Resubscribes when the stream drops (hub restart, a client too slow
+// to keep up), which replays whatever the hub still holds — a small
+// overlap is harmless in a live view.
+//
+// An Unimplemented hub (one older than the request view) leaves
+// supported false, so the caller can say so instead of spinning.
+export function useLiveRequests(peer: string) {
 	const [requests, setRequests] = useState<LiveRequest[]>([]);
 	const [live, setLive] = useState(false);
 	const [supported, setSupported] = useState(true);
@@ -38,11 +41,15 @@ export function useLiveRequests() {
 		const ac = new AbortController();
 		const client = createClient(Admin, transport);
 
+		// A new peer is a new view: nothing from the previous one
+		// belongs in it.
+		setRequests([]);
+
 		(async () => {
 			while (!ac.signal.aborted) {
 				try {
 					setLive(true);
-					for await (const ev of client.watchRequests({}, { signal: ac.signal })) {
+					for await (const ev of client.watchRequests({ peer }, { signal: ac.signal })) {
 						push(ev);
 					}
 				} catch (err) {
@@ -75,7 +82,7 @@ export function useLiveRequests() {
 		}
 
 		return () => ac.abort();
-	}, []);
+	}, [peer]);
 
 	return { live, requests, supported };
 }

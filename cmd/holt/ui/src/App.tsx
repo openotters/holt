@@ -12,6 +12,7 @@ import {
 	ExternalLink,
 	Github,
 	Plus,
+	Radio,
 	RefreshCw,
 	Ship,
 	ShieldAlert,
@@ -25,7 +26,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Footer } from "@/components/footer";
-import { RequestsCard } from "@/components/requests-card";
+import { TrafficModal } from "@/components/traffic-modal";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusMenu } from "@/components/status-menu";
 import { useLiveTunnels } from "@/lib/use-tunnel-stream";
@@ -78,6 +79,7 @@ export function App() {
 	const queryClient = useQueryClient();
 	const config = useHubConfig();
 	const [callPeer, setCallPeer] = useState<string | null>(null);
+	const [trafficPeer, setTrafficPeer] = useState<string | null>(null);
 	const [confirmBlock, setConfirmBlock] = useState<string | null>(null);
 	const [addPeer, setAddPeer] = useState(false);
 
@@ -293,6 +295,12 @@ export function App() {
 														</div>
 													) : (
 														<div className="inline-flex items-center gap-1.5">
+															{/* Per peer, not hub-wide: a fleet's traffic in one
+															    list is unreadable, and this one is filtered by
+															    the hub rather than by the browser. */}
+															<Button size="sm" variant="outline" onClick={() => setTrafficPeer(t.peer)}>
+																<Radio className="h-3.5 w-3.5" /> Traffic
+															</Button>
 															<Button size="sm" variant="outline" onClick={() => setCallPeer(t.peer)}>
 																<Terminal className="h-3.5 w-3.5" /> Call
 															</Button>
@@ -318,10 +326,6 @@ export function App() {
 					</CardContent>
 				</Card>
 
-				{/* Traffic sits right under the peer list: what the hub is
-				    carrying right now is the reason the peers are there. */}
-				<RequestsCard />
-
 				<ActivityCard activity={stream.activity} />
 
 				<BlockedCard onUnblock={(peer) => unblock.mutate({ peer })} />
@@ -334,6 +338,8 @@ export function App() {
 			<Footer />
 
 			{addPeer && <AddPeerModal onClose={() => setAddPeer(false)} />}
+
+			{trafficPeer && <TrafficModal peer={trafficPeer} onClose={() => setTrafficPeer(null)} />}
 
 			{callPeer && (
 				<CallPeerModal

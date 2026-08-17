@@ -713,7 +713,11 @@ func (x *TunnelEvent) GetReason() string {
 }
 
 type WatchRequestsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Only this peer's requests. Empty streams every peer's, which a
+	// hub carrying a fleet can make a lot of: a client watching one
+	// peer should say so and let the hub do the filtering.
+	Peer          string `protobuf:"bytes,1,opt,name=peer,proto3" json:"peer,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -746,6 +750,13 @@ func (x *WatchRequestsRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use WatchRequestsRequest.ProtoReflect.Descriptor instead.
 func (*WatchRequestsRequest) Descriptor() ([]byte, []int) {
 	return file_v1_admin_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *WatchRequestsRequest) GetPeer() string {
+	if x != nil {
+		return x.Peer
+	}
+	return ""
 }
 
 // RequestEvent is one request the hub proxied to a peer, reported once
@@ -1048,8 +1059,9 @@ const file_v1_admin_proto_rawDesc = "" +
 	"\x04Kind\x12\x14\n" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rKIND_ATTACHED\x10\x01\x12\x11\n" +
-	"\rKIND_DETACHED\x10\x02\"\x16\n" +
-	"\x14WatchRequestsRequest\"\xad\x01\n" +
+	"\rKIND_DETACHED\x10\x02\"*\n" +
+	"\x14WatchRequestsRequest\x12\x12\n" +
+	"\x04peer\x18\x01 \x01(\tR\x04peer\"\xad\x01\n" +
 	"\fRequestEvent\x12\x12\n" +
 	"\x04peer\x18\x01 \x01(\tR\x04peer\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12\x12\n" +

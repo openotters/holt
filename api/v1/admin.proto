@@ -37,10 +37,10 @@ service Admin {
   // a fresh snapshot.
   rpc WatchTunnels(WatchTunnelsRequest) returns (stream TunnelEvent);
   // WatchRequests streams the requests the hub's proxy carried, as
-  // each response completes. Nothing is stored: a subscriber gets the
-  // few the hub still holds in memory (gone on restart), then what
-  // happens next. Events are dropped rather than slowing a request
-  // when a client cannot keep up.
+  // each response completes, for one peer or for all of them. Nothing
+  // is stored: a subscriber gets the few the hub still holds in memory
+  // (gone on restart), then what happens next. Events are dropped
+  // rather than slowing a request when a client cannot keep up.
   rpc WatchRequests(WatchRequestsRequest) returns (stream RequestEvent);
   // Info reports a snapshot of the hub: build version, live counts, and
   // the addresses an operator needs (advertise, proxy, metrics). It is
@@ -110,7 +110,12 @@ message TunnelEvent {
   string     reason = 3; // detach reason, empty on ATTACHED
 }
 
-message WatchRequestsRequest {}
+message WatchRequestsRequest {
+  // Only this peer's requests. Empty streams every peer's, which a
+  // hub carrying a fleet can make a lot of: a client watching one
+  // peer should say so and let the hub do the filtering.
+  string peer = 1;
+}
 
 // RequestEvent is one request the hub proxied to a peer, reported once
 // its response completed.

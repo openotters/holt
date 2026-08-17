@@ -249,11 +249,12 @@ func (s *Service) WatchTunnels(
 
 // WatchRequests streams what the proxy carried, as each response
 // completes: the few events the broker still holds, then live ones.
+// A request naming a peer gets only that peer's, filtered here.
 // Without a Requests broker the hub carries no such view, which is
 // Unimplemented rather than a stream that never sends. Returns when
 // the client goes away.
 func (s *Service) WatchRequests(
-	ctx context.Context, _ *connect.Request[holtv1.WatchRequestsRequest],
+	ctx context.Context, req *connect.Request[holtv1.WatchRequestsRequest],
 	stream *connect.ServerStream[holtv1.RequestEvent],
 ) error {
 	if s.requests == nil {
@@ -261,6 +262,9 @@ func (s *Service) WatchRequests(
 			errors.New("this hub does not report proxied requests"))
 	}
 
+	// Filtering here, not in the client: a console watching one peer
+	// should not be sent a fleet's traffic to throw away.
+	peer := req.Msg.GetPeer()
 	events := s.requests.Watch(ctx)
 
 	for {
@@ -270,6 +274,10 @@ func (s *Service) WatchRequests(
 		case ev, ok := <-events:
 			if !ok {
 				return nil
+			}
+
+			if peer != "" && ev.Peer != peer {
+				continue
 			}
 
 			if err := stream.Send(&holtv1.RequestEvent{

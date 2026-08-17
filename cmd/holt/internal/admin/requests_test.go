@@ -73,6 +73,43 @@ func TestWatchRequests(t *testing.T) {
 	}
 }
 
+// Naming a peer streams that peer and nobody else: the filtering
+// happens here, so a console watching one peer of a fleet is never
+// sent the rest to throw away.
+func TestWatchRequestsFiltersByPeer(t *testing.T) {
+	t.Parallel()
+
+	broker := reqlog.NewBroker(0)
+	svc := admin.NewService(registry.NewRegistry(zap.NewNop()), admin.WithRequests(broker))
+	srv := serve(t, svc)
+
+	broker.Publish(reqlog.Event{At: time.Now(), Peer: "alice", Path: "/alice-one"})
+	broker.Publish(reqlog.Event{At: time.Now(), Peer: "bob", Path: "/bob-one"})
+	broker.Publish(reqlog.Event{At: time.Now(), Peer: "alice", Path: "/alice-two"})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	client := holtv1connect.NewAdminClient(srv.Client(), srv.URL)
+
+	stream, err := client.WatchRequests(ctx,
+		connect.NewRequest(&holtv1.WatchRequestsRequest{Peer: "alice"}))
+	if err != nil {
+		t.Fatalf("watch: %v", err)
+	}
+
+	for _, want := range []string{"/alice-one", "/alice-two"} {
+		if !stream.Receive() {
+			t.Fatalf("stream ended early: %v", stream.Err())
+		}
+
+		got := stream.Msg()
+		if got.GetPeer() != "alice" || got.GetPath() != want {
+			t.Fatalf("got %s %s, want alice %s", got.GetPeer(), got.GetPath(), want)
+		}
+	}
+}
+
 // A hub wired without a broker says so, rather than holding a stream
 // open that will never send.
 func TestWatchRequestsUnimplemented(t *testing.T) {

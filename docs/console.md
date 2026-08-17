@@ -14,13 +14,15 @@
 - the live tunnel list, updated over a server stream (no polling), with
   per-peer **Kill**, **Block**, and a **Call** button that shows the
   `curl` command to reach that peer through the proxy.
-- a **Traffic** panel: every request the hub proxied, live, newest
-  first, with the peer that answered, the status and how long it took
-  (the tunnel hop included). Nothing is stored. The hub holds a
-  handful of recent requests in memory so the panel is not blank when
-  you open it, and forgets them on restart; the browser keeps the last
-  200 until you reload. This is the hub's live view: `holt hub` itself
-  logs no requests.
+- a per-peer **Traffic** button: the requests the hub carried to that
+  peer, live, newest first, with the status and how long each took
+  (the tunnel hop included). It is per peer on purpose — a fleet's
+  traffic in one list is unreadable — and the hub does the filtering,
+  so watching one peer never ships you the others'. Nothing is
+  stored: the hub holds a handful of recent requests in memory so the
+  panel is not blank when it opens, forgets them on restart, and
+  closing the panel loses the rest. This is the hub's live view;
+  `holt hub` itself logs no requests.
 - an **Add peer** dialog that mints a join token (shown in full, one
   click to copy).
 - an **Install holt** card, collapsed by default: a tile per method
