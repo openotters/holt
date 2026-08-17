@@ -1,8 +1,9 @@
-import { Check, ChevronDown, ChevronRight, Copy, Radio, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, Radio, Terminal, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { type JsonValue, JsonView } from "@/components/json-view";
 import { Button } from "@/components/ui/button";
+import { type HubConfig, curlFor } from "@/lib/reach";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type LiveRequest, useLiveRequests } from "@/lib/use-request-stream";
 
@@ -20,7 +21,15 @@ type SortKey = "at" | "method" | "path" | "status" | "tookMs";
 // bounded number of recent requests in memory (--traffic-buffer) so
 // the table is not blank when it opens, and closing this loses the
 // rest.
-export function TrafficModal({ peer, onClose }: { peer: string; onClose: () => void }) {
+export function TrafficModal({
+	peer,
+	config,
+	onClose,
+}: {
+	peer: string;
+	config: HubConfig;
+	onClose: () => void;
+}) {
 	const { live, requests, supported } = useLiveRequests(peer);
 	const [filter, setFilter] = useState("");
 	const [sort, setSort] = useState<SortKey>("at");
@@ -143,8 +152,10 @@ export function TrafficModal({ peer, onClose }: { peer: string; onClose: () => v
 								{shown.map((r) => (
 									<Row
 										key={r.id}
+										config={config}
 										expanded={open === r.id}
 										onToggle={() => setOpen(open === r.id ? null : r.id)}
+										peer={peer}
 										request={r}
 									/>
 								))}
@@ -167,10 +178,14 @@ export function TrafficModal({ peer, onClose }: { peer: string; onClose: () => v
 // knows (which is metadata, never a body).
 function Row({
 	request,
+	peer,
+	config,
 	expanded,
 	onToggle,
 }: {
 	request: LiveRequest;
+	peer: string;
+	config: HubConfig;
 	expanded: boolean;
 	onToggle: () => void;
 }) {
@@ -200,7 +215,7 @@ function Row({
 			{expanded && (
 				<TableRow className="hover:bg-transparent">
 					<TableCell className="p-0" colSpan={6}>
-						<Details request={request} />
+						<Details config={config} peer={peer} request={request} />
 					</TableCell>
 				</TableRow>
 			)}
@@ -209,31 +224,58 @@ function Row({
 }
 
 // Details is the whole request as a structured entry: everything the
-// hub knows, foldable, and copyable as JSON so it can be pasted into
-// an issue or a shell without retyping.
-function Details({ request }: { request: LiveRequest }) {
-	const [copied, setCopied] = useState(false);
+// hub knows, foldable, with two things to take away — the entry as
+// JSON (for an issue, a paste, a grep) and the request as curl (to ask
+// again).
+function Details({ request, peer, config }: { request: LiveRequest; peer: string; config: HubConfig }) {
 	const entry = asEntry(request);
 
+	return (
+		<div className="relative border-border/60 border-l-2 bg-muted/30 py-3">
+			<div className="absolute top-2 right-3 flex items-center gap-1">
+				<CopyButton
+					icon={Terminal}
+					label="curl"
+					title="copy a curl that replays this request through the hub"
+					value={curlFor(request, peer, config)}
+				/>
+				<CopyButton
+					icon={Copy}
+					label="copy"
+					title="copy this entry as JSON"
+					value={JSON.stringify(entry, null, 2)}
+				/>
+			</div>
+			<JsonView value={entry} />
+		</div>
+	);
+}
+
+// CopyButton puts something on the clipboard and says it did.
+function CopyButton({
+	value,
+	label,
+	title,
+	icon: Icon,
+}: {
+	value: string;
+	label: string;
+	title: string;
+	icon: typeof Copy;
+}) {
+	const [copied, setCopied] = useState(false);
+
 	async function copy() {
-		await navigator.clipboard.writeText(JSON.stringify(entry, null, 2));
+		await navigator.clipboard.writeText(value);
 		setCopied(true);
 		setTimeout(() => setCopied(false), 1200);
 	}
 
 	return (
-		<div className="relative border-border/60 border-l-2 bg-muted/30 py-3">
-			<Button
-				className="absolute top-2 right-3 h-7 gap-1.5 text-xs"
-				onClick={copy}
-				size="sm"
-				variant="ghost"
-			>
-				{copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-				{copied ? "copied" : "copy"}
-			</Button>
-			<JsonView value={entry} />
-		</div>
+		<Button className="h-7 gap-1.5 text-xs" onClick={copy} size="sm" title={title} variant="ghost">
+			{copied ? <Check className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
+			{copied ? "copied" : label}
+		</Button>
 	);
 }
 

@@ -19,7 +19,10 @@
   for every 5xx), sort any column, and click a row to open the request
   as a structured entry: a foldable JSON tree carrying the host,
   query, protocol, client, user agent, both sizes and the duration
-  (tunnel hop included), with a button to copy the whole thing.
+  (tunnel hop included). Two buttons take it away: **copy** puts the
+  entry on the clipboard as JSON, **curl** puts a command that replays
+  the request through the hub (addressed the way this hub routes).
+  Bodies are never captured, so the curl carries none.
   It is per peer on purpose — a fleet's traffic in one list is
   unreadable — and the hub does the filtering, so watching one peer
   never ships you the others'.

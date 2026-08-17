@@ -27,6 +27,7 @@ import { toast } from "sonner";
 
 import { Footer } from "@/components/footer";
 import { TrafficModal } from "@/components/traffic-modal";
+import { peerURL } from "@/lib/reach";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusMenu } from "@/components/status-menu";
 import { useLiveTunnels } from "@/lib/use-tunnel-stream";
@@ -339,7 +340,9 @@ export function App() {
 
 			{addPeer && <AddPeerModal onClose={() => setAddPeer(false)} />}
 
-			{trafficPeer && <TrafficModal peer={trafficPeer} onClose={() => setTrafficPeer(null)} />}
+			{trafficPeer && (
+				<TrafficModal config={config} peer={trafficPeer} onClose={() => setTrafficPeer(null)} />
+			)}
 
 			{callPeer && (
 				<CallPeerModal
@@ -751,12 +754,6 @@ function AddPeerModal({ onClose }: { onClose: () => void }) {
 			</div>
 		</div>
 	);
-}
-
-// peerURL is the peer's own hostname under subdomain routing, the
-// form any client can use. Empty when the hub routes by header only.
-function peerURL(peer: string, proxyDomain: string): string {
-	return proxyDomain ? `https://${peer}.${proxyDomain}/` : "";
 }
 
 // peerNameError mirrors the hub's peer-name rule (a DNS label) so the

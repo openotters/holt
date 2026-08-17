@@ -230,7 +230,7 @@ output. It shows them in the **web console** instead (`holt hub --ui`):
 each peer's row has a **Traffic** button that opens that peer's
 requests in a table you can filter, sort, and open a row of for the
 request as a foldable JSON entry (host, query, protocol, client, user
-agent, sizes), copyable in one click. One peer
+agent, sizes), copyable in one click, or as a curl that replays it. One peer
 at a time is the point, and the hub filters the stream, so watching a
 peer never carries the rest of the fleet to your browser.
 
