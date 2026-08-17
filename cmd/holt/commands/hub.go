@@ -155,7 +155,7 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 		defer func() { _ = mp.Shutdown(context.Background()) }()
 	}
 
-	rt, err := h.newRuntime(ctx, commons, logger, out, dir, blockStore, back.secret, secret)
+	rt, err := h.newRuntime(ctx, commons, logger, dir, blockStore, back.secret, secret)
 	if err != nil {
 		return err
 	}

@@ -36,6 +36,12 @@ service Admin {
   // client falls too far behind; resubscribe and treat the replay as
   // a fresh snapshot.
   rpc WatchTunnels(WatchTunnelsRequest) returns (stream TunnelEvent);
+  // WatchRequests streams the requests the hub's proxy carried, as
+  // each response completes. Nothing is stored: a subscriber gets the
+  // few the hub still holds in memory (gone on restart), then what
+  // happens next. Events are dropped rather than slowing a request
+  // when a client cannot keep up.
+  rpc WatchRequests(WatchRequestsRequest) returns (stream RequestEvent);
   // Info reports a snapshot of the hub: build version, live counts, and
   // the addresses an operator needs (advertise, proxy, metrics). It is
   // what `holt info` prints.
@@ -102,6 +108,19 @@ message TunnelEvent {
   Kind       kind   = 1;
   TunnelInfo info   = 2; // fully set on ATTACHED; only peer on DETACHED
   string     reason = 3; // detach reason, empty on ATTACHED
+}
+
+message WatchRequestsRequest {}
+
+// RequestEvent is one request the hub proxied to a peer, reported once
+// its response completed.
+message RequestEvent {
+  string peer          = 1;
+  string method        = 2;
+  string path          = 3;
+  int32  status        = 4; // 0 when the request never got a response
+  int64  duration_us   = 5; // microseconds, hub side, tunnel hop included
+  int64  at_unix_millis = 6;
 }
 
 message InfoRequest {}

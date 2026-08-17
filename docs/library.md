@@ -195,7 +195,14 @@ holt.NewClient(hubURL, handler, watch) // ev.Peer is empty: only one
 Nothing is stored, and the hook runs on the request's goroutine after
 the response, so keep it cheap (print, count, or hand off to a
 channel). The hub's duration includes the tunnel hop and the peer's
-does not. This is what `holt hub` and `holt expose` print.
+does not.
+
+`reqlog.Broker` is the fan-out for a view several watchers read at
+once: publish through `broker.Hook()`, and each `broker.Watch(ctx)`
+gets the small in-memory window plus everything after it. That is how
+the hub feeds its console without logging a line or storing a row.
+
+This is what `holt expose` logs and what the console shows.
 
 ---
 

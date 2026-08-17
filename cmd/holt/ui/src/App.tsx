@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Footer } from "@/components/footer";
+import { RequestsCard } from "@/components/requests-card";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusMenu } from "@/components/status-menu";
 import { useLiveTunnels } from "@/lib/use-tunnel-stream";
@@ -316,6 +317,10 @@ export function App() {
 						)}
 					</CardContent>
 				</Card>
+
+				{/* Traffic sits right under the peer list: what the hub is
+				    carrying right now is the reason the peers are there. */}
+				<RequestsCard />
 
 				<ActivityCard activity={stream.activity} />
 

@@ -168,17 +168,21 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 	return err
 }
 
-// requestPrinter is the live view of what comes through the tunnel:
-// a line per request while a terminal is watching, a debug log line
-// when the output is JSON (a peer serving steady traffic should not
-// fill a log collector by default).
+// requestPrinter is the live view of what the peer served. It goes
+// through the logger, not around it: a request is one of this
+// process's events like an attach or a redial, so it wears the same
+// timestamp, level and prefix as the lines above and below it.
+//
+// Pretty renders the request in columns a human scans; JSON keeps it
+// structured, since a collector wants fields rather than a rendered
+// line.
 func requestPrinter(out *style.Output, logger *zap.Logger) reqlog.Hook {
 	if out.Pretty {
-		return func(ev reqlog.Event) { fmt.Println(style.Request(ev)) }
+		return func(ev reqlog.Event) { logger.Info(style.Request(ev)) }
 	}
 
 	return func(ev reqlog.Event) {
-		logger.Debug("request",
+		logger.Info("request served",
 			zap.String("method", ev.Method), zap.String("path", ev.Path),
 			zap.Int("status", ev.Status), zap.Duration("took", ev.Duration))
 	}

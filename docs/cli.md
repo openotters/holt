@@ -212,32 +212,30 @@ Whatever the peer serves over the tunnel is reachable this way.
 
 ### Watch the traffic
 
-Both ends print what goes through, as it happens:
+`holt expose` logs each request its service answered, in the same
+format as everything else it prints:
 
 ```
-15:04:05  GET    /                          200  1ms
-15:04:05  GET    /about                     200  635µs
-15:04:06  GET    /missing                   404  628µs
+9:27AM INFO expose.holt-dial: tunnel attached
+9:27AM INFO expose: GET    /                        200  27ms
+9:27AM INFO expose: GET    /main.css                200  346ms
+9:27AM INFO expose: GET    /missing                 404  12ms
 ```
 
-`holt expose` prints the requests its own service answered. `holt hub`
-prints every request it carried, with the peer first since several
-tunnels share that output:
+With `--log-format json` the same events come out as fields
+(`method`, `path`, `status`, `took`) for a collector to read.
 
-```
-15:04:05  alice        GET    /about        200  12ms
-15:04:05  docs         GET    /index.html   200  8ms
-```
+The hub does not log requests: one serving a fleet would drown its own
+output. It shows them in the **web console** instead (`holt hub --ui`),
+under Traffic, live as they happen and with the peer that answered.
+Nothing is stored on either side, it is a view, not a log. The hub
+keeps only a handful of recent requests in memory so a console opened
+mid-traffic is not blank, and they are gone when it restarts.
 
-Nothing is stored, it is a live view only. The hub's duration includes
-the tunnel hop and the peer's does not, so a slow line on one side and
-a fast one on the other points at the network between them rather than
-at the service.
-
-With `--log-format json` the lines become debug logs instead, so a peer
-serving steady traffic does not fill a log collector by default; `-D`
-turns them on. For history rather than a live view, use the metrics:
-see [Observability](observability.md).
+The hub times the tunnel hop and the peer does not, so a request that
+looks slow in the console and fast on the peer points at the network
+between them rather than at the service. For history rather than a
+live view, use the metrics: see [Observability](observability.md).
 
 ### Routing strategies
 

@@ -10,7 +10,9 @@ import (
 )
 
 // The line carries what an operator scans for, and only names a peer
-// when there is one to name (the peer side knows only itself).
+// when there is one to name (the peer side knows only itself). It
+// carries no clock: this goes out through the logger, which stamps
+// every line the same way.
 func TestRequestLine(t *testing.T) {
 	t.Parallel()
 
@@ -23,12 +25,13 @@ func TestRequestLine(t *testing.T) {
 		notWant string
 	}{
 		{
-			name: "hub line leads with the peer",
+			name: "a peer leads the line when there is one",
 			event: reqlog.Event{
 				At: at, Peer: "alice", Method: "GET", Path: "/about",
 				Status: 200, Duration: 12 * time.Millisecond,
 			},
-			want: []string{"09:41:05", "alice", "GET", "/about", "200", "12ms"},
+			want:    []string{"alice", "GET", "/about", "200", "12ms"},
+			notWant: "09:41:05",
 		},
 		{
 			name:    "peer line has no peer column",

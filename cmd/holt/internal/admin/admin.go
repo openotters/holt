@@ -15,6 +15,7 @@ import (
 
 	"github.com/openotters/holt/pkg/blocklist"
 	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/reqlog"
 )
 
 // BlockedPeer is one entry in the peer-id denylist.
@@ -57,6 +58,7 @@ type Service struct {
 	registry *registry.Registry
 	blocker  Blocker
 	info     HubInfo
+	requests *reqlog.Broker
 }
 
 // Option configures a Service.
@@ -71,6 +73,12 @@ func WithBlocker(b Blocker) Option {
 // WithInfo supplies the static metadata Info reports.
 func WithInfo(i HubInfo) Option {
 	return func(s *Service) { s.info = i }
+}
+
+// WithRequests enables WatchRequests, streaming from the broker the
+// proxy publishes into. Without it the RPC is Unimplemented.
+func WithRequests(b *reqlog.Broker) Option {
+	return func(s *Service) { s.requests = b }
 }
 
 // NewService wires the Admin service to a Registry.
@@ -233,6 +241,45 @@ func (s *Service) WatchTunnels(
 			}
 
 			if err := stream.Send(out); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// WatchRequests streams what the proxy carried, as each response
+// completes: the few events the broker still holds, then live ones.
+// Without a Requests broker the hub carries no such view, which is
+// Unimplemented rather than a stream that never sends. Returns when
+// the client goes away.
+func (s *Service) WatchRequests(
+	ctx context.Context, _ *connect.Request[holtv1.WatchRequestsRequest],
+	stream *connect.ServerStream[holtv1.RequestEvent],
+) error {
+	if s.requests == nil {
+		return connect.NewError(connect.CodeUnimplemented,
+			errors.New("this hub does not report proxied requests"))
+	}
+
+	events := s.requests.Watch(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case ev, ok := <-events:
+			if !ok {
+				return nil
+			}
+
+			if err := stream.Send(&holtv1.RequestEvent{
+				Peer:         ev.Peer,
+				Method:       ev.Method,
+				Path:         ev.Path,
+				Status:       int32(ev.Status), //nolint:gosec // an HTTP status is three digits
+				DurationUs:   ev.Duration.Microseconds(),
+				AtUnixMillis: ev.At.UnixMilli(),
+			}); err != nil {
 				return err
 			}
 		}

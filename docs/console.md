@@ -14,10 +14,18 @@
 - the live tunnel list, updated over a server stream (no polling), with
   per-peer **Kill**, **Block**, and a **Call** button that shows the
   `curl` command to reach that peer through the proxy.
-- an **enroll** form that mints a join token (shown in full, one click
-  to copy).
-- an **Install holt on a peer** card: a tile per method (Homebrew,
-  Go/binary, Docker, Kubernetes) that opens the command in a modal.
+- a **Traffic** panel: every request the hub proxied, live, newest
+  first, with the peer that answered, the status and how long it took
+  (the tunnel hop included). Nothing is stored. The hub holds a
+  handful of recent requests in memory so the panel is not blank when
+  you open it, and forgets them on restart; the browser keeps the last
+  200 until you reload. This is the hub's live view: `holt hub` itself
+  logs no requests.
+- an **Add peer** dialog that mints a join token (shown in full, one
+  click to copy).
+- an **Install holt** card, collapsed by default: a tile per method
+  (Homebrew, Go/binary, Docker, Kubernetes) that opens the command in
+  a modal.
 - a **Danger zone** to rotate the hub's signing secret. It regenerates
   the JWT secret, which invalidates every issued token and closes
   existing tunnels, so peers must re-enroll (the same effect as
@@ -25,7 +33,7 @@
 - a connection status menu with the endpoint, protocol, and a link to
   the Prometheus `/metrics` endpoint when `--metrics` is on.
 
-The console is built from `ui/` and embedded in the binary
+The console is built from `cmd/holt/ui/` and embedded in the binary
 (`task ui:build`); pass `--ui-path DIR` to serve a local build instead.
 It calls the same Admin service the CLI uses, over Connect-JSON from the
 browser.

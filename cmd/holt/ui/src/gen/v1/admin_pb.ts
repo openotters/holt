@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file v1/admin.proto.
  */
 export const file_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("Cg52MS9hZG1pbi5wcm90bxISb3Blbm90dGVycy5ob2x0LnYxIl8KClR1bm5lbEluZm8SDAoEcGVlchgBIAEoCRIUCgxwZWVyX3ZlcnNpb24YAiABKAkSGAoQYXR0YWNoZWRfYXRfdW5peBgDIAEoAxITCgt0dW5uZWxfdHlwZRgEIAEoCSIUChJMaXN0VHVubmVsc1JlcXVlc3QiRgoTTGlzdFR1bm5lbHNSZXNwb25zZRIvCgd0dW5uZWxzGAEgAygLMh4ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEluZm8iMQoRU3RvcFR1bm5lbFJlcXVlc3QSDAoEcGVlchgBIAEoCRIOCgZyZWFzb24YAiABKAkiJQoSU3RvcFR1bm5lbFJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIAoQQmxvY2tQZWVyUmVxdWVzdBIMCgRwZWVyGAEgASgJIiQKEUJsb2NrUGVlclJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIgoSVW5ibG9ja1BlZXJSZXF1ZXN0EgwKBHBlZXIYASABKAkiFQoTVW5ibG9ja1BlZXJSZXNwb25zZSI0CgtCbG9ja2VkUGVlchIMCgRwZWVyGAEgASgJEhcKD2Jsb2NrZWRfYXRfdW5peBgCIAEoAyIUChJMaXN0QmxvY2tlZFJlcXVlc3QiRQoTTGlzdEJsb2NrZWRSZXNwb25zZRIuCgVwZWVycxgBIAMoCzIfLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja2VkUGVlciIVChNXYXRjaFR1bm5lbHNSZXF1ZXN0IsMBCgtUdW5uZWxFdmVudBIyCgRraW5kGAEgASgOMiQub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50LktpbmQSLAoEaW5mbxgCIAEoCzIeLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxJbmZvEg4KBnJlYXNvbhgDIAEoCSJCCgRLaW5kEhQKEEtJTkRfVU5TUEVDSUZJRUQQABIRCg1LSU5EX0FUVEFDSEVEEAESEQoNS0lORF9ERVRBQ0hFRBACIg0KC0luZm9SZXF1ZXN0IocCCgxJbmZvUmVzcG9uc2USDwoHdmVyc2lvbhgBIAEoCRIOCgZjb21taXQYAiABKAkSDwoHdHVubmVscxgDIAEoAxIPCgdibG9ja2VkGAQgASgDEhYKDmFkdmVydGlzZV9hZGRyGAUgASgJEhIKCnByb3h5X2FkZHIYBiABKAkSFAoMcm91dGVfaGVhZGVyGAcgASgJEhQKDG1ldHJpY3NfYWRkchgIIAEoCRIUCgxleHRlcm5hbF91cmwYCSABKAkSGQoRdG9rZW5fdHRsX3NlY29uZHMYCiABKAMSFQoNcHJveHlfcm91dGluZxgLIAEoCRIUCgxwcm94eV9kb21haW4YDCABKAkyhQUKBUFkbWluEl4KC0xpc3RUdW5uZWxzEiYub3Blbm90dGVycy5ob2x0LnYxLkxpc3RUdW5uZWxzUmVxdWVzdBonLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0VHVubmVsc1Jlc3BvbnNlElsKClN0b3BUdW5uZWwSJS5vcGVub3R0ZXJzLmhvbHQudjEuU3RvcFR1bm5lbFJlcXVlc3QaJi5vcGVub3R0ZXJzLmhvbHQudjEuU3RvcFR1bm5lbFJlc3BvbnNlElgKCUJsb2NrUGVlchIkLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja1BlZXJSZXF1ZXN0GiUub3Blbm90dGVycy5ob2x0LnYxLkJsb2NrUGVlclJlc3BvbnNlEl4KC1VuYmxvY2tQZWVyEiYub3Blbm90dGVycy5ob2x0LnYxLlVuYmxvY2tQZWVyUmVxdWVzdBonLm9wZW5vdHRlcnMuaG9sdC52MS5VbmJsb2NrUGVlclJlc3BvbnNlEl4KC0xpc3RCbG9ja2VkEiYub3Blbm90dGVycy5ob2x0LnYxLkxpc3RCbG9ja2VkUmVxdWVzdBonLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0QmxvY2tlZFJlc3BvbnNlEloKDFdhdGNoVHVubmVscxInLm9wZW5vdHRlcnMuaG9sdC52MS5XYXRjaFR1bm5lbHNSZXF1ZXN0Gh8ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50MAESSQoESW5mbxIfLm9wZW5vdHRlcnMuaG9sdC52MS5JbmZvUmVxdWVzdBogLm9wZW5vdHRlcnMuaG9sdC52MS5JbmZvUmVzcG9uc2VCKlooZ2l0aHViLmNvbS9vcGVub3R0ZXJzL2hvbHQvYXBpL3YxO2hvbHR2MWIGcHJvdG8z");
+  fileDesc("Cg52MS9hZG1pbi5wcm90bxISb3Blbm90dGVycy5ob2x0LnYxIl8KClR1bm5lbEluZm8SDAoEcGVlchgBIAEoCRIUCgxwZWVyX3ZlcnNpb24YAiABKAkSGAoQYXR0YWNoZWRfYXRfdW5peBgDIAEoAxITCgt0dW5uZWxfdHlwZRgEIAEoCSIUChJMaXN0VHVubmVsc1JlcXVlc3QiRgoTTGlzdFR1bm5lbHNSZXNwb25zZRIvCgd0dW5uZWxzGAEgAygLMh4ub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEluZm8iMQoRU3RvcFR1bm5lbFJlcXVlc3QSDAoEcGVlchgBIAEoCRIOCgZyZWFzb24YAiABKAkiJQoSU3RvcFR1bm5lbFJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIAoQQmxvY2tQZWVyUmVxdWVzdBIMCgRwZWVyGAEgASgJIiQKEUJsb2NrUGVlclJlc3BvbnNlEg8KB3N0b3BwZWQYASABKAgiIgoSVW5ibG9ja1BlZXJSZXF1ZXN0EgwKBHBlZXIYASABKAkiFQoTVW5ibG9ja1BlZXJSZXNwb25zZSI0CgtCbG9ja2VkUGVlchIMCgRwZWVyGAEgASgJEhcKD2Jsb2NrZWRfYXRfdW5peBgCIAEoAyIUChJMaXN0QmxvY2tlZFJlcXVlc3QiRQoTTGlzdEJsb2NrZWRSZXNwb25zZRIuCgVwZWVycxgBIAMoCzIfLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja2VkUGVlciIVChNXYXRjaFR1bm5lbHNSZXF1ZXN0IsMBCgtUdW5uZWxFdmVudBIyCgRraW5kGAEgASgOMiQub3Blbm90dGVycy5ob2x0LnYxLlR1bm5lbEV2ZW50LktpbmQSLAoEaW5mbxgCIAEoCzIeLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxJbmZvEg4KBnJlYXNvbhgDIAEoCSJCCgRLaW5kEhQKEEtJTkRfVU5TUEVDSUZJRUQQABIRCg1LSU5EX0FUVEFDSEVEEAESEQoNS0lORF9ERVRBQ0hFRBACIhYKFFdhdGNoUmVxdWVzdHNSZXF1ZXN0IncKDFJlcXVlc3RFdmVudBIMCgRwZWVyGAEgASgJEg4KBm1ldGhvZBgCIAEoCRIMCgRwYXRoGAMgASgJEg4KBnN0YXR1cxgEIAEoBRITCgtkdXJhdGlvbl91cxgFIAEoAxIWCg5hdF91bml4X21pbGxpcxgGIAEoAyINCgtJbmZvUmVxdWVzdCKHAgoMSW5mb1Jlc3BvbnNlEg8KB3ZlcnNpb24YASABKAkSDgoGY29tbWl0GAIgASgJEg8KB3R1bm5lbHMYAyABKAMSDwoHYmxvY2tlZBgEIAEoAxIWCg5hZHZlcnRpc2VfYWRkchgFIAEoCRISCgpwcm94eV9hZGRyGAYgASgJEhQKDHJvdXRlX2hlYWRlchgHIAEoCRIUCgxtZXRyaWNzX2FkZHIYCCABKAkSFAoMZXh0ZXJuYWxfdXJsGAkgASgJEhkKEXRva2VuX3R0bF9zZWNvbmRzGAogASgDEhUKDXByb3h5X3JvdXRpbmcYCyABKAkSFAoMcHJveHlfZG9tYWluGAwgASgJMuQFCgVBZG1pbhJeCgtMaXN0VHVubmVscxImLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0VHVubmVsc1JlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdFR1bm5lbHNSZXNwb25zZRJbCgpTdG9wVHVubmVsEiUub3Blbm90dGVycy5ob2x0LnYxLlN0b3BUdW5uZWxSZXF1ZXN0GiYub3Blbm90dGVycy5ob2x0LnYxLlN0b3BUdW5uZWxSZXNwb25zZRJYCglCbG9ja1BlZXISJC5vcGVub3R0ZXJzLmhvbHQudjEuQmxvY2tQZWVyUmVxdWVzdBolLm9wZW5vdHRlcnMuaG9sdC52MS5CbG9ja1BlZXJSZXNwb25zZRJeCgtVbmJsb2NrUGVlchImLm9wZW5vdHRlcnMuaG9sdC52MS5VbmJsb2NrUGVlclJlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuVW5ibG9ja1BlZXJSZXNwb25zZRJeCgtMaXN0QmxvY2tlZBImLm9wZW5vdHRlcnMuaG9sdC52MS5MaXN0QmxvY2tlZFJlcXVlc3QaJy5vcGVub3R0ZXJzLmhvbHQudjEuTGlzdEJsb2NrZWRSZXNwb25zZRJaCgxXYXRjaFR1bm5lbHMSJy5vcGVub3R0ZXJzLmhvbHQudjEuV2F0Y2hUdW5uZWxzUmVxdWVzdBofLm9wZW5vdHRlcnMuaG9sdC52MS5UdW5uZWxFdmVudDABEl0KDVdhdGNoUmVxdWVzdHMSKC5vcGVub3R0ZXJzLmhvbHQudjEuV2F0Y2hSZXF1ZXN0c1JlcXVlc3QaIC5vcGVub3R0ZXJzLmhvbHQudjEuUmVxdWVzdEV2ZW50MAESSQoESW5mbxIfLm9wZW5vdHRlcnMuaG9sdC52MS5JbmZvUmVxdWVzdBogLm9wZW5vdHRlcnMuaG9sdC52MS5JbmZvUmVzcG9uc2VCKlooZ2l0aHViLmNvbS9vcGVub3R0ZXJzL2hvbHQvYXBpL3YxO2hvbHR2MWIGcHJvdG8z");
 
 /**
  * @generated from message openotters.holt.v1.TunnelInfo
@@ -309,6 +309,68 @@ export const TunnelEvent_KindSchema: GenEnum<TunnelEvent_Kind> = /*@__PURE__*/
   enumDesc(file_v1_admin, 13, 0);
 
 /**
+ * @generated from message openotters.holt.v1.WatchRequestsRequest
+ */
+export type WatchRequestsRequest = Message<"openotters.holt.v1.WatchRequestsRequest"> & {
+};
+
+/**
+ * Describes the message openotters.holt.v1.WatchRequestsRequest.
+ * Use `create(WatchRequestsRequestSchema)` to create a new message.
+ */
+export const WatchRequestsRequestSchema: GenMessage<WatchRequestsRequest> = /*@__PURE__*/
+  messageDesc(file_v1_admin, 14);
+
+/**
+ * RequestEvent is one request the hub proxied to a peer, reported once
+ * its response completed.
+ *
+ * @generated from message openotters.holt.v1.RequestEvent
+ */
+export type RequestEvent = Message<"openotters.holt.v1.RequestEvent"> & {
+  /**
+   * @generated from field: string peer = 1;
+   */
+  peer: string;
+
+  /**
+   * @generated from field: string method = 2;
+   */
+  method: string;
+
+  /**
+   * @generated from field: string path = 3;
+   */
+  path: string;
+
+  /**
+   * 0 when the request never got a response
+   *
+   * @generated from field: int32 status = 4;
+   */
+  status: number;
+
+  /**
+   * microseconds, hub side, tunnel hop included
+   *
+   * @generated from field: int64 duration_us = 5;
+   */
+  durationUs: bigint;
+
+  /**
+   * @generated from field: int64 at_unix_millis = 6;
+   */
+  atUnixMillis: bigint;
+};
+
+/**
+ * Describes the message openotters.holt.v1.RequestEvent.
+ * Use `create(RequestEventSchema)` to create a new message.
+ */
+export const RequestEventSchema: GenMessage<RequestEvent> = /*@__PURE__*/
+  messageDesc(file_v1_admin, 15);
+
+/**
  * @generated from message openotters.holt.v1.InfoRequest
  */
 export type InfoRequest = Message<"openotters.holt.v1.InfoRequest"> & {
@@ -319,7 +381,7 @@ export type InfoRequest = Message<"openotters.holt.v1.InfoRequest"> & {
  * Use `create(InfoRequestSchema)` to create a new message.
  */
 export const InfoRequestSchema: GenMessage<InfoRequest> = /*@__PURE__*/
-  messageDesc(file_v1_admin, 14);
+  messageDesc(file_v1_admin, 16);
 
 /**
  * @generated from message openotters.holt.v1.InfoResponse
@@ -414,7 +476,7 @@ export type InfoResponse = Message<"openotters.holt.v1.InfoResponse"> & {
  * Use `create(InfoResponseSchema)` to create a new message.
  */
 export const InfoResponseSchema: GenMessage<InfoResponse> = /*@__PURE__*/
-  messageDesc(file_v1_admin, 15);
+  messageDesc(file_v1_admin, 17);
 
 /**
  * Admin is the hub's management surface: enumerate live tunnels and
@@ -497,6 +559,20 @@ export const Admin: GenService<{
     methodKind: "server_streaming";
     input: typeof WatchTunnelsRequestSchema;
     output: typeof TunnelEventSchema;
+  },
+  /**
+   * WatchRequests streams the requests the hub's proxy carried, as
+   * each response completes. Nothing is stored: a subscriber gets the
+   * few the hub still holds in memory (gone on restart), then what
+   * happens next. Events are dropped rather than slowing a request
+   * when a client cannot keep up.
+   *
+   * @generated from rpc openotters.holt.v1.Admin.WatchRequests
+   */
+  watchRequests: {
+    methodKind: "server_streaming";
+    input: typeof WatchRequestsRequestSchema;
+    output: typeof RequestEventSchema;
   },
   /**
    * Info reports a snapshot of the hub: build version, live counts, and

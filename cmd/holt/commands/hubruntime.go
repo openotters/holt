@@ -11,11 +11,11 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/admin"
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
 	"github.com/openotters/holt/cmd/holt/internal/hubsecret"
-	"github.com/openotters/holt/cmd/holt/internal/style"
 	"github.com/openotters/holt/pkg/blocklist"
 	"github.com/openotters/holt/pkg/directory/sqldir"
 	"github.com/openotters/holt/pkg/jwtauth"
 	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/reqlog"
 )
 
 // hubRuntime is what the four listeners share: the registry of live
@@ -31,7 +31,11 @@ type hubRuntime struct {
 	metrics  *hubmetrics.Metrics
 	info     admin.HubInfo
 	logger   *zap.Logger
-	out      *style.Output
+	// requests is the hub's live view of what the proxy carried, fanned
+	// out to whoever is watching the console. It holds a handful of
+	// recent events in memory and nothing more: the hub does not log
+	// requests, and does not store them.
+	requests *reqlog.Broker
 }
 
 // newRuntime wires the shared pieces together over the opened
@@ -39,7 +43,7 @@ type hubRuntime struct {
 // previous run are cleared here, before any listener can accept an
 // attach.
 func (h *Hub) newRuntime(
-	ctx context.Context, commons *c.Commons, logger *zap.Logger, out *style.Output,
+	ctx context.Context, commons *c.Commons, logger *zap.Logger,
 	dir *sqldir.Directory, blockStore blocklist.Store, identity hubsecret.Store, secret []byte,
 ) (*hubRuntime, error) {
 	registry := registry.NewRegistry(logger, registry.WithHubID(hostname()), registry.WithDirectory(dir))
@@ -60,7 +64,7 @@ func (h *Hub) newRuntime(
 		metrics:  hubmetrics.New(commons.Version.Version(), commons.Version.Commit()),
 		info:     h.adminInfo(commons),
 		logger:   logger,
-		out:      out,
+		requests: reqlog.NewBroker(0),
 	}, nil
 }
 

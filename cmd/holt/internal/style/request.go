@@ -14,7 +14,7 @@ import (
 // the only part that changes colour, and it changes by class: a reader
 // scanning a fast-moving list sees red or amber before reading digits.
 var (
-	reqTime   = lipgloss.NewStyle().Faint(true)
+	reqFaint  = lipgloss.NewStyle().Faint(true)
 	reqMethod = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
 	reqPeer   = lipgloss.NewStyle().Foreground(lipgloss.Color("140"))
 	reqOK     = lipgloss.NewStyle().Foreground(lipgloss.Color("35"))
@@ -22,13 +22,17 @@ var (
 	reqErr    = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
 )
 
-// Request renders one request as a line, in the shape a tunnel's
-// operator reads all day:
+// Request renders one request as a log message, in the shape a
+// tunnel's operator reads all day:
 //
-//	15:04:05  GET  /about            200  12ms
+//	GET  /about            200  12ms
 //
-// With a peer (the hub side, where several tunnels share the output)
-// the peer comes first, since that is what tells the lines apart.
+// It carries no clock: this goes through the logger like every other
+// line, so the timestamp, level and prefix are the logger's and a
+// request sits in the same columns as the tunnel events around it.
+//
+// With a peer (a view where several tunnels share the output) the peer
+// comes first, since that is what tells the lines apart.
 func Request(ev reqlog.Event) string {
 	status := fmt.Sprintf("%3d", ev.Status)
 	if ev.Status == 0 {
@@ -37,9 +41,6 @@ func Request(ev reqlog.Event) string {
 	}
 
 	var b strings.Builder
-
-	b.WriteString(reqTime.Render(ev.At.Format("15:04:05")))
-	b.WriteString("  ")
 
 	if ev.Peer != "" {
 		b.WriteString(reqPeer.Render(pad(ev.Peer, 20)))
@@ -52,7 +53,7 @@ func Request(ev reqlog.Event) string {
 	b.WriteString("  ")
 	b.WriteString(statusStyle(ev.Status).Render(status))
 	b.WriteString("  ")
-	b.WriteString(reqTime.Render(duration(ev.Duration)))
+	b.WriteString(reqFaint.Render(duration(ev.Duration)))
 
 	return b.String()
 }

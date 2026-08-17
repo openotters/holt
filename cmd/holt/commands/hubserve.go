@@ -70,7 +70,11 @@ func (h *Hub) startAdmin(ctx context.Context, listeners *httpsrv.Group, rt *hubR
 	mux := http.NewServeMux()
 
 	adminPath, adminHandler := holtv1connect.NewAdminHandler(
-		admin.NewService(rt.registry, admin.WithBlocker(rt.blocks), admin.WithInfo(rt.info)),
+		admin.NewService(rt.registry,
+			admin.WithBlocker(rt.blocks),
+			admin.WithInfo(rt.info),
+			admin.WithRequests(rt.requests),
+		),
 	)
 	mux.Handle(adminPath, adminHandler)
 
@@ -131,9 +135,10 @@ func (h *Hub) startProxy(ctx context.Context, listeners *httpsrv.Group, rt *hubR
 	// installed above, so the CLI adds no instrumentation of its own.
 	peers := revproxy.New(rt.registry,
 		revproxy.WithResolvers(resolvers...),
-		// The hub's own live view: every request it carried, for
-		// every peer, which is why the peer leads the line here.
-		revproxy.WithRequestHook(requestPrinter(rt.out, rt.logger)),
+		// Carried requests go to whoever is watching the console, not
+		// to the hub's log: a hub serving a fleet would drown its own
+		// output, and the console is where you go to watch traffic.
+		revproxy.WithRequestHook(rt.requests.Hook()),
 	)
 
 	return listeners.Start(ctx, "proxy", h.ProxyAddr, peers)
