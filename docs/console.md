@@ -20,9 +20,11 @@
   as a structured entry: a foldable JSON tree carrying the host,
   query, protocol, client, user agent, both sizes and the duration
   (tunnel hop included). Two buttons take it away: **copy** puts the
-  entry on the clipboard as JSON, **curl** puts a command that replays
-  the request through the hub (addressed the way this hub routes).
-  Bodies are never captured, so the curl carries none.
+  entry on the clipboard as JSON, and **curl** puts a command that
+  replays the request through the hub (addressed the way this hub
+  routes), with a menu next to it for the other forms — plain URL,
+  PowerShell, fetch, wget. Bodies are never captured, so none of them
+  carries one.
   It is per peer on purpose — a fleet's traffic in one list is
   unreadable — and the hub does the filtering, so watching one peer
   never ships you the others'.

@@ -1,9 +1,9 @@
 import { Check, ChevronDown, ChevronRight, Copy, Radio, Terminal, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { type JsonValue, JsonView } from "@/components/json-view";
 import { Button } from "@/components/ui/button";
-import { type HubConfig, curlFor } from "@/lib/reach";
+import { type HubConfig, curlFor, requestFormats } from "@/lib/reach";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type LiveRequest, useLiveRequests } from "@/lib/use-request-stream";
 
@@ -233,12 +233,10 @@ function Details({ request, peer, config }: { request: LiveRequest; peer: string
 	return (
 		<div className="relative border-border/60 border-l-2 bg-muted/30 py-3">
 			<div className="absolute top-2 right-3 flex items-center gap-1">
-				<CopyButton
-					icon={Terminal}
-					label="curl"
-					title="copy a curl that replays this request through the hub"
-					value={curlFor(request, peer, config)}
-				/>
+				{/* curl is the one people want, so it is the button; the
+				    rest of the ways to replay a request are one click
+				    further, the way a browser's network panel does it. */}
+				<CopyAsMenu config={config} peer={peer} request={request} />
 				<CopyButton
 					icon={Copy}
 					label="copy"
@@ -276,6 +274,91 @@ function CopyButton({
 			{copied ? <Check className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
 			{copied ? "copied" : label}
 		</Button>
+	);
+}
+
+// CopyAsMenu is the curl button with the other formats behind a
+// chevron: one click for the common case, a menu for a Windows box, a
+// browser console, or a machine with only wget.
+function CopyAsMenu({
+	request,
+	peer,
+	config,
+}: {
+	request: LiveRequest;
+	peer: string;
+	config: HubConfig;
+}) {
+	const [open, setOpen] = useState(false);
+	const [copied, setCopied] = useState("");
+	const root = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		if (!open) return;
+		const onDown = (e: MouseEvent) => {
+			if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
+		};
+		const onKey = (e: KeyboardEvent) => {
+			// Stops at the menu: closing it should not also close the
+			// panel behind it.
+			if (e.key === "Escape") {
+				e.stopPropagation();
+				setOpen(false);
+			}
+		};
+		document.addEventListener("mousedown", onDown);
+		document.addEventListener("keydown", onKey, true);
+		return () => {
+			document.removeEventListener("mousedown", onDown);
+			document.removeEventListener("keydown", onKey, true);
+		};
+	}, [open]);
+
+	async function copy(label: string, value: string) {
+		await navigator.clipboard.writeText(value);
+		setCopied(label);
+		setOpen(false);
+		setTimeout(() => setCopied(""), 1200);
+	}
+
+	return (
+		<div className="relative flex items-center" ref={root}>
+			<Button
+				className="h-7 gap-1.5 rounded-r-none pr-2 text-xs"
+				onClick={() => copy("curl", curlFor(request, peer, config))}
+				size="sm"
+				title="copy a curl that replays this request through the hub"
+				variant="ghost"
+			>
+				{copied ? <Check className="h-3 w-3" /> : <Terminal className="h-3 w-3" />}
+				{copied || "curl"}
+			</Button>
+			<Button
+				aria-expanded={open}
+				aria-haspopup="menu"
+				className="h-7 rounded-l-none border-border/60 border-l px-1 text-xs"
+				onClick={() => setOpen((o) => !o)}
+				size="sm"
+				title="copy this request another way"
+				variant="ghost"
+			>
+				<ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} />
+			</Button>
+			{open && (
+				<div className="absolute top-8 right-0 z-10 min-w-52 overflow-hidden rounded-md border bg-popover py-1 shadow-lg">
+					{requestFormats.map((f) => (
+						<button
+							className="block w-full px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+							key={f.label}
+							onClick={() => copy(f.label, f.render(request, peer, config))}
+							type="button"
+						>
+							{f.label}
+						</button>
+					))}
+				</div>
+			)}
+		</div>
 	);
 }
 
