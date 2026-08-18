@@ -5,9 +5,7 @@ import {
 	Ban,
 	BookOpen,
 	Beer,
-	Check,
 	Container,
-	Copy,
 	Download,
 	ExternalLink,
 	Github,
@@ -25,6 +23,8 @@ import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { CapturePage } from "@/components/capture-page";
+import { CopyField } from "@/components/copy-field";
 import { Footer } from "@/components/footer";
 import { TrafficModal } from "@/components/traffic-modal";
 import { peerURL } from "@/lib/reach";
@@ -76,9 +76,127 @@ function useHubConfig() {
 	return cfg;
 }
 
+// The console's pages: operate the live peers, inspect requests,
+// touch-once settings.
+type Page = "tunnels" | "capture" | "settings";
+
+const PAGES: { key: Page; label: string }[] = [
+	{ key: "tunnels", label: "Tunnels" },
+	{ key: "capture", label: "Capture" },
+	{ key: "settings", label: "Settings" },
+];
+
+// usePage is hash routing, small enough to own: #/capture and
+// #/settings deep-link; anything else is the tunnels page.
+function usePage(): [Page, (p: Page) => void] {
+	const read = (): Page => {
+		const h = window.location.hash.replace(/^#\/?/, "");
+		return h === "capture" || h === "settings" ? h : "tunnels";
+	};
+	const [page, setPage] = useState<Page>(read);
+
+	useEffect(() => {
+		const onHash = () => setPage(read());
+		window.addEventListener("hashchange", onHash);
+		return () => window.removeEventListener("hashchange", onHash);
+	}, []);
+
+	return [
+		page,
+		(p) => {
+			window.location.hash = p === "tunnels" ? "/" : `/${p}`;
+		},
+	];
+}
+
 export function App() {
-	const queryClient = useQueryClient();
 	const config = useHubConfig();
+	const [page, go] = usePage();
+
+	// The tunnels page runs the same query; the shared cache makes
+	// this one free.
+	const { error } = useQuery(listTunnels, {});
+
+	return (
+		<div className="flex min-h-screen flex-col font-sans antialiased">
+			{/* Sticky so the nav and the status menu stay reachable while
+			    scrolling a long peer list. Translucent + blur keeps the
+			    content visible as it passes underneath; z-40 sits under the
+			    status popover's z-50. */}
+			<header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-dashed bg-background/80 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+				<span className="text-xl leading-none" aria-hidden="true">
+					🌀
+				</span>
+				<span className="font-semibold tracking-tight">holt console</span>
+				<StatusMenu
+					error={error}
+					proxyURL={config.externalURL || `http://${window.location.hostname}:${config.proxyPort}`}
+					tunnelURL={config.tunnelURL}
+				/>
+				<nav className="ml-2 flex items-center gap-1">
+					{PAGES.map((p) => (
+						<button
+							key={p.key}
+							className={`h-8 rounded-md px-3 text-sm transition-colors ${
+								page === p.key
+									? "bg-accent font-medium text-accent-foreground"
+									: "text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+							}`}
+							onClick={() => go(p.key)}
+							type="button"
+						>
+							{p.label}
+						</button>
+					))}
+				</nav>
+				<div className="ml-auto flex items-center gap-1.5">
+					<a
+						className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+						href={DOCS_URL}
+						rel="noreferrer"
+						target="_blank"
+						title="holt documentation"
+					>
+						<BookOpen className="h-3.5 w-3.5" /> Docs
+					</a>
+					<a
+						className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+						href={`${REPO_URL}/stargazers`}
+						rel="noreferrer"
+						target="_blank"
+						title="Star holt on GitHub"
+					>
+						<Star className="h-3.5 w-3.5" /> Star
+					</a>
+					<a
+						className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+						href={REPO_URL}
+						rel="noreferrer"
+						target="_blank"
+						title="holt on GitHub"
+					>
+						<Github className="h-4 w-4" />
+					</a>
+				</div>
+			</header>
+
+			<main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-6">
+				{page === "tunnels" && <TunnelsPage config={config} />}
+				{page === "capture" && <CapturePage config={config} />}
+				{page === "settings" && <SettingsPage config={config} />}
+			</main>
+
+			<Footer />
+		</div>
+	);
+}
+
+// HubViewConfig is everything /api/config reports.
+type HubViewConfig = ReturnType<typeof useHubConfig>;
+
+// TunnelsPage is the operating view: live peers, activity, bans.
+function TunnelsPage({ config }: { config: HubViewConfig }) {
+	const queryClient = useQueryClient();
 	const [callPeer, setCallPeer] = useState<string | null>(null);
 	const [trafficPeer, setTrafficPeer] = useState<string | null>(null);
 	const [confirmBlock, setConfirmBlock] = useState<string | null>(null);
@@ -127,55 +245,9 @@ export function App() {
 	});
 
 	return (
-		<div className="flex min-h-screen flex-col font-sans antialiased">
-			{/* Sticky so the status menu and its urls stay reachable while
-			    scrolling a long peer list. Translucent + blur keeps the
-			    content visible as it passes underneath; z-40 sits under the
-			    status popover's z-50. */}
-			<header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-dashed bg-background/80 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-				<span className="text-xl leading-none" aria-hidden="true">
-					🌀
-				</span>
-				<span className="font-semibold tracking-tight">holt console</span>
-				<div className="ml-auto flex items-center gap-1.5">
-					<a
-						className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-						href={DOCS_URL}
-						rel="noreferrer"
-						target="_blank"
-						title="holt documentation"
-					>
-						<BookOpen className="h-3.5 w-3.5" /> Docs
-					</a>
-					<a
-						className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-						href={`${REPO_URL}/stargazers`}
-						rel="noreferrer"
-						target="_blank"
-						title="Star holt on GitHub"
-					>
-						<Star className="h-3.5 w-3.5" /> Star
-					</a>
-					<a
-						className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-						href={REPO_URL}
-						rel="noreferrer"
-						target="_blank"
-						title="holt on GitHub"
-					>
-						<Github className="h-4 w-4" />
-					</a>
-					<StatusMenu
-						error={error}
-						proxyURL={config.externalURL || `http://${window.location.hostname}:${config.proxyPort}`}
-						tunnelURL={config.tunnelURL}
-					/>
-				</div>
-			</header>
-
-			<main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-				<div>
-					<h1 className="font-semibold text-2xl tracking-tight">Tunnels</h1>
+		<>
+			<div>
+				<h1 className="font-semibold text-2xl tracking-tight">Tunnels</h1>
 					<p className="text-muted-foreground text-sm">
 						Live reverse tunnels attached to this hub. Kill disconnects a peer (it may reconnect); block
 						also bans its peer id so no token for it works until unblocked.
@@ -331,13 +403,6 @@ export function App() {
 
 				<BlockedCard onUnblock={(peer) => unblock.mutate({ peer })} />
 
-				<InstallCard />
-
-				<DangerZone />
-			</main>
-
-			<Footer />
-
 			{addPeer && <AddPeerModal onClose={() => setAddPeer(false)} />}
 
 			{trafficPeer && (
@@ -355,7 +420,78 @@ export function App() {
 					onClose={() => setCallPeer(null)}
 				/>
 			)}
-		</div>
+		</>
+	);
+}
+
+// SettingsPage holds what you touch once: wiring, install, danger zone.
+function SettingsPage({ config }: { config: HubViewConfig }) {
+	return (
+		<>
+			<div>
+				<h1 className="font-semibold text-2xl tracking-tight">Settings</h1>
+				<p className="text-muted-foreground text-sm">
+					How this hub is configured, install methods for new machines, and the actions that need a
+					second thought.
+				</p>
+			</div>
+
+			<HubCard config={config} />
+
+			<InstallCard />
+
+			<DangerZone />
+		</>
+	);
+}
+
+// HubCard reads the hub's wiring back from /api/config — the values
+// tokens and commands are built from. Flags change them, nothing here.
+function HubCard({ config }: { config: HubViewConfig }) {
+	const rows: { label: string; value: string; hint?: string }[] = [
+		{
+			label: "Proxy routing",
+			value: config.proxyRouting + (config.proxyDomain ? ` (${config.proxyDomain})` : ""),
+			hint:
+				config.proxyRouting === "header"
+					? `requests name their peer with the ${config.routeHeader} header`
+					: "peers are addressed as hostnames under the proxy domain",
+		},
+		{ label: "Proxy port", value: config.proxyPort },
+		{
+			label: "External URL",
+			value: config.externalURL || "—",
+			hint: config.externalURL ? undefined : "set --external-url to show public commands",
+		},
+		{ label: "Tunnel URL", value: config.tunnelURL || "—" },
+		{
+			label: "Metrics",
+			value: config.metricsPort ? `port ${config.metricsPort}` : "off",
+		},
+	];
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>This hub</CardTitle>
+				<CardDescription>Read from the hub's configuration; change it with flags on holt hub.</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<div className="flex flex-col divide-y">
+					{rows.map((r) => (
+						<div className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0" key={r.label}>
+							<div className="flex items-center justify-between gap-3">
+								<span className="text-muted-foreground text-sm">{r.label}</span>
+								<span className="truncate font-mono text-sm" title={r.value}>
+									{r.value}
+								</span>
+							</div>
+							{r.hint && <span className="text-muted-foreground text-xs">{r.hint}</span>}
+						</div>
+					))}
+				</div>
+			</CardContent>
+		</Card>
 	);
 }
 
@@ -831,45 +967,6 @@ function formatUptime(attachedAtUnix: bigint) {
 function minorVersion(s: string): string | null {
 	const m = s.match(/v?(\d+\.\d+)(?:\.\d+)?/);
 	return m ? m[1] : null;
-}
-
-// CopyField shows a labelled, copyable mono value in the openotters
-// command-chip style. With multiline, the value wraps across lines and
-// scrolls if tall (for the long join token); the copy button always
-// copies the clean single-line value.
-function CopyField({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) {
-	const [copied, setCopied] = useState(false);
-
-	async function copy() {
-		await navigator.clipboard.writeText(value);
-		setCopied(true);
-		setTimeout(() => setCopied(false), 1200);
-	}
-
-	return (
-		<div className="flex flex-col gap-1">
-			<span className="text-muted-foreground text-xs">{label}</span>
-			<div
-				className={`flex gap-2 rounded-md border bg-muted/50 py-1 pr-1 pl-3 font-mono text-xs ${multiline ? "items-start" : "items-center"}`}
-			>
-				{/* break-words, not break-all: a curl command wraps at its
-				    spaces, while a token (one unbroken string) still wraps. */}
-				<code
-					className={multiline ? "max-h-32 flex-1 overflow-auto whitespace-pre-wrap break-words py-1" : "truncate"}
-				>
-					{value}
-				</code>
-				<Button
-					size="icon"
-					variant="ghost"
-					className={`h-6 w-6 shrink-0 ${multiline ? "sticky top-1" : ""}`}
-					onClick={copy}
-				>
-					{copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-				</Button>
-			</div>
-		</div>
-	);
 }
 
 // DangerZone holds destructive, hub-wide actions. Rotating the signing

@@ -1,14 +1,12 @@
 import { useQuery } from "@connectrpc/connect-query";
-import { Check, ChevronDown, Copy, Radio } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { info } from "@/gen/v1/admin-Admin_connectquery";
 
-// StatusMenu is the connection item in the top navbar: a real menu
-// (click to open, stays open, text selectable), not a hover tooltip.
-// It is the "about this hub" card: identity (endpoint, version), the
-// two URLs an operator hands out (tunnel, proxy), and what a call
-// needs (route header, token ttl).
+// StatusMenu is the connection light beside the console's name: green
+// while the hub answers, pulsing red when it does not. Hover opens the
+// hub's identity card; clicking pins it so its values stay copyable.
 export function StatusMenu({
 	error,
 	proxyURL,
@@ -18,8 +16,10 @@ export function StatusMenu({
 	proxyURL: string;
 	tunnelURL: string;
 }) {
-	const [open, setOpen] = useState(false);
+	const [hover, setHover] = useState(false);
+	const [pinned, setPinned] = useState(false);
 	const root = useRef<HTMLDivElement>(null);
+	const open = hover || pinned;
 
 	// Build/version and token ttl come from the Admin Info RPC; the
 	// rows simply hide while it has not answered (first paint, or an
@@ -27,12 +27,12 @@ export function StatusMenu({
 	const { data: hubInfo } = useQuery(info, {});
 
 	useEffect(() => {
-		if (!open) return;
+		if (!pinned) return;
 		const onDown = (e: MouseEvent) => {
-			if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
+			if (root.current && !root.current.contains(e.target as Node)) setPinned(false);
 		};
 		const onKey = (e: KeyboardEvent) => {
-			if (e.key === "Escape") setOpen(false);
+			if (e.key === "Escape") setPinned(false);
 		};
 		document.addEventListener("mousedown", onDown);
 		document.addEventListener("keydown", onKey);
@@ -40,29 +40,47 @@ export function StatusMenu({
 			document.removeEventListener("mousedown", onDown);
 			document.removeEventListener("keydown", onKey);
 		};
-	}, [open]);
+	}, [pinned]);
 
 	const row = "flex items-baseline justify-between gap-6";
 	const key = "whitespace-nowrap text-muted-foreground";
 
 	return (
-		<div className="relative" ref={root}>
+		<div
+			className="relative"
+			onMouseEnter={() => setHover(true)}
+			onMouseLeave={() => setHover(false)}
+			ref={root}
+		>
 			<button
 				aria-expanded={open}
 				aria-haspopup="menu"
-				className="inline-flex items-center gap-2 rounded-md border border-transparent px-3 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground data-[open=true]:border-border data-[open=true]:bg-accent"
-				data-open={open}
-				onClick={() => setOpen((o) => !o)}
+				aria-label={error ? "hub unreachable" : "hub connected"}
+				className="flex h-6 w-6 items-center justify-center rounded-full"
+				onClick={() => setPinned((p) => !p)}
 				type="button"
 			>
-				<Radio className={`h-4 w-4 ${error ? "text-red-500" : "text-emerald-500"}`} />
-				{error ? "unreachable" : "connected"}
-				<ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+				<span className="relative flex h-2.5 w-2.5">
+					{/* Only the problem pulses. */}
+					{Boolean(error) && (
+						<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/60" />
+					)}
+					<span
+						className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
+							error
+								? "bg-red-500 shadow-[0_0_6px] shadow-red-500/60"
+								: "bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/60"
+						}`}
+					/>
+				</span>
 			</button>
 
+			{/* Padding, not margin: keeps the hover region continuous
+			    between the dot and the card. */}
 			{open && (
-				<div className="absolute top-full right-0 z-50 mt-2 w-96 select-text rounded-md border bg-popover p-4 text-popover-foreground text-sm shadow-md">
-					<div className="flex flex-col gap-2">
+				<div className="absolute top-full left-0 z-50 pt-2">
+					<div className="w-96 select-text rounded-md border bg-popover p-4 text-popover-foreground text-sm shadow-md">
+						<div className="flex flex-col gap-2">
 						<div className={row}>
 							<span className={key}>status</span>
 							<span className={error ? "text-red-500" : "text-emerald-500"}>
@@ -99,6 +117,7 @@ export function StatusMenu({
 						{error instanceof Error && (
 							<div className="mt-1 border-t border-dashed pt-2 text-red-500">{error.message}</div>
 						)}
+						</div>
 					</div>
 				</div>
 			)}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/openotters/holt/api/v1/holtv1connect"
 	"github.com/openotters/holt/cmd/holt/internal/admin"
+	"github.com/openotters/holt/cmd/holt/internal/capture"
 	"github.com/openotters/holt/cmd/holt/internal/httpsrv"
 	"github.com/openotters/holt/cmd/holt/internal/hubapi"
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
@@ -94,6 +95,12 @@ func (h *Hub) startAdmin(ctx context.Context, listeners *httpsrv.Group, rt *hubR
 	}.Mount(mux)
 
 	if h.UI {
+		// Capture endpoints attach through the hub's own tunnel
+		// listener, so they count toward --max-conns like any tunnel.
+		hubapi.Captures{
+			Manager: capture.NewManager(ctx, h.captureTunnelURL(), rt.secrets, rt.registry, rt.logger),
+		}.Mount(mux)
+
 		hubapi.Console{
 			Identity: rt.identity,
 			Secret:   rt.secrets,
@@ -110,6 +117,21 @@ func (h *Hub) startAdmin(ctx context.Context, listeners *httpsrv.Group, rt *hubR
 	// console: only loopback, the admin bind host, and any
 	// operator-configured hostnames are accepted.
 	return listeners.Start(ctx, "admin", h.AdminAddr, httpsrv.HostGuard(h.adminHosts(), mux))
+}
+
+// captureTunnelURL is the hub's own tunnel listener as a dialable URL:
+// a wildcard bind host is replaced with loopback.
+func (h *Hub) captureTunnelURL() string {
+	host, port, err := net.SplitHostPort(h.TunnelAddr)
+	if err != nil {
+		return "ws://" + h.TunnelAddr
+	}
+
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+
+	return "ws://" + net.JoinHostPort(host, port)
 }
 
 // adminHosts is the Host allow-list for the admin listener: whatever

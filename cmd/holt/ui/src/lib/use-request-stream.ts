@@ -95,10 +95,12 @@ export function useLiveRequests(peer: string) {
 						return;
 					}
 				}
+				// After an abort this closure is the previous peer's stream
+				// winding down; its setLive(false) would land after the next
+				// peer's setLive(true).
+				if (ac.signal.aborted) return;
 				setLive(false);
-				if (!ac.signal.aborted) {
-					await new Promise((r) => setTimeout(r, 3000));
-				}
+				await new Promise((r) => setTimeout(r, 3000));
 			}
 		})();
 
