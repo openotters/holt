@@ -124,10 +124,12 @@ export function App() {
 			    content visible as it passes underneath; z-40 sits under the
 			    status popover's z-50. */}
 			<header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-dashed bg-background/80 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-				<span className="text-xl leading-none" aria-hidden="true">
-					🌀
-				</span>
-				<span className="font-semibold tracking-tight">holt console</span>
+				<a className="flex items-center gap-3" href="#/" title="back to the tunnels">
+					<span className="text-xl leading-none" aria-hidden="true">
+						🌀
+					</span>
+					<span className="font-semibold tracking-tight">holt console</span>
+				</a>
 				<StatusMenu
 					error={error}
 					proxyURL={config.externalURL || `http://${window.location.hostname}:${config.proxyPort}`}
