@@ -61,8 +61,9 @@ type Manager struct {
 }
 
 type bin struct {
-	info   Bin
-	cancel context.CancelFunc
+	info Bin
+	// stop is closed by Stop; run turns it into a context cancel.
+	stop chan struct{}
 }
 
 // NewManager builds a manager dialing tunnelURL — the hub's own tunnel
@@ -127,21 +128,32 @@ func (m *Manager) Create(name string, ttl time.Duration) (Bin, error) {
 		return Bin{}, fmt.Errorf("a peer named %q is attached; pick another name", name)
 	}
 
-	//nolint:gosec // G118: cancel is kept on the bin — run calls it when the loop ends, Stop calls it early.
-	binCtx, cancel := context.WithDeadline(m.ctx, info.ExpiresAt)
-	b := &bin{info: info, cancel: cancel}
+	b := &bin{info: info, stop: make(chan struct{})}
 	m.bins[name] = b
 
 	m.mu.Unlock()
 
-	go m.run(binCtx, b, token)
+	go m.run(b, token)
 
 	return info, nil
 }
 
 // run is one endpoint's attach loop, ended by the TTL deadline, Stop,
 // an operator kill, or hub shutdown.
-func (m *Manager) run(ctx context.Context, b *bin, token string) {
+func (m *Manager) run(b *bin, token string) {
+	ctx, cancel := context.WithDeadline(m.ctx, b.info.ExpiresAt)
+	defer cancel()
+
+	// Stop closes b.stop; the watcher turns that into a cancel and
+	// exits with the context either way.
+	go func() {
+		select {
+		case <-b.stop:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
 	err := dial.Run(ctx, dial.Options{
 		URL:     m.tunnelURL,
 		Header:  http.Header{"Authorization": {"Bearer " + token}},
@@ -158,8 +170,6 @@ func (m *Manager) run(ctx context.Context, b *bin, token string) {
 		delete(m.bins, b.info.Peer)
 	}
 	m.mu.Unlock()
-
-	b.cancel()
 
 	// A non-nil error means our own lifecycle ended the loop; without
 	// this the hub notices the vanished peer only after its ping
@@ -211,7 +221,7 @@ func (m *Manager) Stop(name string) bool {
 		return false
 	}
 
-	b.cancel()
+	close(b.stop)
 
 	return true
 }
