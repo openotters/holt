@@ -13,168 +13,100 @@
 
 A *holt* is an otter's den: a burrow in the riverbank, reachable only
 through the underwater tunnel its owner dug. Same idea here. A **peer**
-that cannot accept inbound connections (behind NAT, in a locked down
-container, on a field device) dials out to a **hub**, then serves an
-ordinary `http.Handler` back through the connection it opened. The hub
-gets an `http.RoundTripper` per peer, and a presence signal for free.
+that cannot accept inbound connections (NAT, locked-down container,
+field device) dials out to a **hub**, then serves an ordinary
+`http.Handler` back through the connection it opened. The hub gets an
+`http.RoundTripper` per peer, and presence for free. No listener, no
+inbound port, nothing published on the peer.
 
-No listener, no inbound port, no published container port on the peer.
+holt is a **Go library first**; the `holt` CLI is one opinionated
+packaging of it.
 
-Useful when something needs a public address and cannot have one:
+> ⚠️ Alpha, extracted from [openotters](https://github.com/openotters/openotters),
+> where it is the daemon-to-agent channel. The wire protocol may still change.
 
-- show a local website to a client or a colleague, without deploying it
-- debug webhooks (Stripe, GitHub, Slack) that need a real URL to call
-- test an OAuth callback that must be reachable from outside
-- reach a machine at home or on a customer network: a NAS, a router, a
-  Raspberry Pi
-- give an agent or a device an address, without opening a port on its
-  side
+## The library
 
-> ⚠️ Alpha, extracted from [openotters](https://github.com/openotters/openotters)
-> where it is the sole daemon-to-agent-runtime channel. The wire protocol
-> may still change.
+Two constructors, both at the module root:
 
-<div align="center">
-  <img src="docs/console.png" alt="holt web console" width="760" />
-  <br />
-  <sub>The built-in web console (<code>holt hub --ui</code>). See <a href="docs/console.md">Web console</a>.</sub>
-</div>
-
-## Where holt fits
-
-frp, ngrok and inlets do much more than holt, and at a bigger scale. If
-you need TCP or UDP forwarding, load balancing, teams and quotas, or a
-hosted service with support, look at them first.
-
-holt is for simpler needs. You have an HTTP service that can only dial
-out, you have a domain and a small server (or a Kubernetes cluster), and
-you want to reach that service without giving your traffic to somebody
-else. One binary for the hub, one command on the peer, and everything
-stays yours.
-
-What you get:
-
-- HTTP and gRPC through the tunnel, the peer serving an ordinary handler
-- a hostname per peer, so a browser, a webhook or an OAuth callback can
-  reach it directly
-- a WebSocket transport, so the tunnel passes through Cloudflare,
-  ingresses and access proxies (gRPC does not pass there)
-- a live view of the traffic: logged by the peer, shown in the console,
-  every request one click from a curl that replays it
-- capture endpoints: throwaway addresses that accept any call and show
-  it live — inspect a webhook or an OAuth redirect without exposing a
-  real service
-- a web console, Prometheus metrics and a Grafana dashboard
-- a Helm chart, and a shared PostgreSQL when you run several hubs
-
-## Quickstart (local)
-
-Install it (see [all install methods](docs/install.md)):
-
-```sh
-brew install openotters/tap/holt      # or: go install github.com/openotters/holt/cmd/holt@latest
+```go
+// The peer: attaches to the hub, serves the handler through the
+// tunnel, redials with backoff. Cancel ctx to stop.
+c := holt.NewClient("wss://holt.example.com", myHandler,
+	holt.WithBearerToken(token))
+err := c.Run(ctx)
 ```
 
-Expose a local service through a hub in two commands:
+```go
+// The hub: a tunnel listener peers attach to, an optional proxy to
+// reach them from outside.
+srv := holt.NewServer(
+	holt.WithTunnel(holt.NewTunnel(":7200", holt.WithAuthBearer(peerForToken))),
+	holt.WithProxy(holt.NewProxy(":7202")),
+)
+go srv.Run(ctx)
 
-```sh
-holt hub --ui &                  # run a hub (web console on 127.0.0.1:7201)
-holt expose localhost:3000 --peer web   # enrolls itself, then serves the tunnel
+// Anywhere in the hub process, a peer is an ordinary HTTP backend:
+client := &http.Client{Transport: srv.Registry().RoundTripper(peerID)}
 ```
 
-Then reach the peer *through* the hub:
+Bring your own auth, middleware, listeners and storage — everything
+the CLI adds (JWT identity, SQLite/PostgreSQL state, the console) is
+built on this surface. See [Library](docs/library.md) and
+[How it works](docs/architecture.md).
+
+## The CLI
+
+One binary for hub, peer, and operations
+([all install methods](docs/install.md)):
 
 ```sh
+brew install openotters/tap/holt   # or: go install github.com/openotters/holt/cmd/holt@latest
+
+holt hub --ui &                         # hub + web console (127.0.0.1:7201)
+holt expose localhost:3000 --peer web   # enrolls itself, serves the tunnel
 curl -H 'x-tunnel-peer: web' http://127.0.0.1:7202/
 ```
 
-`holt expose` logs every request as it answers it, so you see what
-your service is doing without opening a log file:
-
-```
-9:27AM INFO expose: GET    /            200  27ms
-9:27AM INFO expose: GET    /missing     404  12ms
-```
-
-The hub keeps its own output quiet and shows the same traffic in the
-console (`holt hub --ui`), live, with the peer that answered.
-
-Drop `--peer` and it enrolls under a generated name (`cosy-eddy-aec23e`); from another
-machine, point it at the hub with `--admin-url` or a `--profile`. For
-a long-lived peer, mint the token once with `holt enroll web` and pass
-it with `--token`.
-
-The token bundles the peer's JWT and the hub's tunnel URL. Peers
-authenticate with the JWT and attach over a **WebSocket**, so the
-tunnel passes through anything that can proxy plain HTTP: CDN public
-hostnames (Cloudflare included), access proxies, ordinary ingresses.
-The URL's scheme picks the transport: a `wss://` URL is encrypted by a
-TLS edge in front of the hub (an ingress, LoadBalancer, or Cloudflare),
-while `ws://` dials plaintext for local use (`https://`/`http://` are
-accepted as aliases). The hub itself never manages a certificate.
-
-Behind a TLS edge, advertise the public URL so peers dial it over TLS:
-
-```sh
-holt hub --advertise-addr wss://holt.example.com &   # hub is plaintext; your edge terminates TLS
-holt enroll web                                      # token now carries the wss URL
-```
-
-See [Security](docs/security.md) for exposing a hub safely.
-
-## Examples
-
-Give a peer its own hostname, for a webhook, an OAuth callback, or just
-a browser. Point a wildcard record at the proxy first (keep the peers at
-the first level of the domain, a wildcard certificate covers only one
-level):
+Peers authenticate with a JWT and attach over a **WebSocket**, so the
+tunnel passes through Cloudflare, ingresses and access proxies. TLS is
+your edge's job: advertise its `wss://` URL. With a domain, each peer
+gets its own hostname — for a browser, a webhook, an OAuth callback:
 
 ```sh
 holt hub --advertise-addr wss://holt.example.com \
   --proxy-routing both --proxy-domain example.com
-
 holt expose localhost:3000 --peer checkout
 # https://checkout.example.com/ now reaches the service
 ```
 
-Expose an appliance that serves HTTPS with a self signed certificate (a
-router, a NAS, an IPMI card):
+Operate with `holt ls`, `holt kill web`, `holt block web`. On
+Kubernetes, `helm install holt oci://ghcr.io/openotters/charts/holt`;
+several hubs share one PostgreSQL for presence, denylist and signing
+identity ([Kubernetes](docs/kubernetes.md)).
 
-```sh
-holt expose https://192.168.1.1 --insecure --peer router
-```
+## The console
 
-Open a quick tunnel without choosing a name:
+<div align="center">
+  <img src="docs/console.png" alt="holt web console" width="760" />
+</div>
 
-```sh
-holt expose localhost:8080
-# it enrolls itself, as something like cosy-eddy-aec23e
-```
+`holt hub --ui` serves a web console: live tunnels, per-peer traffic
+with payloads (any request is one click from a curl that replays it),
+and **capture endpoints** — throwaway addresses that accept any call
+and show it live. Point a webhook or an OAuth redirect at one and
+inspect what arrives without exposing a real service. See
+[Web console](docs/console.md).
 
-From another machine, say where the hub is (or put it in a
-[profile](docs/cli.md#remote-hubs-and-profiles)):
+Prometheus metrics and a Grafana dashboard come with it
+([Observability](docs/observability.md)).
 
-```sh
-holt expose localhost:3000 --admin-url https://holt.example.com
-```
+## Where holt fits
 
-Then operate the hub:
-
-```sh
-holt ls           # who is attached
-holt kill web     # close a tunnel, the peer may come back
-holt block web    # ban the peer id until you unblock it
-```
-
-On Kubernetes, the chart runs the hub, and several hubs can share one
-PostgreSQL for presence, blocklist and signing identity:
-
-```sh
-helm install holt oci://ghcr.io/openotters/charts/holt
-```
-
-See [Kubernetes](docs/kubernetes.md) for the fleet setup, the ingresses
-and the Grafana dashboard.
+frp, ngrok and inlets do more, at a bigger scale: TCP/UDP, load
+balancing, teams, hosted service. holt is HTTP(S) and gRPC through
+one hub on your own infra — for embedding tunnels in a Go program,
+and for the simple case where your traffic should stay yours.
 
 ## Documentation
 
