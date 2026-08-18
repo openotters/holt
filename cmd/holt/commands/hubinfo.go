@@ -14,7 +14,6 @@ import (
 	"github.com/openotters/holt/pkg/revproxy"
 )
 
-// routing is the proxy strategy the flags select.
 func (h *Hub) routing() revproxy.Routing { return revproxy.Routing(h.ProxyRouting) }
 
 // advertiseURL is the tunnel URL stamped into tokens (what peers dial):
@@ -34,7 +33,6 @@ func (h *Hub) advertiseURL() string {
 	return adv
 }
 
-// adminInfo builds the static hub metadata the Admin Info RPC reports.
 func (h *Hub) adminInfo(commons *c.Commons) admin.HubInfo {
 	return admin.HubInfo{
 		Version:       commons.Version.Version(),
@@ -75,8 +73,6 @@ func (h *Hub) metricsAddr() string {
 	return h.MetricsAddr
 }
 
-// portOf returns the port of a host:port address, or the whole string
-// if it has no port.
 func portOf(addr string) string {
 	if _, p, err := net.SplitHostPort(addr); err == nil {
 		return p
@@ -108,8 +104,6 @@ func (h *Hub) logFields() []zap.Field {
 	return fields
 }
 
-// welcomeBanner renders the pretty startup block with the addresses
-// and a first-step hint.
 func (h *Hub) welcomeBanner() string {
 	rows := []style.BannerRow{
 		{Key: "tunnel", Value: h.TunnelAddr, Hint: "peers attach here (JWT auth; put TLS in front)"},

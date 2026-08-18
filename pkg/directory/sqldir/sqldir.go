@@ -1,15 +1,7 @@
-// Package sqldir is a SQL-backed directory.Directory: a shared peer-presence
-// store so a fleet of hubs can each see who is attached where. It
-// works on SQLite and PostgreSQL.
-//
-// It imports only database/sql — the consumer brings the driver
-// (modernc.org/sqlite, jackc/pgx/stdlib, lib/pq, …) and hands in an
-// opened *sql.DB. That keeps the holt module free of any driver
-// dependency.
-//
-// Presence only: this stores which hub owns a peer's live tunnel, the
-// peer's version, and when it attached. The live *http2.ClientConn is
-// never stored — only the owning hub can dial a peer.
+// Package sqldir is a SQL-backed directory.Directory for SQLite and
+// PostgreSQL, sharing peer presence across a fleet of hubs. It imports
+// only database/sql — the consumer brings the driver and an opened
+// *sql.DB, keeping the holt module free of driver dependencies.
 package sqldir
 
 import (
@@ -78,8 +70,8 @@ func (d *Directory) Migrate(ctx context.Context) error {
 
 // Attach upserts the peer's presence row.
 func (d *Directory) Attach(ctx context.Context, rec directory.PeerRecord) error {
-	// ON CONFLICT ... DO UPDATE is supported by both SQLite and
-	// PostgreSQL; only the placeholders differ.
+	// ON CONFLICT ... DO UPDATE works on both dialects; only the
+	// placeholders differ.
 	q := d.rebind(fmt.Sprintf(
 		`INSERT INTO %s (peer, hub_id, peer_version, attached_at) VALUES (?, ?, ?, ?)
 		 ON CONFLICT (peer) DO UPDATE SET hub_id = excluded.hub_id,

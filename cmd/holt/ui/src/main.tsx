@@ -11,11 +11,8 @@ import "@/index.css";
 
 const queryClient = new QueryClient({
 	defaultOptions: {
-		// Slow fallback only: tunnel changes arrive through the
-		// WatchTunnels stream (see lib/use-tunnel-stream.ts). Focus
-		// refetch is off for the same reason: switching back from the
-		// terminal was refetching every query on top of the stream
-		// driven refresh.
+		// Slow fallback only — tunnel changes arrive through the
+		// WatchTunnels stream, and focus refetch would pile on top of it.
 		queries: { refetchInterval: 30000, refetchOnWindowFocus: false, retry: 1 },
 	},
 });

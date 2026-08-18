@@ -59,8 +59,6 @@ func (e Enroll) Mount(mux *http.ServeMux) {
 			return
 		}
 
-		// The tunnel URL stamped into the token: the caller's override
-		// if given, otherwise the hub's advertised one.
 		tunnelURL := body.TunnelURL
 		if tunnelURL == "" {
 			tunnelURL = e.TunnelURL
@@ -82,7 +80,6 @@ func (e Enroll) Mount(mux *http.ServeMux) {
 	})
 }
 
-// writeJSON answers with v as JSON.
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)

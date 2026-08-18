@@ -22,14 +22,9 @@ const (
 	reasonHandshake = "handshake" // opened, but Hello/Welcome failed
 )
 
-// metrics are the peer's own view of its tunnel, which is the view
-// that answers "is this peer flapping?". A hub only sees the attaches
-// that reached it; the peer sees the failures too, and how long each
-// session lasted before it had to redial.
-//
-// Built from a MeterProvider that defaults to the global one, so the
-// instruments are always present and cost nothing until an SDK is
-// installed.
+// metrics are the peer's own view of its tunnel — the view that
+// answers "is this peer flapping?": a hub only sees the attaches that
+// reached it, the peer sees the failures too.
 type metrics struct {
 	attaches metric.Int64Counter     // successful attaches
 	failures metric.Int64Counter     // failed attempts, by reason

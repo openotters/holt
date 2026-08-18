@@ -6,19 +6,11 @@ import (
 	"math/big"
 )
 
-// Random names are two words and a short random suffix, joined by
-// dashes, which reads and types better than a UUID and is still a
-// valid DNS label:
-//
-//	cosy-eddy-aec23e, brisk-otter-1f04b9, amber-heron-77c3d1
-//
-// The words are river-and-woodland themed, a holt being an otter's
-// den. The suffix is what carries uniqueness: 24 bits over roughly
-// four thousand word pairs, so a name is free to be generated
-// without asking the hub whether it is taken. That matters because
-// attaching under a name already in use evicts that peer, and a
-// client should not have to enumerate other people's tunnels (which
-// it may not be allowed to do) just to pick a safe name for its own.
+// Random names are two river-and-woodland words plus a short random
+// suffix ("cosy-eddy-aec23e"): readable, a valid DNS label, and unique
+// without asking the hub — the 24-bit suffix carries the uniqueness,
+// which matters because attaching under a taken name evicts that peer
+// and a client may not be allowed to enumerate names to pick a safe one.
 //
 //nolint:gochecknoglobals // immutable word tables, package-level by nature
 var (
@@ -83,7 +75,6 @@ func pick(list []string) (string, error) {
 	return list[n.Int64()], nil
 }
 
-// randomHex is the name's unique tail.
 func randomHex() (string, error) {
 	var b [suffixBytes]byte
 	if _, err := rand.Read(b[:]); err != nil {

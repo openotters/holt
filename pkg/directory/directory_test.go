@@ -27,8 +27,6 @@ func testDirectory(t *testing.T, dir directory.Directory) {
 	testListAndClearHub(ctx, t, dir, now)
 }
 
-// testAttachAndUpsert covers attach, lookup, and re-attach replacing
-// ownership.
 func testAttachAndUpsert(ctx context.Context, t *testing.T, dir directory.Directory, now time.Time) {
 	t.Helper()
 
@@ -79,7 +77,6 @@ func testDetachOwnership(ctx context.Context, t *testing.T, dir directory.Direct
 	}
 }
 
-// testListAndClearHub covers ordered listing and per-hub cleanup.
 func testListAndClearHub(ctx context.Context, t *testing.T, dir directory.Directory, now time.Time) {
 	t.Helper()
 

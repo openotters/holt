@@ -41,5 +41,4 @@ func Open(dir string) (*Store, error) {
 // can share the same database file.
 func (s *Store) DB() *sql.DB { return s.db }
 
-// Close closes the database.
 func (s *Store) Close() error { return s.db.Close() }

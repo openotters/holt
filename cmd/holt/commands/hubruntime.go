@@ -31,10 +31,8 @@ type hubRuntime struct {
 	metrics  *hubmetrics.Metrics
 	info     admin.HubInfo
 	logger   *zap.Logger
-	// requests is the hub's live view of what the proxy carried, fanned
-	// out to whoever is watching the console. It holds a handful of
-	// recent events in memory and nothing more: the hub does not log
-	// requests, and does not store them.
+	// requests fans what the proxy carried out to console watchers; a
+	// few recent events in memory, never logged or stored.
 	requests *reqlog.Broker
 }
 

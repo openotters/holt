@@ -1,16 +1,10 @@
 // Package blocklist is the hub's identity denylist: the peer ids
-// refused at attach time, durable across restarts.
-//
-// Blocking bans an id, not one token: any token with that subject is
-// refused while the entry exists, so a leaked token is stopped without
-// rotating the signing secret on everyone else.
-//
-// The denylist is stored behind the Store interface — SQLite for a
-// single hub, PostgreSQL for a fleet (see the sqlite and postgres
-// subpackages), mirroring the presence directory's backends. Reads go
-// to the store, so a block issued by another hub on a shared store
-// takes effect everywhere; an in-memory snapshot answers when the
-// store is unreachable.
+// refused at attach time, durable across restarts. A block bans an id,
+// not one token, so a leaked token is stopped without rotating the
+// signing secret on everyone else. Storage is a pluggable Store
+// (SQLite or PostgreSQL); reads go to the store, so a block issued by
+// another hub on a shared store takes effect everywhere, and an
+// in-memory snapshot answers when the store is unreachable.
 package blocklist
 
 import (
@@ -26,12 +20,10 @@ type Store interface {
 	// Load returns every blocked peer, keyed by peer id, valued by the
 	// unix time it was blocked.
 	Load(ctx context.Context) (map[string]int64, error)
-	// IsBlocked reports whether peer is currently blocked.
 	IsBlocked(ctx context.Context, peer string) (bool, error)
 	// Block records a block (unix seconds), keeping the original time
 	// if the peer is already blocked.
 	Block(ctx context.Context, peer string, atUnix int64) error
-	// Unblock removes a peer from the denylist.
 	Unblock(ctx context.Context, peer string) error
 }
 

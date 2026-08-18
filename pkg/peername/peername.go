@@ -72,8 +72,6 @@ func uppercaseErr(name string) error {
 	return fmt.Errorf("peer name %q has uppercase; %s (%s)", name, why, Rules)
 }
 
-// validateBoundaries enforces the alphanumeric first and last
-// character (a label may not start or end with a dash).
 func validateBoundaries(name string) error {
 	if name[0] == '-' {
 		return fmt.Errorf("peer name %q starts with a dash (%s)", name, Rules)

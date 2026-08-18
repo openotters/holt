@@ -59,7 +59,6 @@ type FileStore struct{ dir string }
 // NewFile returns the file-backed store for a state directory.
 func NewFile(dir string) *FileStore { return &FileStore{dir: dir} }
 
-// Describe names the file for operator messages.
 func (f *FileStore) Describe() string { return filepath.Join(f.dir, secretFile) }
 
 // LoadOrCreate returns the secret, generating and persisting one on

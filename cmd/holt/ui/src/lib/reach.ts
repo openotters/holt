@@ -38,11 +38,8 @@ function routeHeaderFor(peer: string, config: HubConfig): [string, string] | nul
 
 // The formats a request can be taken away in. Each rebuilds the same
 // request — method, path, query, and the header that names the peer
-// when the URL does not.
-//
-// None of them carries a body. The hub reports metadata only, it never
-// keeps what was sent, so a command that invented one would be a lie
-// dressed as a reproduction.
+// when the URL does not. Only curl replays a body, and only a fully
+// captured one (see replayableBody).
 export type RequestFormat = {
 	label: string;
 	render: (request: LiveRequest, peer: string, config: HubConfig) => string;
@@ -57,11 +54,9 @@ export const requestFormats: RequestFormat[] = [
 ];
 
 // curlFor rebuilds a request as a curl command that replays it through
-// the hub. It is what you paste into a terminal to ask again.
-//
-// The body rides along when the hub captured it whole. A truncated
-// capture is left out: a command that sent a prefix would look like a
-// reproduction and behave like something else.
+// the hub. The body rides along only when the hub captured it whole: a
+// command that sent a truncated prefix would look like a reproduction
+// and behave like something else.
 export function curlFor(request: LiveRequest, peer: string, config: HubConfig): string {
 	const parts = ["curl"];
 

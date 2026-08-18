@@ -11,7 +11,6 @@ import (
 	"github.com/openotters/holt/pkg/blocklist/sqlite"
 )
 
-// openSQLite opens a fresh in-memory SQLite DB for one test.
 func openSQLite(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -102,8 +101,6 @@ func TestList_SeesAnotherHubsBlock(t *testing.T) {
 	}
 }
 
-// TestList_KeepsOriginalBlockTime: re-blocking must not move the
-// recorded time.
 func TestList_KeepsOriginalBlockTime(t *testing.T) {
 	t.Parallel()
 

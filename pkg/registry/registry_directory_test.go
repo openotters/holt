@@ -11,9 +11,6 @@ import (
 	"github.com/openotters/holt/pkg/tunneltype"
 )
 
-// TestRegistry_DirectoryProjection confirms the Registry mirrors live
-// attach/detach into its Directory, tagged with the hub id, so a
-// fleet-wide LookupPeer/Peers reflects local tunnels.
 func TestRegistry_DirectoryProjection(t *testing.T) {
 	t.Parallel()
 
@@ -46,16 +43,14 @@ func TestRegistry_DirectoryProjection(t *testing.T) {
 	}
 }
 
-// TestRegistry_ClearStale confirms boot-time cleanup drops only this
-// hub's leftover rows.
 func TestRegistry_ClearStale(t *testing.T) {
 	t.Parallel()
 
 	dir := directory.NewMemoryDirectory()
 	ctx := context.Background()
 
-	// Simulate rows left by a previous incarnation of hub-1 and a
-	// live row owned by hub-2.
+	// Rows left by a previous incarnation of hub-1, plus a live row
+	// owned by hub-2.
 	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "ghost", Hub: "hub-1"})
 	_ = dir.Attach(ctx, directory.PeerRecord{Peer: "other", Hub: "hub-2"})
 
@@ -72,9 +67,7 @@ func TestRegistry_ClearStale(t *testing.T) {
 	}
 }
 
-// TestRegistry_MetricsNoopByDefault confirms the OTel path is safe
-// without an SDK installed: recording against the global no-op
-// provider must not panic.
+// Recording against the global no-op OTel provider must not panic.
 func TestRegistry_MetricsNoopByDefault(t *testing.T) {
 	t.Parallel()
 

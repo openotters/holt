@@ -55,7 +55,6 @@ func TestGroupStartAndDrain(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot)
 	})
 
-	// Port 0 lets the OS pick a free one.
 	if err := g.Start(t.Context(), "test", "127.0.0.1:0", handler); err != nil {
 		t.Fatalf("start: %v", err)
 	}

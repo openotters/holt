@@ -5,13 +5,10 @@ import (
 	"sync"
 )
 
-// Broker fans one Hook out to many watchers: the hub publishes each
-// request once, and every console tab watching gets it.
-//
-// Nothing is persisted. The broker keeps the last Recent events in
-// memory so a tab that opens mid-traffic is not blank, and that buffer
-// dies with the process. A watcher that falls behind loses events
-// rather than slowing the request that produced them.
+// Broker fans one Hook out to many watchers. Nothing is persisted: the
+// last Recent events are kept in memory so a watcher arriving
+// mid-traffic is not blank, and a watcher that falls behind loses
+// events rather than slowing the request that produced them.
 //
 //	broker := reqlog.NewBroker(0)
 //	proxy := revproxy.New(reg, revproxy.WithRequestHook(broker.Hook()))
@@ -65,9 +62,7 @@ func (b *Broker) Publish(ev Event) {
 	for _, ch := range b.subs {
 		select {
 		case ch <- ev:
-		default:
-			// A watcher this far behind is watching a live view it
-			// cannot read anyway; the request never waits for it.
+		default: // the request never waits for a lagging watcher
 		}
 	}
 }

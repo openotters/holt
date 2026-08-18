@@ -20,7 +20,6 @@ type Info struct {
 	adminConn
 }
 
-// Run fetches and prints the hub info.
 func (i *Info) Run(ctx context.Context, _ *c.Commons) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -45,8 +44,6 @@ func (i *Info) Run(ctx context.Context, _ *c.Commons) error {
 	return nil
 }
 
-// infoBanner renders the hub info as a labelled block, matching the
-// welcome banner's look.
 func infoBanner(endpoint string, m *holtv1.InfoResponse) string {
 	heading := "holt"
 	if v := m.GetVersion(); v != "" {
@@ -113,7 +110,6 @@ func routingHint(routing, domain, header string) string {
 	}
 }
 
-// shortCommit trims a commit hash to the first 7 characters.
 func shortCommit(commit string) string {
 	if len(commit) > 7 {
 		return commit[:7]

@@ -30,7 +30,6 @@ type Client struct {
 // Option configures a Client; every SharedOption is one too.
 type Option interface{ ApplyClient(*Client) }
 
-// clientOption implements Option.
 type clientOption func(*Client)
 
 func (f clientOption) ApplyClient(c *Client) { f(c) }
@@ -77,7 +76,6 @@ func WithHeader(key, value string) Option {
 	return clientOption(func(c *Client) { c.header().Add(key, value) })
 }
 
-// header returns the upgrade-request headers, allocated on first use.
 func (c *Client) header() http.Header {
 	if c.opts.Header == nil {
 		c.opts.Header = http.Header{}

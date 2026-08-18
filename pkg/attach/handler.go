@@ -1,10 +1,8 @@
 // Package attach is the hub's tunnel front door: an http.Handler that
 // accepts a peer's WebSocket upgrade, runs the holt handshake, and
-// registers the resulting tunnel in the registry. Identity is the
-// application's concern: the Handler is constructed with an Identity
-// func that extracts the peer ID from the request context (JWT
-// claims, mTLS SAN, header — whatever the surrounding middleware
-// established). The handshake itself carries no identity.
+// registers the resulting tunnel in the registry. Identity comes from
+// an application-supplied func reading the request context (JWT
+// claims, mTLS SAN, …); the handshake itself carries none.
 package attach
 
 import (
@@ -37,21 +35,17 @@ const (
 	pingTimeout  = 15 * time.Second
 )
 
-// Identity extracts the peer ID from a request context. The
-// application supplies it — it's the bridge from whatever auth
-// middleware wraps the attach handler (JWT claims, mTLS SAN, …) to
-// the registry key. Returning ("", err) rejects the attach.
+// Identity extracts the peer ID the surrounding auth middleware
+// established from a request context. Returning ("", err) rejects the
+// attach.
 type Identity func(ctx context.Context) (peer string, err error)
 
-// Handler accepts reverse-tunnel attachments over WebSockets: the
-// peer upgrades a plain HTTP request, then every binary message
-// carries one TunnelFrame. WebSockets are the carrier precisely
-// because they pass through the layers that gRPC cannot — CDN
-// public hostnames, access proxies, HTTP/1.1-only edges.
-//
-// Mount it behind the application's auth middleware; the Identity
-// func reads whatever that middleware established from the upgrade
-// request's context.
+// Handler accepts reverse-tunnel attachments over WebSockets: the peer
+// upgrades a plain HTTP request, then every binary message carries one
+// TunnelFrame. WebSockets are the carrier because they pass through
+// what gRPC cannot — CDN public hostnames, access proxies,
+// HTTP/1.1-only edges. Mount it behind the application's auth
+// middleware.
 type Handler struct {
 	registry *registry.Registry
 	identity Identity
@@ -80,8 +74,7 @@ func WithTracerProvider(tp trace.TracerProvider) HandlerOption {
 	return func(h *Handler) { h.tracer = tracer(tp) }
 }
 
-// NewHandler builds the attach handler. identity maps the
-// authenticated request context to the registry key.
+// NewHandler builds the attach handler.
 func NewHandler(registry *registry.Registry, identity Identity, logger *zap.Logger, opts ...HandlerOption) *Handler {
 	h := &Handler{registry: registry, identity: identity, logger: logger.Named("holt-hub")}
 	for _, opt := range opts {
@@ -95,10 +88,8 @@ func NewHandler(registry *registry.Registry, identity Identity, logger *zap.Logg
 	return h
 }
 
-// ServeHTTP accepts one peer's reverse tunnel: identity, WebSocket
-// upgrade, handshake, then an HTTP/2 client session over the raw
-// byte stream until the peer disconnects or the registry closes the
-// tunnel.
+// ServeHTTP accepts one peer's reverse tunnel and serves it until the
+// peer disconnects or the registry closes it.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	peer, err := h.identity(r.Context())
 	if err != nil {
@@ -147,9 +138,8 @@ func (h *Handler) serve(ctx context.Context, peer string, c *websocket.Conn) {
 		return
 	}
 
-	// What the peer says it carries. A type the hub cannot serve is
-	// refused here, by name, rather than attaching and failing later
-	// in a way nobody can read.
+	// A tunnel type the hub cannot serve is refused here, by name,
+	// rather than attaching and failing unreadably later.
 	kind := tunneltype.FromProto(hello.GetTunnelType())
 	if !kind.Carried() {
 		span.SetStatus(codes.Error, "unsupported tunnel type")

@@ -19,11 +19,6 @@ import (
 // TestReverseTunnel_EndToEnd is the module's headline proof: a peer
 // that only dials OUT serves an http.Handler that the hub reaches by
 // dialing back THROUGH the tunnel.
-//
-// It mirrors production wiring — the hub's WebSocket attach handler
-// on a plain HTTP listener, the peer attaching with dial.Run — then
-// issues an HTTP GET from the hub side and asserts the peer's
-// handler answered.
 func TestReverseTunnel_EndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -46,7 +41,6 @@ func TestReverseTunnel_EndToEnd(t *testing.T) {
 	go func() { _ = srv.Serve(lis) }()
 	defer func() { _ = srv.Close() }()
 
-	// The peer's handler — what the hub reaches through the tunnel.
 	peerHandler := http.NewServeMux()
 	peerHandler.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("pong from peer"))
@@ -66,7 +60,6 @@ func TestReverseTunnel_EndToEnd(t *testing.T) {
 
 	waitAttached(t, registry, "peer-1")
 
-	// Dial the peer's /ping THROUGH the tunnel.
 	client := &http.Client{Transport: registry.RoundTripper("peer-1")}
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://peer.invalid/ping", nil)

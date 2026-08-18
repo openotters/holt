@@ -9,11 +9,9 @@ import (
 	"time"
 )
 
-// PeerRecord is one peer's presence entry: which hub currently owns
-// its live tunnel, its build version, and when it attached. This is
-// the durable, shareable projection of a live tunnel — everything
-// EXCEPT the tunnel itself, which is a live *http2.ClientConn that
-// only its owning hub process holds.
+// PeerRecord is one peer's presence entry: the shareable projection of
+// a live tunnel, everything except the connection itself, which only
+// the owning hub process holds.
 type PeerRecord struct {
 	Peer        string
 	Hub         string // hub instance that owns the live tunnel
@@ -22,19 +20,9 @@ type PeerRecord struct {
 }
 
 // Directory is the pluggable presence backend behind a Registry. It
-// records attach/detach and answers presence queries. Implementations
-// range from in-memory (single hub, default) to SQL (sqlite/postgres,
-// shared across a fleet so any hub can see who is attached where).
-//
-// A Directory never holds live connections — RoundTripper always
-// resolves against the owning hub's local session map. The Directory
-// is for routing and observability: "is peer X attached, and to which
-// hub?" Cross-hub request forwarding, if wanted, is the application's
-// job on top of Lookup.
-//
-// All methods take a context and may do I/O. The Registry calls them
-// best-effort — a Directory error is logged but never fails a live
-// attach or detach, so a database blip cannot sever a working tunnel.
+// answers "is peer X attached, and to which hub?" and never holds live
+// connections. The Registry calls it best-effort: a Directory error is
+// logged but never fails a live attach or detach.
 type Directory interface {
 	// Attach records (or upserts) a peer as attached to rec.Hub.
 	Attach(ctx context.Context, rec PeerRecord) error
@@ -46,14 +34,13 @@ type Directory interface {
 	Lookup(ctx context.Context, peer string) (PeerRecord, bool, error)
 	// List returns every attached peer, ordered by peer id.
 	List(ctx context.Context) ([]PeerRecord, error)
-	// ClearHub removes every record owned by hub — a hub calls this on
-	// boot with its own stable id to clear rows it left behind after a
-	// crash.
+	// ClearHub removes every record owned by hub — called on boot with
+	// the hub's own stable id to clear rows left behind by a crash.
 	ClearHub(ctx context.Context, hub string) error
 }
 
-// MemoryDirectory is the default Directory: a mutex-guarded map. Zero
-// dependencies, correct for a single hub. Safe for concurrent use.
+// MemoryDirectory is the default Directory: a mutex-guarded map,
+// correct for a single hub. Safe for concurrent use.
 type MemoryDirectory struct {
 	mu   sync.Mutex
 	recs map[string]PeerRecord
@@ -120,7 +107,6 @@ func (d *MemoryDirectory) ClearHub(_ context.Context, hub string) error {
 	return nil
 }
 
-// sortRecords orders records by peer id for stable List output.
 func sortRecords(recs []PeerRecord) {
 	for i := 1; i < len(recs); i++ {
 		for j := i; j > 0 && recs[j-1].Peer > recs[j].Peer; j-- {

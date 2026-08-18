@@ -15,15 +15,10 @@ import (
 // instrumentName is the OTel instrumentation scope for the proxy.
 const instrumentName = "github.com/openotters/holt/pkg/revproxy"
 
-// metrics are the data-plane instruments: what the proxy carried, how
-// long it took, and what it could not route. They live here rather
-// than in the CLI so anything embedding the proxy gets the same
-// numbers (and the same dashboard) without rebuilding them.
-//
-// Built from a MeterProvider that defaults to the global one, which is
-// a no-op until the application installs an SDK. Instrument-creation
-// errors collapse into no-op instruments: a metrics backend must never
-// break the data plane.
+// metrics are the data-plane instruments, in the library rather than
+// the CLI so anything embedding the proxy gets the same numbers.
+// Instrument-creation errors collapse into no-ops: a metrics backend
+// must never break the data plane.
 type metrics struct {
 	requests metric.Int64Counter       // by status code
 	duration metric.Float64Histogram   // request duration, seconds
@@ -55,10 +50,8 @@ func (m *metrics) recordError(ctx context.Context, reason string) {
 	m.errors.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
 }
 
-// observe wraps one request with the in-flight, duration and
-// per-status-code counters, and returns what the request became —
-// the peer it reached, the recorded response, and how long it took —
-// so the caller can report it. The status code is the only metric
+// observe wraps one request with the instruments and returns what it
+// became, for the caller to report. The status code is the only metric
 // attribute: a peer label would multiply every series by the fleet
 // size, which is why the peer travels through the hook instead.
 func (m *metrics) observe(

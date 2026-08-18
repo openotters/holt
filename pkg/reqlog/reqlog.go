@@ -1,15 +1,8 @@
-// Package reqlog is the live view of requests crossing a tunnel.
-//
-// Both ends see the same request and can report it: the hub as it
-// proxies (revproxy.WithRequestHook) and the peer as it serves
-// (dial.Options.RequestHook). Neither stores anything. A hook is
-// called once per request, after the response, and whatever it does
-// with the event is the application's business: print it, count it,
-// ship it somewhere.
-//
-// The holt CLI uses it for the line `holt expose` and `holt hub`
-// print as traffic goes through, which is the whole point: a tunnel
-// you cannot watch is hard to trust.
+// Package reqlog is the live view of requests crossing a tunnel. Both
+// ends see the same request and can report it: the hub as it proxies
+// (revproxy.WithRequestHook) and the peer as it serves
+// (dial.Options.RequestHook). Neither stores anything; a hook is
+// called once per request, after the response.
 package reqlog
 
 import (
@@ -31,9 +24,8 @@ type Event struct {
 	// Method and Path are the request's, as received.
 	Method string
 	Path   string
-	// Query is the raw query string without "?", empty when there is
-	// none. It is kept apart from Path so a list stays readable and a
-	// reader can still see what was asked.
+	// Query is the raw query string without "?", kept apart from Path
+	// so a list stays readable.
 	Query string
 	// Host is the authority the request carried, which is what
 	// subdomain routing reads.
@@ -111,12 +103,9 @@ func WithBodyLimit(limit int) Option {
 	return func(c *config) { c.bodyLimit = limit }
 }
 
-// Middleware wraps a handler so every request it serves is reported.
-// It is what the peer side uses, and it works on any http.Handler.
-//
-// By default it reports metadata only. WithHeaders and WithBodyLimit
-// add the payload, bounded, for a caller that wants to see what
-// crossed.
+// Middleware wraps a handler so every request it serves is reported —
+// metadata only by default; WithHeaders and WithBodyLimit add the
+// payload, bounded.
 func Middleware(hook Hook, next http.Handler, opts ...Option) http.Handler {
 	if hook == nil {
 		return next
@@ -128,8 +117,8 @@ func Middleware(hook Hook, next http.Handler, opts ...Option) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Read from the request before the handler runs: a handler is
-		// free to consume the body and rewrite the URL it was given.
+		// Before the handler runs: it may consume the body and rewrite
+		// the URL.
 		ev := From(r)
 
 		if cfg.headers {

@@ -1,19 +1,10 @@
-// Package token is the copy-paste enrollment token that carries what a
-// peer needs to join: the JWT that authenticates it, and the hub's
-// tunnel URL to dial.
-//
-// The token IS the JWT, in JWS compact serialization
-// (header.payload.signature). The tunnel URL rides in the audience
-// claim, so there is one format on the wire and any JWT tool can read
-// it. Tokens minted before v0.20 were a base64 JSON envelope wrapping
-// the same JWT; Decode still accepts those so tokens already handed
-// out keep working.
-//
-// Transport encryption is the deployment's job — a TLS edge, ingress,
-// or mesh in front of the hub — so the token carries no certificate: a
-// wss:// tunnel URL dials TLS under the WebSocket (verified with the
-// system roots), a ws:// one dials plaintext. https:// and http:// are
-// accepted as aliases.
+// Package token is the copy-paste enrollment token: the JWT that
+// authenticates a peer, with the hub's tunnel URL in the audience
+// claim. The token IS the JWT in compact JWS form, so any JWT tool can
+// read it; Decode also accepts the pre-v0.20 base64 JSON envelope so
+// tokens already handed out keep working. The token carries no
+// certificate — a wss:// tunnel URL dials TLS under the WebSocket, a
+// ws:// one dials plaintext (https/http accepted as aliases).
 package token
 
 import (

@@ -22,7 +22,6 @@ type Block struct {
 	adminConn
 }
 
-// Run blocks the peer via the Admin service.
 func (b *Block) Run(ctx context.Context, _ *c.Commons) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -58,7 +57,6 @@ type Unblock struct {
 	adminConn
 }
 
-// Run unblocks the peer via the Admin service.
 func (u *Unblock) Run(ctx context.Context, _ *c.Commons) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

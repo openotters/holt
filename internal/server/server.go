@@ -22,19 +22,9 @@ import (
 )
 
 // Server is the assembled hub: a Registry, a Tunnel endpoint peers
-// attach to, and (optionally) a Proxy endpoint that reaches them. It
-// is the one-call counterpart of client.New for the server side.
-//
-// Zero configuration works: New().Run(ctx) serves a tunnel on
-// 127.0.0.1:7200 and a proxy on 127.0.0.1:7202 with the development
-// identity — peers name themselves with the x-holt-peer header (or
-// get a generated name) and nothing verifies the claim. That identity
-// is loopback-only by construction: a tunnel bound to anything other
-// than a loopback address with no identity configured refuses to
-// start, so the trusting default cannot reach a network.
-//
-// The operator surface stays reachable through Registry: roster,
-// stop, watch, or mounting the admin service.
+// attach to, and (optionally) a Proxy endpoint that reaches them.
+// See the root package's Server alias for the full API story; the
+// operator surface is Registry.
 type Server struct {
 	logger   *zap.Logger
 	registry *registry.Registry
@@ -54,7 +44,6 @@ const (
 // Option configures a Server; every SharedOption is one too.
 type Option interface{ ApplyServer(*Server) }
 
-// serverOption implements Option.
 type serverOption func(*Server)
 
 func (f serverOption) ApplyServer(s *Server) { f(s) }

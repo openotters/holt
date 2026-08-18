@@ -1,13 +1,10 @@
 // Package registry keeps the hub's live tunnels keyed by peer ID and
 // lets the application dial "through" any attached peer with an
 // ordinary http.RoundTripper. Attach/detach events double as the
-// peers' presence signal.
-//
-// Presence can be projected to a pluggable directory.Directory
-// (in-memory by default; SQL for a shared fleet — see
-// internal/directory/sqldir). The live tunnels themselves are always
-// local to the owning hub process; the directory only records who is
-// attached where.
+// peers' presence signal, projected to a pluggable
+// directory.Directory (in-memory by default; SQL for a shared fleet).
+// Live tunnels are always local to the owning hub process; the
+// directory only records who is attached where.
 package registry
 
 import (
@@ -28,8 +25,7 @@ import (
 )
 
 // ErrPeerDetached is returned by the per-peer RoundTripper when no
-// tunnel is attached. Applications use errors.Is to map it onto
-// their own "not reachable" error shape.
+// tunnel is attached; match it with errors.Is.
 var ErrPeerDetached = errors.New("holt: peer not attached")
 
 // dirTimeout bounds each best-effort Directory call so a slow store
@@ -53,9 +49,8 @@ type Event struct {
 	At     time.Time
 }
 
-// TunnelInfo describes one live tunnel this hub owns. It is the local,
-// live view — distinct from a Directory PeerRecord, which is the
-// durable projection that may span hubs.
+// TunnelInfo describes one live tunnel this hub owns — the local,
+// live view, distinct from a Directory PeerRecord.
 type TunnelInfo struct {
 	Peer        string
 	PeerVersion string
@@ -64,9 +59,8 @@ type TunnelInfo struct {
 	Type tunneltype.Type
 }
 
-// entry is one live tunnel: the hub-side HTTP/2 session, the close
-// hook the Attach handler registered, and light metadata for the
-// operational surface.
+// entry is one live tunnel: the hub-side HTTP/2 session, its close
+// hook, and light metadata.
 type entry struct {
 	cc         *http2.ClientConn
 	close      func(reason string)
@@ -75,10 +69,9 @@ type entry struct {
 	attachedAt time.Time
 }
 
-// watchChanSize buffers each Watch subscriber. Sends are
-// non-blocking: a slow subscriber misses events rather than stalling
-// attach/detach; consumers re-check live state (Attached) when it
-// matters, so a dropped event degrades latency, not correctness.
+// watchChanSize buffers each Watch subscriber. Sends are non-blocking:
+// a slow subscriber misses events rather than stalling attach/detach,
+// so a dropped event degrades latency, not correctness.
 const watchChanSize = 64
 
 // Registry tracks the live tunnel per peer. Safe for concurrent use.
@@ -97,10 +90,10 @@ type Registry struct {
 // Option configures a Registry.
 type Option func(*Registry)
 
-// WithHubID sets this hub's stable instance id, recorded in the
-// Directory so a fleet can tell which hub owns a peer. Give each hub a
-// stable, unique id (hostname, pod name) in a multi-hub deployment so
-// a restarting hub can clear its own stale rows. Default "local".
+// WithHubID sets this hub's instance id, recorded in the Directory so
+// a fleet can tell which hub owns a peer. Use a stable, unique id
+// (hostname, pod name) so a restarting hub can clear its own stale
+// rows. Default "local".
 func WithHubID(id string) Option {
 	return func(r *Registry) { r.hubID = id }
 }
@@ -113,15 +106,12 @@ func WithDirectory(dir directory.Directory) Option {
 }
 
 // WithMeterProvider sets the OTel MeterProvider for tunnel metrics.
-// Optional — without it the global provider is used, which is a no-op
-// until the application installs an SDK.
+// Default: the global provider, a no-op until an SDK is installed.
 func WithMeterProvider(mp metric.MeterProvider) Option {
 	return func(r *Registry) { r.metrics = newMetrics(mp, r.countByType) }
 }
 
-// NewRegistry builds a Registry. By default it keeps presence
-// in-memory, identifies itself as "local", and records metrics
-// against the global (no-op) OTel provider.
+// NewRegistry builds a Registry with the defaults above.
 func NewRegistry(logger *zap.Logger, opts ...Option) *Registry {
 	r := &Registry{
 		logger: logger.Named("holt-hub"),
@@ -150,14 +140,11 @@ func (r *Registry) ClearStale(ctx context.Context) error {
 	return r.dir.ClearHub(ctx, r.hubID)
 }
 
-// Attach registers a live tunnel for peer. version is the peer's
-// self-reported build (from the Hello frame). If a tunnel already
-// exists it is closed with "superseded" and replaced — a
-// crashed-and-redialed peer must never wait out a keepalive timeout
-// on its own corpse. Returns a detach func the Attach handler calls
-// with the detach reason; detach is idempotent and only removes THIS
-// entry (a superseding attach can't be clobbered by the loser's
-// cleanup).
+// Attach registers a live tunnel for peer, closing any existing one
+// with "superseded" — a crashed-and-redialed peer must never wait out
+// a keepalive timeout on its own corpse. The returned detach func is
+// idempotent and removes only THIS entry, so a superseding attach
+// cannot be clobbered by the loser's cleanup.
 func (r *Registry) Attach(
 	peer, version string, kind tunneltype.Type, cc *http2.ClientConn, closeTunnel func(reason string),
 ) func(reason string) {
@@ -238,7 +225,7 @@ func (r *Registry) ListTunnels() []TunnelInfo {
 		})
 	}
 
-	// Small n; insertion sort keeps output stable without importing sort.
+	// Small n; sorted inline to avoid importing sort.
 	for i := 1; i < len(out); i++ {
 		for j := i; j > 0 && out[j-1].Peer > out[j].Peer; j-- {
 			out[j-1], out[j] = out[j], out[j-1]
@@ -271,8 +258,7 @@ func (r *Registry) countByType() map[string]int64 {
 }
 
 // StopTunnel force-closes peer's tunnel with reason and reports
-// whether a tunnel was present. The Attach handler's detach emits the
-// event and updates the Directory.
+// whether one was present.
 func (r *Registry) StopTunnel(peer, reason string) bool {
 	r.mu.Lock()
 	e := r.conns[peer]
@@ -351,8 +337,8 @@ func (r *Registry) broadcastLocked(ev Event) {
 	}
 }
 
-// dirAttach records presence best-effort — a Directory error is
-// logged but never fails a live attach.
+// dirAttach records presence best-effort: a Directory error never
+// fails a live attach.
 func (r *Registry) dirAttach(rec directory.PeerRecord) {
 	ctx, cancel := context.WithTimeout(context.Background(), dirTimeout)
 	defer cancel()
@@ -374,11 +360,10 @@ func (r *Registry) dirDetach(peer string) {
 }
 
 // RoundTripper returns a stable http.RoundTripper for peer. Each
-// RoundTrip resolves the CURRENT session, so a reattach mid-lifetime
-// is transparent to callers holding the RoundTripper. Requests fail
-// with ErrPeerDetached (use errors.Is) when no tunnel is attached ON
-// THIS hub — RoundTripper never crosses hubs, since only the owning
-// hub holds the live connection.
+// RoundTrip resolves the CURRENT session, so a reattach is transparent
+// to holders. Requests fail with ErrPeerDetached when no tunnel is
+// attached ON THIS hub — a RoundTripper never crosses hubs, since only
+// the owning hub holds the live connection.
 func (r *Registry) RoundTripper(peer string) http.RoundTripper {
 	return roundTripper{registry: r, peer: peer}
 }

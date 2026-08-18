@@ -1,11 +1,9 @@
 // Package proxy is the hub's data plane: an http.Handler that picks
-// the peer a request targets and dials it through that peer's tunnel.
-//
-// A request names its peer either with the x-tunnel-peer header (works
-// anywhere, no DNS needed) or with a subdomain of a base domain
-// (alice.peers.example.com targets "alice"). A request that names no
-// peer, or names one that is not attached, never reaches a backend: it
-// gets a bare page that says nothing about the hub.
+// the peer a request targets — by x-tunnel-peer header, or by
+// subdomain of a base domain — and dials it through that peer's
+// tunnel. A request that names no peer, or names one that is not
+// attached, never reaches a backend: it gets a bare page that says
+// nothing about the hub.
 //
 // Header routing needs no configuration:
 //
@@ -38,12 +36,10 @@ import (
 	"github.com/openotters/holt/pkg/reqlog"
 )
 
-// Peers is the live-tunnel half of the hub the proxy dials through.
-// *hub.Registry satisfies it; a fake satisfies it in tests.
+// Peers is the live-tunnel half of the hub the proxy dials through;
+// *hub.Registry satisfies it.
 type Peers interface {
-	// Attached reports whether the peer has a live tunnel right now.
 	Attached(peer string) bool
-	// RoundTripper dials the peer through its attached tunnel.
 	RoundTripper(peer string) http.RoundTripper
 }
 
@@ -80,39 +76,30 @@ type Proxy struct {
 // Option configures a Proxy.
 type Option func(*Proxy)
 
-// WithResolvers sets how the target peer is picked: the resolvers
-// are tried in order and the first peer named wins. Build the chain
-// from configuration with Routing.Resolvers — which rejects unusable
-// strategy/domain pairs at boot — and slot in anything else that
-// implements Resolver. Repeatable; later calls append to the chain,
-// and any call replaces the header-routing default.
+// WithResolvers sets how the target peer is picked: resolvers are
+// tried in order, first peer named wins. Repeatable; later calls
+// append, and any call replaces the header-routing default.
 func WithResolvers(resolvers ...Resolver) Option {
 	return func(p *Proxy) { p.resolvers = append(p.resolvers, resolvers...) }
 }
 
 // WithErrorHook registers an observer for requests that could not be
-// proxied. See ErrorHook. The proxy counts them either way; the hook
-// is for anything else the application wants to do with them.
+// proxied. See ErrorHook.
 func WithErrorHook(hook ErrorHook) Option {
 	return func(p *Proxy) { p.onError = hook }
 }
 
 // WithRequestHook reports every request the proxy carried, once the
-// response is done: which peer it went to, what it was, what came
-// back, and how long it took including the tunnel hop. Nothing is
-// stored; what the hook does with the event is the caller's business.
-// The holt CLI prints it.
+// response is done. Nothing is stored; what the hook does with the
+// event is the caller's business.
 func WithRequestHook(hook reqlog.Hook) Option {
 	return func(p *Proxy) { p.onRequest = hook }
 }
 
 // WithRequestCapture adds the payload to what the request hook
-// reports: the headers (credential values redacted) and up to limit
-// bytes of each body. Off by default — a proxy that keeps no payload
-// cannot leak one, and streaming costs nothing.
-//
-// Capture is bounded per request and never stored by the proxy; what
-// happens to it afterwards is the hook's business.
+// reports: headers (credential values redacted) and up to limit bytes
+// of each body. Off by default — a proxy that keeps no payload cannot
+// leak one. Capture is bounded per request and never stored.
 func WithRequestCapture(limit int) Option {
 	return func(p *Proxy) {
 		p.capture = []reqlog.Option{reqlog.WithHeaders(), reqlog.WithBodyLimit(limit)}
@@ -120,9 +107,8 @@ func WithRequestCapture(limit int) Option {
 }
 
 // WithMeterProvider sets the OTel MeterProvider the data-plane
-// instruments are built from (holt.proxy.requests, .request.duration,
-// .inflight, .errors). Optional: without it the global provider is
-// used, which is a no-op until the application installs an SDK.
+// instruments are built from. Default: the global provider, a no-op
+// until an SDK is installed.
 func WithMeterProvider(mp metric.MeterProvider) Option {
 	return func(p *Proxy) { p.metrics = newMetrics(mp) }
 }
@@ -172,9 +158,8 @@ func New(peers Peers, opts ...Option) *Proxy {
 // decides the destination, not the URL.
 const peerHost = "peer.invalid"
 
-// ServeHTTP routes the request to the peer it names. A request that
-// names none gets the landing page rather than a proxied request, so
-// hitting the proxy root never turns into a 502.
+// ServeHTTP routes the request to the peer it names; one that names
+// none gets the landing page, never a 502.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Read the request before serving it: routing rewrites headers,
 	// and the reverse proxy is free to touch the URL it was handed.
@@ -205,14 +190,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ev.ResponseBody = rec.Body()
 	}
 
-	// Reported after the response, on this goroutine: a hook that
-	// blocks holds the request it describes, which is the caller's
-	// problem to keep cheap.
+	// On this goroutine, after the response: a blocking hook holds the
+	// request it describes.
 	p.onRequest(ev)
 }
 
-// serve is the routing itself, wrapped by the instruments above. It
-// returns the peer it routed to, empty when the request named none.
+// serve routes one request, returning the peer it routed to ("" when
+// the request named none).
 func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) string {
 	peer := p.peer(r)
 	if peer == "" {
@@ -222,7 +206,7 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) string {
 		return ""
 	}
 
-	// A subdomain hit is normalised onto the header here, so everything
+	// Normalise a subdomain hit onto the header so everything
 	// downstream routes the one way.
 	r.Header.Set(RouteHeader, peer)
 	p.reverse.ServeHTTP(w, r)
@@ -230,8 +214,7 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) string {
 	return peer
 }
 
-// peer runs the resolver chain: the first resolver that names a peer
-// wins, "" when none does.
+// peer runs the resolver chain; first resolver that names a peer wins.
 func (p *Proxy) peer(r *http.Request) string {
 	for _, resolver := range p.resolvers {
 		if peer := resolver.Peer(r); peer != "" {
@@ -242,7 +225,6 @@ func (p *Proxy) peer(r *http.Request) string {
 	return ""
 }
 
-// record notifies the error hook, if one is registered.
 func (p *Proxy) record(ctx context.Context, reason string) {
 	p.metrics.recordError(ctx, reason)
 
@@ -251,8 +233,8 @@ func (p *Proxy) record(ctx context.Context, reason string) {
 	}
 }
 
-// peerTransport dispatches each request down the tunnel named in the
-// route header.
+// peerTransport dispatches each request down the tunnel the route
+// header names.
 type peerTransport struct {
 	proxy *Proxy
 }
@@ -260,8 +242,7 @@ type peerTransport struct {
 func (t peerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	peer := req.Header.Get(RouteHeader)
 	if peer == "" {
-		// ServeHTTP serves the landing page before we get here; this is
-		// just defense in depth.
+		// Defense in depth: ServeHTTP already served the landing page.
 		t.proxy.record(req.Context(), ReasonNoPeer)
 
 		return nil, notAttachedError{peer: ""}

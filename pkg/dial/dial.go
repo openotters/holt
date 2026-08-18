@@ -1,14 +1,9 @@
-// Package dial is the client half of the holt: a persistent
-// attach loop that dials the hub over a WebSocket, serves an
-// http.Handler over the reverse tunnel, and redials with jittered
-// backoff until the context ends or the hub sends a terminal GoAway.
-//
-// The WebSocket is the tunnel's carrier because it passes through
-// what gRPC cannot: CDN public hostnames (Cloudflare included),
-// access proxies, and HTTP/1.1-only edges. wss:// puts TLS under the
-// socket exactly like https; extra headers on the upgrade request
-// carry whatever the edge in front of the hub wants (a bearer token,
-// a Cloudflare Access service token, …).
+// Package dial is the client half of holt: a persistent attach loop
+// that dials the hub over a WebSocket, serves an http.Handler over the
+// reverse tunnel, and redials with jittered backoff until the context
+// ends or the hub sends a terminal GoAway. The WebSocket carrier
+// passes through what gRPC cannot: CDN public hostnames, access
+// proxies, HTTP/1.1-only edges.
 package dial
 
 import (
@@ -49,14 +44,12 @@ const (
 // Options wires one attach loop.
 type Options struct {
 	// URL is the hub's tunnel endpoint: ws:// (plaintext) or wss://
-	// (TLS to the edge, system roots). http:// and https:// are
-	// accepted as aliases so pre-WebSocket tunnel URLs keep working.
+	// (TLS to the edge, system roots); http(s):// are aliases.
 	URL string
 
 	// Header goes out with the WebSocket upgrade request: the
-	// Authorization bearer the hub's middleware verifies, plus
-	// anything an authenticating proxy in front wants (e.g.
-	// CF-Access-Client-Id / CF-Access-Client-Secret).
+	// Authorization bearer, plus anything an authenticating proxy in
+	// front wants.
 	Header http.Header
 
 	// HTTPClient overrides the client used for the upgrade request
@@ -69,23 +62,18 @@ type Options struct {
 	// negative value disables them (the inner HTTP/2 PING remains).
 	Keepalive time.Duration
 
-	// Handler is served over the tunnel — the hub dials it as if it
-	// were a normal HTTP server.
+	// Handler is served over the tunnel, as if by a normal HTTP server.
 	Handler http.Handler
 	// Version is the peer build version, sent in Hello (observability).
 	Version string
 	Logger  *zap.Logger
 
-	// MeterProvider builds the peer's own instruments (attaches,
-	// failed attempts by reason, session duration, and a gauge that
-	// is 1 while a tunnel is up). Optional: without it the global
-	// provider is used, a no-op until an SDK is installed.
+	// MeterProvider builds the peer's own instruments. Default: the
+	// global provider, a no-op until an SDK is installed.
 	MeterProvider metric.MeterProvider
 
 	// RequestHook reports every request this peer served over the
-	// tunnel, once its handler is done. Nothing is stored. The holt
-	// CLI prints it, which is what makes `holt expose` show traffic
-	// as it happens.
+	// tunnel, once its handler is done. Nothing is stored.
 	RequestHook reqlog.Hook
 
 	// TunnelType is what this peer carries, declared at attach so the
@@ -104,9 +92,8 @@ type Options struct {
 	TLSConfig *tls.Config
 }
 
-// tunnelType is what this peer declares at attach: the explicit
-// setting, or https when the payload is encrypted end to end and http
-// otherwise.
+// tunnelType is the declared type: the explicit setting, else https
+// when the payload is encrypted end to end, else http.
 func (o Options) tunnelType() tunneltype.Type {
 	if o.TunnelType != "" {
 		return o.TunnelType
@@ -119,10 +106,9 @@ func (o Options) tunnelType() tunneltype.Type {
 	return tunneltype.HTTP
 }
 
-// NormalizeURL maps a tunnel URL to its WebSocket form: ws and wss
-// pass through, http becomes ws and https becomes wss (so tokens
-// minted before the WebSocket carrier keep working). Any other
-// scheme, or a missing host, is an error.
+// NormalizeURL maps a tunnel URL to its WebSocket form: ws/wss pass
+// through, http(s) become ws(s). Any other scheme, or a missing host,
+// is an error.
 func NormalizeURL(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -234,9 +220,8 @@ func attachOnce(
 				_ = resp.Body.Close()
 			}
 
-			// The status is the story: 401/403 is the hub (or the
-			// access layer in front) refusing the credential, 3xx is
-			// usually an auth wall bouncing to a login page.
+			// The status is the story: 401/403 is a refused credential,
+			// 3xx usually an auth wall.
 			obs.recordFailure(ctx, reasonDial)
 
 			return false, fmt.Errorf("holt: websocket dial: %w (http %d)", err, resp.StatusCode)
@@ -256,8 +241,6 @@ func attachOnce(
 		return false, hsErr
 	}
 
-	// Attached: mark it up, and record how long it lasts, whichever
-	// way the session ends below.
 	attachedAt := time.Now()
 
 	obs.recordAttach(ctx)
@@ -294,8 +277,6 @@ func attachOnce(
 		served = tlsConn
 	}
 
-	// Every request the peer serves is counted, and reported to the
-	// hook when there is one.
 	handler := reqlog.Middleware(func(ev reqlog.Event) {
 		obs.recordRequest(ctx, ev.Status, ev.Duration)
 
@@ -318,10 +299,8 @@ func attachOnce(
 }
 
 // startKeepalive pings the WebSocket every interval so proxies with
-// idle timeouts (Cloudflare ~100 s) keep the carrier open through
-// quiet stretches. A failed ping closes the socket, which unblocks
-// the session above into a redial. The returned stop func ends the
-// loop; it also exits when ctx does.
+// idle timeouts keep the carrier open. A failed ping closes the
+// socket, unblocking the session into a redial.
 func startKeepalive(ctx context.Context, c *websocket.Conn, every time.Duration, logger *zap.Logger) func() {
 	if every < 0 {
 		return func() {}

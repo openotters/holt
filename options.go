@@ -19,7 +19,6 @@ type SharedOption interface {
 	ClientOption
 }
 
-// sharedOption implements SharedOption over both configs.
 type sharedOption struct {
 	server Option
 	client ClientOption
@@ -47,7 +46,6 @@ type EndpointOption interface {
 	ProxyOption
 }
 
-// endpointOption implements EndpointOption over the shared config.
 type endpointOption func(*utils.Endpoint)
 
 func (f endpointOption) ApplyTunnel(t *Tunnel) { f(&t.Endpoint) }
@@ -83,7 +81,6 @@ type WatchOption interface {
 	ClientOption
 }
 
-// watchOption implements WatchOption over both halves.
 type watchOption struct {
 	proxy  ProxyOption
 	client ClientOption

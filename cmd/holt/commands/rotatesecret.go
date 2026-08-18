@@ -25,7 +25,6 @@ type RotateSecret struct {
 	Yes          bool   `help:"Skip the confirmation prompt (for automation)." short:"y"`
 }
 
-// Run rotates the signing secret after an interactive confirmation.
 func (rs *RotateSecret) Run(ctx context.Context, _ *c.Commons, out *style.Output) error {
 	if rs.State == "" {
 		rs.State = defaultStateDir()
@@ -85,7 +84,6 @@ func (rs *RotateSecret) confirm() bool {
 
 	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil && line == "" {
-		// EOF with nothing typed (piped/closed stdin): treat as no.
 		fmt.Println()
 
 		return false

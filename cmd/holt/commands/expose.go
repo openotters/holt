@@ -61,8 +61,6 @@ type Expose struct {
 	adminConn
 }
 
-// Run attaches to the hub and serves the reverse proxy until the
-// context is cancelled (Ctrl-C) or the hub sends a terminal GoAway.
 func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, out *style.Output) error {
 	logger = logger.Named("expose")
 
@@ -151,12 +149,11 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 	// The build version rides along so the console can flag peers
 	// lagging behind the hub (plain "holt-expose" told it nothing).
 	err = dial.Run(ctx, dial.Options{
-		URL:     wsURL,
-		Header:  header,
-		Handler: local,
-		Version: "holt-expose " + commons.Version.Version(),
-		Logger:  logger,
-		// What the tunnel carried, live, as it happens.
+		URL:         wsURL,
+		Header:      header,
+		Handler:     local,
+		Version:     "holt-expose " + commons.Version.Version(),
+		Logger:      logger,
 		RequestHook: requestPrinter(out, logger),
 	})
 
@@ -168,14 +165,9 @@ func (e *Expose) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger
 	return err
 }
 
-// requestPrinter is the live view of what the peer served. It goes
-// through the logger, not around it: a request is one of this
-// process's events like an attach or a redial, so it wears the same
-// timestamp, level and prefix as the lines above and below it.
-//
-// Pretty renders the request in columns a human scans; JSON keeps it
-// structured, since a collector wants fields rather than a rendered
-// line.
+// requestPrinter goes through the logger, not around it: a request is
+// one of this process's events like an attach or a redial, so it wears
+// the same timestamp, level and prefix.
 func requestPrinter(out *style.Output, logger *zap.Logger) reqlog.Hook {
 	if out.Pretty {
 		return func(ev reqlog.Event) { logger.Info(style.Request(ev)) }
@@ -189,8 +181,7 @@ func requestPrinter(out *style.Output, logger *zap.Logger) reqlog.Hook {
 }
 
 // serveMetrics installs the OTel SDK provider and serves the peer's
-// instruments, so a peer is observable on its own rather than only
-// through whichever hub it reached.
+// own instruments.
 func (e *Expose) serveMetrics(ctx context.Context, logger *zap.Logger) (func(), error) {
 	mp, err := hubmetrics.Provider()
 	if err != nil {
@@ -217,13 +208,10 @@ func (e *Expose) serveMetrics(ctx context.Context, logger *zap.Logger) (func(), 
 	}, nil
 }
 
-// metricsDrain bounds how long the metrics listener gets to finish a
-// scrape on shutdown.
 const metricsDrain = 2 * time.Second
 
 // resolveToken returns the join token to attach with: the one given,
-// or a freshly minted one. enrolled reports which, so the caller can
-// say so.
+// or a freshly minted one (enrolled reports which).
 func (e *Expose) resolveToken(ctx context.Context) (string, bool, error) {
 	if e.Token != "" {
 		return e.Token, false, nil
@@ -256,8 +244,6 @@ func (e *Expose) resolveToken(ctx context.Context) (string, bool, error) {
 // expose mints locally, since a remote hub uses its own --token-ttl.
 const defaultTokenTTL = 24 * time.Hour
 
-// schemeHTTPS is the target scheme that has a certificate to verify,
-// which is what --insecure turns off.
 const schemeHTTPS = "https"
 
 // peerURL asks the hub how it routes, and returns this peer's own
@@ -304,9 +290,8 @@ func dialHeader(jt token.JoinToken, extra []string) (http.Header, error) {
 	return header, nil
 }
 
-// localProxy builds a reverse proxy to the local target. A bare
-// host:port is treated as http://host:port. With insecure set, an
-// https target's certificate is not verified (see insecureTransport).
+// localProxy builds a reverse proxy to the local target; a bare
+// host:port is treated as http://host:port.
 func localProxy(target string, insecure bool) (http.Handler, *url.URL, error) {
 	if !strings.Contains(target, "://") {
 		target = "http://" + target
@@ -317,8 +302,6 @@ func localProxy(target string, insecure bool) (http.Handler, *url.URL, error) {
 		return nil, nil, fmt.Errorf("invalid target %q: %w", target, err)
 	}
 
-	// Forward tunneled requests to the local target, keeping the
-	// inbound path/query; the local server sees its own Host.
 	local := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(u)
@@ -326,9 +309,8 @@ func localProxy(target string, insecure bool) (http.Handler, *url.URL, error) {
 		},
 	}
 
-	// Only an https target has a certificate to skip; leaving http
-	// and the verifying path on the default transport keeps the
-	// change to exactly the hop the operator asked for.
+	// Only an https target has a certificate to skip; everything else
+	// stays on the default, verifying transport.
 	if insecure && u.Scheme == schemeHTTPS {
 		local.Transport = insecureTransport()
 	}

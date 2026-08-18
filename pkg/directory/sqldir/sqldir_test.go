@@ -12,7 +12,6 @@ import (
 	"github.com/openotters/holt/pkg/directory/sqldir"
 )
 
-// openSQLite opens a fresh in-memory SQLite DB for one test.
 func openSQLite(t *testing.T) *sql.DB {
 	t.Helper()
 

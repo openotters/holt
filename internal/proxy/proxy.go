@@ -28,7 +28,6 @@ type Proxy struct {
 // Option configures a Proxy; every EndpointOption is one too.
 type Option interface{ ApplyProxy(*Proxy) }
 
-// proxyOption implements Option.
 type proxyOption func(*Proxy)
 
 func (f proxyOption) ApplyProxy(p *Proxy) { f(p) }

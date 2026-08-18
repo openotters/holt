@@ -49,10 +49,8 @@ func attach(t *testing.T, guard jwtauth.Guard, token string) (int, string, strin
 	return rec.Code, reason, seen
 }
 
-// A token minted before peer names were constrained (or by another
-// issuer) can carry a name no hostname strategy could route. The
-// attach path must refuse it even though the signature is valid,
-// otherwise the peer attaches under a name the proxy cannot address.
+// A valid signature is not enough: a token carrying a name no hostname
+// strategy could route must be refused at attach.
 func TestGuardRejectsUnroutablePeerName(t *testing.T) {
 	t.Parallel()
 

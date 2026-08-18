@@ -17,7 +17,6 @@ type Ls struct {
 	adminConn
 }
 
-// Run prints the tunnel table.
 func (l *Ls) Run(ctx context.Context, _ *c.Commons) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -58,8 +57,7 @@ func (l *Ls) Run(ctx context.Context, _ *c.Commons) error {
 	return nil
 }
 
-// kubeAge formats a duration the way `kubectl get` prints AGE: a short
-// single unit (seconds, minutes, hours) up to a day, then days.
+// kubeAge formats a duration the way `kubectl get` prints AGE.
 func kubeAge(d time.Duration) string {
 	switch {
 	case d < time.Minute:
@@ -79,7 +77,6 @@ type Kill struct {
 	adminConn
 }
 
-// Run stops the named tunnel.
 func (k *Kill) Run(ctx context.Context, _ *c.Commons) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

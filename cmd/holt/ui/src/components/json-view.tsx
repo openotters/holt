@@ -1,16 +1,10 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
-// JsonValue is what the viewer renders: whatever a request's details
-// serialise to.
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 // JsonView renders a value as a collapsible tree, the way a log viewer
-// shows a structured entry: keys on the left, values typed by colour,
-// and every object or array foldable so a long entry stays scannable.
-//
-// It reads the app's palette rather than a viewer's own: strings sky,
-// numbers emerald, keys and punctuation recessive.
+// shows a structured entry.
 export function JsonView({ value, className = "" }: { value: JsonValue; className?: string }) {
 	return (
 		<div className={`font-mono text-xs leading-relaxed ${className}`}>
@@ -19,8 +13,6 @@ export function JsonView({ value, className = "" }: { value: JsonValue; classNam
 	);
 }
 
-// Node is one value: a leaf, or a foldable object/array with its
-// children indented under it.
 function Node({ name, value, depth, last = true }: { name?: string; value: JsonValue; depth: number; last?: boolean }) {
 	const [open, setOpen] = useState(depth < 2);
 
@@ -79,10 +71,8 @@ function Node({ name, value, depth, last = true }: { name?: string; value: JsonV
 	);
 }
 
-// Line places one entry at its depth, leaving room on the left for the
-// fold arrow so keys stay aligned whether or not they have one. There
-// is no gap between its children: the punctuation carries its own
-// spacing, so a comma sits against the value it follows.
+// Line leaves room on the left for the fold arrow so keys stay aligned
+// whether or not they have one; punctuation carries its own spacing.
 function Line({ children, depth }: { children: React.ReactNode; depth: number }) {
 	return (
 		<div className="flex items-baseline whitespace-pre" style={{ paddingLeft: `${depth * 1.25 + 1}rem` }}>
@@ -91,7 +81,6 @@ function Line({ children, depth }: { children: React.ReactNode; depth: number })
 	);
 }
 
-// Key is the field name, absent inside an array of scalars.
 function Key({ name }: { name?: string }) {
 	if (name === undefined) return null;
 
@@ -120,8 +109,6 @@ function Leaf({ value }: { value: string | number | boolean | null }) {
 	return <span className="text-muted-foreground">null</span>;
 }
 
-// Punct is the structural text (braces, colons, commas), which should
-// be visible but never compete with the data.
 function Punct({ children }: { children: React.ReactNode }) {
 	return <span className="text-muted-foreground">{children}</span>;
 }

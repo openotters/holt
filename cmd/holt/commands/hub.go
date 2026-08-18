@@ -38,18 +38,12 @@ type Hub struct {
 	UI           bool   `help:"Serve the web console (and its enroll endpoint) on the admin listener."`
 	UIPath       string `help:"Serve the console from this directory instead of the embedded build." type:"path"`
 
-	// The console's traffic view is live, and this is the only memory
-	// behind it: enough recent requests that a panel opened mid-traffic
-	// is not blank. Nothing is written anywhere, and the window dies
-	// with the process. 0 keeps none, so a panel shows only what
-	// happens after it opens.
+	// The only memory behind the console's traffic view; nothing is
+	// written anywhere and the window dies with the process.
 	TrafficBuffer int `help:"Recent proxied requests kept in memory for the console's traffic view (0 keeps none)." default:"100" name:"traffic-buffer"`
 
-	// What the console shows of a request beyond its metadata. Headers
-	// and a bounded slice of each body make a request debuggable rather
-	// than merely counted; they also put what peers carry in front of a
-	// console that has no auth of its own, so both are switchable
-	// (--no-traffic-payloads, --traffic-body-size=0) and
+	// Payload capture puts what peers carry in front of a console that
+	// has no auth of its own, so both knobs can turn it off and
 	// credential-carrying header values are redacted either way.
 	TrafficPayloads bool `help:"Capture request/response headers and bodies for the console's traffic view." default:"true" negatable:"" name:"traffic-payloads"`
 	TrafficBodySize int  `help:"Bytes of each body kept for the console's traffic view (0 keeps headers only)." default:"4096" name:"traffic-body-size"`
@@ -89,11 +83,9 @@ type Hub struct {
 	MetricsAddr string `help:"Metrics listener address." default:"127.0.0.1:7203"`
 }
 
-// gracePeriod bounds how long shutdown waits for tunnels and listeners
-// to drain before exiting anyway.
+// gracePeriod bounds the shutdown drain.
 const gracePeriod = 5 * time.Second
 
-// Run starts the hub and blocks until the context is cancelled.
 func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, out *style.Output) error {
 	logger = logger.Named("hub")
 
@@ -101,15 +93,11 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 		h.State = defaultStateDir()
 	}
 
-	// Subdomain routing without a domain to strip would match every
-	// host and route to nonsense; a domain the strategy never reads is
-	// just as misleading. Fail at boot, not per request.
+	// An unusable routing/domain pair fails at boot, not per request.
 	if _, err := h.routing().Resolvers(h.ProxyDomain); err != nil {
 		return fmt.Errorf("%w (--proxy-routing / --proxy-domain)", err)
 	}
 
-	// The local SQLite DB is the default backend for tunnel presence,
-	// the blocklist, and the signing secret (see openBackends).
 	st, err := store.Open(h.State)
 	if err != nil {
 		return err
@@ -121,10 +109,6 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 	// already tells the operator where state lives.
 	logger.Debug("hub state ready", zap.String("dir", h.State))
 
-	// Tunnel presence, the peer denylist, and the hub's identity live
-	// in the same SQL backend: the local SQLite DB by default, or a
-	// shared PostgreSQL with --directory-dsn, so a fleet of hubs sees
-	// each other's peers and blocks, and signs with one key.
 	back, err := h.openBackends(ctx, st)
 	if err != nil {
 		return err
@@ -148,9 +132,8 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 		}
 	}
 
-	// The signing secret is held behind an atomic so rotate-secret can
-	// swap it live (invalidating every issued JWT) without a restart,
-	// here or on another hub sharing the backend.
+	// Held behind an atomic so rotate-secret can swap it live, here or
+	// on another hub sharing the backend.
 	secret, err := back.secret.LoadOrCreate(ctx)
 	if err != nil {
 		return err
@@ -158,9 +141,8 @@ func (h *Hub) Run(ctx context.Context, commons *c.Commons, logger *zap.Logger, o
 
 	logger.Debug("hub identity ready", zap.String("stored in", back.secret.Describe()))
 
-	// Prometheus metrics: install the OTel SDK provider globally before
-	// any instrument is built, so they all bind to it. When off,
-	// everything records against the global no-op provider.
+	// Installed globally before any instrument is built, so they all
+	// bind to it; off means the global no-op provider.
 	if h.Metrics {
 		mp, mpErr := hubmetrics.Provider()
 		if mpErr != nil {

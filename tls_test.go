@@ -43,8 +43,7 @@ func TestEncryptedTunnel(t *testing.T) {
 		registry := runHubAndPeer(t, hubTLS, peerTLS, okHandler())
 		waitAttached(t, registry, "peer")
 
-		// The payload is TLS end to end here, which is what the https
-		// tunnel type names: the hub should have recorded it as such.
+		// End-to-end payload TLS is what the https tunnel type names.
 		if info, ok := registry.Tunnel("peer"); !ok || info.Type != tunneltype.HTTPS {
 			t.Fatalf("tunnel type = %q (found %v), want https", info.Type, ok)
 		}
@@ -97,8 +96,7 @@ func TestMutualTLSTunnel(t *testing.T) {
 		registry := runHubAndPeer(t, hubTLS, peerTLS, okHandler())
 		waitAttached(t, registry, "peer")
 
-		// The payload is TLS end to end here, which is what the https
-		// tunnel type names: the hub should have recorded it as such.
+		// End-to-end payload TLS is what the https tunnel type names.
 		if info, ok := registry.Tunnel("peer"); !ok || info.Type != tunneltype.HTTPS {
 			t.Fatalf("tunnel type = %q (found %v), want https", info.Type, ok)
 		}

@@ -91,7 +91,6 @@ func NewService(registry *registry.Registry, opts ...Option) *Service {
 	return s
 }
 
-// ListTunnels returns every live tunnel this hub owns.
 func (s *Service) ListTunnels(
 	_ context.Context, _ *connect.Request[holtv1.ListTunnelsRequest],
 ) (*connect.Response[holtv1.ListTunnelsResponse], error) {
@@ -110,8 +109,6 @@ func (s *Service) ListTunnels(
 	return connect.NewResponse(&holtv1.ListTunnelsResponse{Tunnels: tunnels}), nil
 }
 
-// StopTunnel force-closes a peer's tunnel and reports whether one was
-// present.
 func (s *Service) StopTunnel(
 	_ context.Context, req *connect.Request[holtv1.StopTunnelRequest],
 ) (*connect.Response[holtv1.StopTunnelResponse], error) {
@@ -145,7 +142,6 @@ func (s *Service) BlockPeer(
 	return connect.NewResponse(&holtv1.BlockPeerResponse{Stopped: stopped}), nil
 }
 
-// UnblockPeer lifts a peer's block.
 func (s *Service) UnblockPeer(
 	_ context.Context, req *connect.Request[holtv1.UnblockPeerRequest],
 ) (*connect.Response[holtv1.UnblockPeerResponse], error) {

@@ -26,7 +26,6 @@ type Tunnel struct {
 // Option configures a Tunnel; every EndpointOption is one too.
 type Option interface{ ApplyTunnel(*Tunnel) }
 
-// tunnelOption implements Option.
 type tunnelOption func(*Tunnel)
 
 func (f tunnelOption) ApplyTunnel(t *Tunnel) { f(t) }
@@ -83,7 +82,6 @@ func (t *Tunnel) BoundName() string {
 	return t.Addr
 }
 
-// bearerPeerKey carries the peer id WithAuthBearer verified.
 type bearerPeerKey struct{}
 
 // bearerMiddleware is the auth half of WithAuthBearer.
@@ -124,7 +122,6 @@ func bearerIdentity(ctx context.Context) (string, error) {
 // The claim is not verified.
 const DevPeerHeader = "x-holt-peer"
 
-// devPeerKey carries the name the development identity resolved.
 type devPeerKey struct{}
 
 // DevIdentity is the zero-configuration identity: the x-holt-peer

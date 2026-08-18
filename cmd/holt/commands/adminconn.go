@@ -29,9 +29,7 @@ type adminConn struct {
 	Config    string   `help:"Config file path (default: ~/.holt/config.yaml)." env:"HOLT_CONFIG" type:"path"`
 }
 
-// coalesce returns the first non-empty value, the shared primitive of
-// the flag > env > profile > default precedence (the flag+env part is
-// already folded into the first argument by kong).
+// coalesce returns the first non-empty value.
 func coalesce(vals ...string) string {
 	for _, v := range vals {
 		if v != "" {
@@ -42,7 +40,6 @@ func coalesce(vals ...string) string {
 	return ""
 }
 
-// httpAddr turns a host:port into an http:// URL, or "" when empty.
 func httpAddr(addr string) string {
 	if addr == "" {
 		return ""
@@ -70,13 +67,11 @@ func (a adminConn) pointsAtAnotherHub(prof config.Profile) bool {
 	return !sameEndpoint(override, prof.AdminURL)
 }
 
-// sameEndpoint compares two admin URLs the way the CLI reaches them, so
-// a trailing slash is not a different hub.
+// sameEndpoint ignores trailing slashes: not a different hub.
 func sameEndpoint(a, b string) bool {
 	return strings.TrimRight(a, "/") == strings.TrimRight(b, "/")
 }
 
-// client resolves the endpoint and headers and returns an Admin client.
 func (a adminConn) client() (holtv1connect.AdminClient, error) {
 	e, err := a.endpoint()
 	if err != nil {
@@ -141,8 +136,6 @@ func (e endpoint) httpClient() *http.Client {
 	return &http.Client{Transport: headerTransport{headers: e.headers, base: http.DefaultTransport}}
 }
 
-// profile loads and selects the configured profile (empty when there is
-// no config or no match).
 func (a adminConn) profile() (config.Profile, error) {
 	cfg, err := config.Load(a.Config)
 	if err != nil {
@@ -152,7 +145,6 @@ func (a adminConn) profile() (config.Profile, error) {
 	return cfg.Pick(a.Profile), nil
 }
 
-// splitHeader parses "Name: Value" into its parts.
 func splitHeader(h string) (string, string, bool) {
 	name, value, found := strings.Cut(h, ":")
 	name = strings.TrimSpace(name)

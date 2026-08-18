@@ -23,9 +23,7 @@ type Body struct {
 	Skipped string
 }
 
-// BodyLimit reads the body limit out of a set of options, which is
-// how a caller holding options rather than a config asks how much it
-// was told to capture.
+// BodyLimit reads the body limit out of a set of options.
 func BodyLimit(opts ...Option) int {
 	var cfg config
 	for _, opt := range opts {
@@ -47,8 +45,7 @@ const (
 const Redacted = "<redacted>"
 
 // redacted reports whether a header's value is a secret by
-// construction. Compared lowercase, since header casing is whatever
-// the client felt like sending.
+// construction; compared lowercase.
 func redacted(name string) bool {
 	switch strings.ToLower(name) {
 	case "authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key", "x-auth-token":

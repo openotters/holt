@@ -42,7 +42,6 @@ type Enroll struct {
 	adminConn
 }
 
-// Run mints and prints a join token, locally or via a remote hub.
 func (e *Enroll) Run(ctx context.Context, _ *c.Commons) error {
 	tok, err := e.mint(ctx)
 	if err != nil {
@@ -177,8 +176,6 @@ func (e *Enroll) enrollLocal(ctx context.Context, tunnelURL string) (string, err
 	return tok, nil
 }
 
-// printToken prints the token on its own line (easy to copy or pipe)
-// framed by a hint.
 func printToken(peer, tok string) {
 	fmt.Printf("\n%s\n\n", style.Success("join token for %q", peer))
 	fmt.Printf("%s\n\n", tok)

@@ -13,21 +13,16 @@ import (
 // instrumentName is the OTel instrumentation scope for this module.
 const instrumentName = "github.com/openotters/holt/pkg/registry"
 
-// metrics holds the OTel instruments the Registry records against.
-// Built from a MeterProvider that defaults to the global one — which
-// is a no-op until the application installs an SDK, so instrumentation
-// is always present but never mandatory and never a runtime cost when
-// unconfigured.
+// metrics holds the OTel instruments the Registry records against,
+// built from a MeterProvider defaulting to the global (no-op) one.
 type metrics struct {
 	attaches metric.Int64Counter // total attaches
 	detaches metric.Int64Counter // total detaches, by reason
 }
 
-// newMetrics builds the instruments. active is an observable gauge
-// backed by activeFn (the live tunnel count), so it is always present
-// and correct on scrape rather than only after the first attach.
-// Instrument-creation errors are swallowed into no-op instruments — a
-// metrics backend must never break tunnel handling.
+// newMetrics builds the instruments. Creation errors collapse into
+// no-op instruments: a metrics backend must never break tunnel
+// handling.
 func newMetrics(mp metric.MeterProvider, activeFn func() map[string]int64) *metrics {
 	if mp == nil {
 		mp = otel.GetMeterProvider()

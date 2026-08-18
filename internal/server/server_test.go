@@ -77,8 +77,6 @@ func TestServerEndToEnd(t *testing.T) {
 	runDone := make(chan error, 1)
 	go func() { runDone <- srv.Run(ctx) }()
 
-	// A peer attaches with its bearer token and serves a handler only
-	// it could serve.
 	peerMux := http.NewServeMux()
 	peerMux.HandleFunc("/whoami", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, "alice through the tunnel")
@@ -96,8 +94,6 @@ func TestServerEndToEnd(t *testing.T) {
 
 	waitAttached(t, srv.Registry(), "alice")
 
-	// Reach the peer through the proxy endpoint, the way any HTTP
-	// client would.
 	proxyURL := "http://" + proxyLis.Addr().String()
 
 	resp := get(t, proxyURL+"/whoami", "alice")

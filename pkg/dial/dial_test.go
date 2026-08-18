@@ -25,11 +25,9 @@ func (t *failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 
 func (t *failingTransport) CloseIdleConnections() { t.idleDrops.Add(1) }
 
-// TestRunDropsPooledConnectionsBetweenAttempts: a pooled keep-alive
-// connection can outlive the endpoint it was good for (a restarted
-// hub, or another process answering the port while the hub was down),
-// which would pin every redial to the wrong peer. Run must close the
-// client's idle connections between attempts so each one dials fresh.
+// A pooled keep-alive connection can outlive the endpoint it was good
+// for and pin every redial to the wrong peer; Run must drop idle
+// connections between attempts so each one dials fresh.
 func TestRunDropsPooledConnectionsBetweenAttempts(t *testing.T) {
 	t.Parallel()
 
