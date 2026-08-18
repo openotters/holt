@@ -59,7 +59,11 @@ What you get:
   reach it directly
 - a WebSocket transport, so the tunnel passes through Cloudflare,
   ingresses and access proxies (gRPC does not pass there)
-- a live view of the traffic: logged by the peer, shown in the console
+- a live view of the traffic: logged by the peer, shown in the console,
+  every request one click from a curl that replays it
+- capture endpoints: throwaway addresses that accept any call and show
+  it live — inspect a webhook or an OAuth redirect without exposing a
+  real service
 - a web console, Prometheus metrics and a Grafana dashboard
 - a Helm chart, and a shared PostgreSQL when you run several hubs
 

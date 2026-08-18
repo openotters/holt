@@ -9,7 +9,16 @@
 </p>
 
 `holt hub --ui` serves a small React console on the admin listener
-(`http://127.0.0.1:7201/`):
+(`http://127.0.0.1:7201/`). A status light sits next to the console's
+name — green while the hub answers, pulsing red when it does not —
+and opens the hub's identity card on hover: endpoint, version, route
+header, token TTL, and the tunnel/proxy URLs, each one click to copy.
+
+The console is three pages.
+
+## Tunnels
+
+The operating view:
 
 - the live tunnel list, updated over a server stream (no polling), with
   per-peer **Kill**, **Block**, and a **Call** button that shows the
@@ -23,8 +32,7 @@
   entry on the clipboard as JSON, and **curl** puts a command that
   replays the request through the hub (addressed the way this hub
   routes), with a menu next to it for the other forms — plain URL,
-  PowerShell, fetch, wget. Bodies are never captured, so none of them
-  carries one.
+  PowerShell, fetch, wget.
   It is per peer on purpose — a fleet's traffic in one list is
   unreadable — and the hub does the filtering, so watching one peer
   never ships you the others'.
@@ -42,15 +50,44 @@
   logs no requests.
 - an **Add peer** dialog that mints a join token (shown in full, one
   click to copy).
-- an **Install holt** card, collapsed by default: a tile per method
-  (Homebrew, Go/binary, Docker, Kubernetes) that opens the command in
-  a modal.
+- a **Recent activity** feed of attaches and detaches, with the reason
+  the hub sent (superseded, connection-lost, an operator kill).
+- the **Blocked peers** list, with per-peer unblock.
+
+## Capture
+
+The request inspector: capture endpoints on the left, the selected
+one's live traffic on the right — the same live table as the Tunnels
+page's Traffic view, side by side with the list instead of behind a
+modal.
+
+A capture endpoint is a throwaway peer that accepts any call and
+answers a small JSON receipt. It runs inside the hub process but
+attaches through the tunnel listener like any peer — named like one
+too, `sunny-brook-92ae63` — so the proxy routes to it, the roster
+lists it, and every request it receives lands in the traffic view,
+payloads included. Give its address to a webhook sender, an OAuth
+redirect, or a teammate's curl, and inspect what arrives without
+exposing a real service.
+
+Endpoints expire on their own (an hour by default) and can be deleted
+early; nothing about them survives the hub process.
+
+## Settings
+
+What you touch once:
+
+- a **This hub** card reading the wiring back: routing mode, proxy
+  port, external URL, tunnel URL, metrics — the values commands and
+  tokens are built from.
+- an **Install holt** card: a tile per method (Homebrew, Go/binary,
+  Docker, Kubernetes) that opens the command in a modal.
 - a **Danger zone** to rotate the hub's signing secret. It regenerates
   the JWT secret, which invalidates every issued token and closes
   existing tunnels, so peers must re-enroll (the same effect as
   `holt rotate-secret`).
-- a connection status menu with the endpoint, protocol, and a link to
-  the Prometheus `/metrics` endpoint when `--metrics` is on.
+
+---
 
 The console is built from `cmd/holt/ui/` and embedded in the binary
 (`task ui:build`); pass `--ui-path DIR` to serve a local build instead.

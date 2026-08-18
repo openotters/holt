@@ -1,7 +1,3 @@
-// Footer in the sshark format: a centered logo + short description
-// block, then a bottom bar with copyright + build hash on the left and
-// author/org links on the right.
-
 declare const __APP_COMMIT__: string;
 
 function ExtLink({ href, children }: { href: string; children: React.ReactNode }) {
@@ -30,8 +26,8 @@ export function Footer() {
 					<span aria-hidden="true">🌀</span> holt
 				</a>
 				<p className="max-w-md text-muted-foreground text-sm">
-					Reverse HTTP tunnels for services that can only dial out. One bidirectional gRPC stream, TLS and
-					JWT out of the box, presence for free.
+					Reverse HTTP tunnels for services that can only dial out. A WebSocket carrier that passes
+					anywhere, JWT out of the box, live traffic capture, presence for free.
 				</p>
 			</div>
 

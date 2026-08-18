@@ -13,7 +13,7 @@ Reverse HTTP tunnels for services that can only dial out. Start with the
 ## Use holt
 
 - **[CLI](cli.md)**: Run a hub, enroll peers, expose services, and manage tunnels with the holt command.
-- **[Web console](console.md)**: The holt hub --ui React console for operating a hub from the browser.
+- **[Web console](console.md)**: The holt hub --ui React console: live tunnels, traffic, capture endpoints, settings.
 
 ## Operate
 
