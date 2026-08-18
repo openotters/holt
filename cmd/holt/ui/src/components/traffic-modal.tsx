@@ -231,11 +231,13 @@ function Details({ request, peer, config }: { request: LiveRequest; peer: string
 	const entry = asEntry(request);
 
 	return (
-		<div className="relative border-border/60 border-l-2 bg-muted/30 py-3">
-			<div className="absolute top-2 right-3 flex items-center gap-1">
-				{/* curl is the one people want, so it is the button; the
-				    rest of the ways to replay a request are one click
-				    further, the way a browser's network panel does it. */}
+		// w-0 min-w-full is what keeps a long entry inside the panel: the
+		// div takes its width from the table rather than from its
+		// content, so the lines scroll here instead of widening every
+		// row above them. The frame does not scroll, which is what keeps
+		// the buttons where they were put.
+		<div className="relative w-0 min-w-full border-border/60 border-l-2 bg-muted/30">
+			<div className="absolute top-2 right-3 z-10 flex items-center gap-1 rounded-md bg-muted/80 backdrop-blur">
 				<CopyAsMenu config={config} peer={peer} request={request} />
 				<CopyButton
 					icon={Copy}
@@ -244,7 +246,9 @@ function Details({ request, peer, config }: { request: LiveRequest; peer: string
 					value={JSON.stringify(entry, null, 2)}
 				/>
 			</div>
-			<JsonView value={entry} />
+			<div className="overflow-x-auto py-3">
+				<JsonView value={entry} />
+			</div>
 		</div>
 	);
 }
