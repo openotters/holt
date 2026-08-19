@@ -5,7 +5,7 @@
 *The holt hub --ui React console for operating a hub from the browser.*
 
 <p align="center">
-  <img src="console.png" alt="holt web console" width="640" />
+  <img src="console-capture.png" alt="holt web console" width="640" />
 </p>
 
 `holt hub --ui` serves the console on the admin listener

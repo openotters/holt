@@ -25,6 +25,10 @@ packaging of it.
 > ⚠️ Alpha, extracted from [openotters](https://github.com/openotters/openotters),
 > where it is the daemon-to-agent channel. The wire protocol may still change.
 
+<div align="center">
+  <img src="docs/demo.gif" alt="holt in thirty seconds: hub up, service exposed, reached through the tunnel" width="720" />
+</div>
+
 ## The library
 
 Two constructors, both at the module root:
@@ -87,16 +91,25 @@ identity ([Kubernetes](docs/kubernetes.md)).
 
 ## The console
 
+`holt hub --ui` serves a web console. **Capture endpoints** are
+throwaway addresses that accept any call and show it live — point a
+webhook or an OAuth redirect at one and inspect what arrives, payload
+included, without exposing a real service:
+
 <div align="center">
-  <img src="docs/console.png" alt="holt web console" width="760" />
+  <img src="docs/console-capture.png" alt="a Stripe webhook opened in the capture inspector" width="760" />
 </div>
 
-`holt hub --ui` serves a web console: live tunnels, per-peer traffic
-with payloads (any request is one click from a curl that replays it),
-and **capture endpoints** — throwaway addresses that accept any call
-and show it live. Point a webhook or an OAuth redirect at one and
-inspect what arrives without exposing a real service. See
-[Web console](docs/console.md).
+The live tunnel roster (kill, block, call any peer), and per-peer
+traffic with payloads — any request is one click from a curl that
+replays it:
+
+<p align="center">
+  <img src="docs/console-tunnels.png" alt="live tunnels with attach/detach activity" width="378" />
+  <img src="docs/console-traffic.png" alt="per-peer live traffic with statuses and timings" width="378" />
+</p>
+
+See [Web console](docs/console.md).
 
 Prometheus metrics and a Grafana dashboard come with it
 ([Observability](docs/observability.md)).
