@@ -447,7 +447,7 @@ function SettingsPage({ config }: { config: HubViewConfig }) {
 	);
 }
 
-// HubCard reads the hub's wiring back from /api/config — the values
+// HubCard reads the hub's wiring back from /api/config: the values
 // tokens and commands are built from. Flags change them, nothing here.
 function HubCard({ config }: { config: HubViewConfig }) {
 	const rows: { label: string; value: string; hint?: string }[] = [

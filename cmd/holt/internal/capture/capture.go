@@ -1,9 +1,9 @@
 // Package capture runs short-lived capture endpoints inside the hub
-// process. Each endpoint is an ordinary peer — enrolled with the hub's
-// own secret, attached through the real tunnel listener over loopback —
-// whose handler acknowledges whatever arrives. The proxy, the roster,
-// and the traffic view treat it like any peer; nothing in the data
-// plane is special-cased.
+// process. Each endpoint is an ordinary peer, enrolled with the hub's
+// own secret and attached through the real tunnel listener over
+// loopback, whose handler acknowledges whatever arrives. The proxy,
+// the roster, and the traffic view treat it like any peer; nothing in
+// the data plane is special-cased.
 package capture
 
 import (
@@ -66,8 +66,8 @@ type bin struct {
 	stop chan struct{}
 }
 
-// NewManager builds a manager dialing tunnelURL — the hub's own tunnel
-// listener — with tokens signed by secret.
+// NewManager builds a manager dialing tunnelURL (the hub's own tunnel
+// listener) with tokens signed by secret.
 func NewManager(
 	ctx context.Context, tunnelURL string, secret *jwtauth.Secret, tunnels Tunnels, logger *zap.Logger,
 ) *Manager {
@@ -173,7 +173,7 @@ func (m *Manager) run(b *bin, token string) {
 
 	// A non-nil error means our own lifecycle ended the loop; without
 	// this the hub notices the vanished peer only after its ping
-	// window. Nil means the hub already detached it (kill, supersede) —
+	// window. Nil means the hub already detached it (kill, supersede);
 	// the name may have a new owner, so it is not ours to stop.
 	if err != nil {
 		reason := "capture-stopped"

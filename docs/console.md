@@ -10,7 +10,7 @@
 
 `holt hub --ui` serves the console on the admin listener
 (`http://127.0.0.1:7201/`). A status light sits next to the console's
-name — green while the hub answers, pulsing red when it does not — and
+name (green while the hub answers, pulsing red when it does not) and
 opens the hub's identity card on hover: endpoint, version, route
 header, token TTL, and the tunnel/proxy URLs, one click to copy.
 
@@ -23,7 +23,7 @@ Three pages.
   through the proxy).
 - Per-peer **Traffic**: the requests the hub carried, live. Filter by
   path, method, or status class (`5` matches every 5xx), sort any
-  column, click a row for the full entry — headers, a bounded slice of
+  column, click a row for the full entry: headers, a bounded slice of
   each body, sizes, timing. Take it away as JSON, or as a command that
   replays it: curl, plain URL, PowerShell, fetch, wget.
 
@@ -38,22 +38,22 @@ Three pages.
 ## Capture
 
 Capture endpoints on the left, the selected one's live traffic on the
-right — the same table as the Tunnels traffic view.
+right, the same table as the Tunnels traffic view.
 
 A capture endpoint is a throwaway peer run by the hub itself: it
 attaches through the tunnel listener like any peer, accepts any call,
 and answers a small JSON receipt. Give its address to a webhook
-sender, an OAuth redirect, or a curl, and inspect what arrives —
-payloads included — without exposing a real service. Endpoints expire
+sender, an OAuth redirect, or a curl, and inspect what arrives,
+payloads included, without exposing a real service. Endpoints expire
 on their own (an hour by default) and can be deleted early.
 
 ## Settings
 
 - **This hub**: routing mode, proxy port, external URL, tunnel URL,
-  metrics — the values commands and tokens are built from.
+  metrics: the values commands and tokens are built from.
 - **Install holt**: the command per method (Homebrew, Go/binary,
   Docker, Kubernetes).
-- **Danger zone**: rotate the signing secret — invalidates every
+- **Danger zone**: rotate the signing secret. It invalidates every
   issued token and closes existing tunnels, same as
   `holt rotate-secret`.
 

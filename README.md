@@ -54,7 +54,7 @@ go srv.Run(ctx)
 client := &http.Client{Transport: srv.Registry().RoundTripper(peerID)}
 ```
 
-Bring your own auth, middleware, listeners and storage — everything
+Bring your own auth, middleware, listeners and storage: everything
 the CLI adds (JWT identity, SQLite/PostgreSQL state, the console) is
 built on this surface. See [Library](docs/library.md) and
 [How it works](docs/architecture.md).
@@ -75,7 +75,7 @@ curl -H 'x-tunnel-peer: web' http://127.0.0.1:7202/
 Peers authenticate with a JWT and attach over a **WebSocket**, so the
 tunnel passes through Cloudflare, ingresses and access proxies. TLS is
 your edge's job: advertise its `wss://` URL. With a domain, each peer
-gets its own hostname — for a browser, a webhook, an OAuth callback:
+gets its own hostname, for a browser, a webhook, an OAuth callback:
 
 ```sh
 holt hub --advertise-addr wss://holt.example.com \
@@ -92,7 +92,7 @@ identity ([Kubernetes](docs/kubernetes.md)).
 ## The console
 
 `holt hub --ui` serves a web console. **Capture endpoints** are
-throwaway addresses that accept any call and show it live — point a
+throwaway addresses that accept any call and show it live. Point a
 webhook or an OAuth redirect at one and inspect what arrives, payload
 included, without exposing a real service:
 
@@ -101,7 +101,7 @@ included, without exposing a real service:
 </div>
 
 The live tunnel roster (kill, block, call any peer), and per-peer
-traffic with payloads — any request is one click from a curl that
+traffic with payloads, where any request is one click from a curl that
 replays it:
 
 <p align="center">
@@ -118,7 +118,7 @@ Prometheus metrics and a Grafana dashboard come with it
 
 frp, ngrok and inlets do more, at a bigger scale: TCP/UDP, load
 balancing, teams, hosted service. holt is HTTP(S) and gRPC through
-one hub on your own infra — for embedding tunnels in a Go program,
+one hub on your own infra: for embedding tunnels in a Go program,
 and for the simple case where your traffic should stay yours.
 
 ## Documentation

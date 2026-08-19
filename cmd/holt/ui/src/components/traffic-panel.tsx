@@ -14,7 +14,7 @@ type SortKey = "at" | "method" | "path" | "status" | "tookMs";
 // TrafficPanel is one peer's live traffic: filterable, sortable, a row
 // click away from everything the hub knows about a request. The traffic
 // modal wraps it in a dialog; the capture page lays it beside the list.
-// It is a window, not a history — unmounting loses it.
+// It is a window, not a history: unmounting loses it.
 export function TrafficPanel({
 	peer,
 	config,

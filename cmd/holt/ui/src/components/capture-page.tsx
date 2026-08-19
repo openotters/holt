@@ -11,7 +11,7 @@ import { type HubConfig, peerURL } from "@/lib/reach";
 type Capture = { peer: string; createdAt: string; expiresAt: string };
 
 // CapturePage is the request inspector: capture endpoints on the left,
-// the selected one's live traffic on the right — the same TrafficPanel
+// the selected one's live traffic on the right, the same TrafficPanel
 // the tunnels page opens per peer, since a capture endpoint IS a peer.
 export function CapturePage({ config }: { config: HubConfig }) {
 	const [captures, setCaptures] = useState<Capture[]>([]);
@@ -70,7 +70,7 @@ export function CapturePage({ config }: { config: HubConfig }) {
 			<div>
 				<h1 className="font-semibold text-2xl tracking-tight">Capture</h1>
 				<p className="text-muted-foreground text-sm">
-					Throwaway addresses that accept any call and show it here, live — inspect a webhook, a
+					Throwaway addresses that accept any call and show it here, live: inspect a webhook, a
 					redirect, or a client without exposing a real service. Endpoints expire on their own; nothing
 					is stored.
 				</p>
@@ -172,7 +172,7 @@ function FirstEndpoint({ creating, onCreate }: { creating: boolean; onCreate: ()
 				<div className="font-medium">No capture endpoints yet</div>
 				<p className="mt-1 text-muted-foreground text-sm">
 					Create one and you get an address that answers anything with a small JSON receipt. Give it
-					to a webhook sender, an OAuth redirect, or a teammate's curl — every request lands here,
+					to a webhook sender, an OAuth redirect, or a teammate's curl: every request lands here,
 					headers and body included, as it happens.
 				</p>
 			</div>
