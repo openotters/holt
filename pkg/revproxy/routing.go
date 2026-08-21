@@ -8,7 +8,11 @@ import (
 	"strings"
 )
 
-// RouteHeader is the HTTP header that names the target peer.
+// RouteHeader is the HTTP header that names the target peer. The
+// proxy also normalises it to the routing outcome as it serves: once
+// ServeHTTP returns, the header on the request names the peer it was
+// routed to, and is absent when it reached none. An observer wrapping
+// the proxy reads it there (reqlog.WithPeerHeader does).
 const RouteHeader = "x-tunnel-peer"
 
 // Resolver maps an inbound proxy request to the peer it targets, or

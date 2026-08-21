@@ -1,6 +1,6 @@
 // Package reqlog is the live view of requests crossing a tunnel. Both
-// ends see the same request and can report it: the hub as it proxies
-// (revproxy.WithRequestHook) and the peer as it serves
+// ends see the same request and can report it: the hub with Middleware
+// wrapped around its proxy, and the peer as it serves
 // (dial.Options.RequestHook). Neither stores anything; a hook is
 // called once per request, after the response.
 package reqlog
@@ -17,9 +17,9 @@ import (
 type Event struct {
 	// At is when the response completed.
 	At time.Time
-	// Peer is the tunnel the request went through. The hub fills it;
-	// a peer reporting its own requests leaves it empty, since it
-	// knows only one.
+	// Peer is the tunnel the request went through, filled on the hub
+	// via WithPeerHeader; a peer reporting its own requests leaves it
+	// empty, since it knows only one.
 	Peer string
 	// Method and Path are the request's, as received.
 	Method string
@@ -85,8 +85,9 @@ type Option func(*config)
 
 // config is what the options build up.
 type config struct {
-	headers   bool
-	bodyLimit int
+	headers    bool
+	bodyLimit  int
+	peerHeader string
 }
 
 // WithHeaders reports the request and response headers, with
@@ -101,6 +102,15 @@ func WithHeaders() Option {
 // whatever reads the events.
 func WithBodyLimit(limit int) Option {
 	return func(c *config) { c.bodyLimit = limit }
+}
+
+// WithPeerHeader fills Event.Peer from the named request header, read
+// once the response is done. It is how a wrapped proxy names the
+// tunnel a request went through: the proxy normalises the routed peer
+// onto its routing header as part of serving, so by the time the
+// event is reported the header holds the answer.
+func WithPeerHeader(name string) Option {
+	return func(c *config) { c.peerHeader = name }
 }
 
 // Middleware wraps a handler so every request it serves is reported —
@@ -142,6 +152,12 @@ func Middleware(hook Hook, next http.Handler, opts ...Option) http.Handler {
 
 		if cfg.headers {
 			ev.ResponseHeaders = Headers(rec.Header())
+		}
+
+		if cfg.peerHeader != "" {
+			// The handler mutates the header map in place, so the routed
+			// peer it wrote on the way through is visible here.
+			ev.Peer = r.Header.Get(cfg.peerHeader)
 		}
 
 		hook(ev)

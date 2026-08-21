@@ -11,6 +11,14 @@ import (
 	"github.com/openotters/holt/pkg/revproxy"
 )
 
+// watch wraps a proxy the way the hub does: the request log outside,
+// reading the routed peer back off the routing header.
+func watch(p http.Handler, hook reqlog.Hook, opts ...reqlog.Option) http.Handler {
+	opts = append([]reqlog.Option{reqlog.WithPeerHeader(revproxy.RouteHeader)}, opts...)
+
+	return reqlog.Middleware(hook, p, opts...)
+}
+
 // Every carried request is reported once the response is done, with the
 // peer it went to: on the hub several tunnels share one output, so the
 // peer is what tells the lines apart.
@@ -30,12 +38,12 @@ func TestRequestHookReportsCarriedRequest(t *testing.T) {
 
 	var got reqlog.Event
 
-	proxy := revproxy.New(peers, revproxy.WithRequestHook(func(ev reqlog.Event) { got = ev }))
+	handler := watch(revproxy.New(peers), func(ev reqlog.Event) { got = ev })
 
 	req := httptest.NewRequest(http.MethodGet, "http://shop.example.com/status?deep=1", nil)
 	req.Header.Set(revproxy.RouteHeader, "alice")
 	req.Header.Set("User-Agent", "curl/8.7.1")
-	proxy.ServeHTTP(httptest.NewRecorder(), req)
+	handler.ServeHTTP(httptest.NewRecorder(), req)
 
 	if got.Peer != "alice" {
 		t.Errorf("peer = %q, want alice", got.Peer)
@@ -58,21 +66,46 @@ func TestRequestHookReportsCarriedRequest(t *testing.T) {
 
 // A request that named no peer never reached a tunnel, so it is
 // reported with an empty peer and the code the landing page answered.
+// That holds even when the client sent a routing header the resolvers
+// do not read: the proxy clears what it did not accept.
 func TestRequestHookReportsUnroutedRequest(t *testing.T) {
 	t.Parallel()
 
-	var got reqlog.Event
-
-	proxy := revproxy.New(fakePeers{}, revproxy.WithRequestHook(func(ev reqlog.Event) { got = ev }))
-
-	proxy.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://placeholder/", nil))
-
-	if got.Peer != "" {
-		t.Errorf("peer = %q, want empty", got.Peer)
+	subdomains, err := revproxy.ResolveBySubdomain("peers.example.com")
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if got.Status != http.StatusBadRequest {
-		t.Errorf("status = %d, want 400", got.Status)
+	cases := []struct {
+		name  string
+		proxy *revproxy.Proxy
+		junk  bool
+	}{
+		{"nothing named", revproxy.New(fakePeers{}), false},
+		{"stale header ignored by routing", revproxy.New(fakePeers{}, revproxy.WithResolvers(subdomains)), true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got reqlog.Event
+
+			req := httptest.NewRequest(http.MethodGet, "http://placeholder/", nil)
+			if tc.junk {
+				req.Header.Set(revproxy.RouteHeader, "bob")
+			}
+
+			watch(tc.proxy, func(ev reqlog.Event) { got = ev }).ServeHTTP(httptest.NewRecorder(), req)
+
+			if got.Peer != "" {
+				t.Errorf("peer = %q, want empty", got.Peer)
+			}
+
+			if got.Status != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400", got.Status)
+			}
+		})
 	}
 }
 
@@ -96,7 +129,7 @@ func TestRequestHookCaptureIsOptIn(t *testing.T) {
 		}),
 	}}
 
-	send := func(opts ...revproxy.Option) reqlog.Event {
+	send := func(opts ...reqlog.Option) reqlog.Event {
 		t.Helper()
 
 		var got reqlog.Event
@@ -107,8 +140,8 @@ func TestRequestHookCaptureIsOptIn(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer supersecret")
 
-		opts = append(opts, revproxy.WithRequestHook(func(ev reqlog.Event) { got = ev }))
-		revproxy.New(peers, opts...).ServeHTTP(httptest.NewRecorder(), req)
+		handler := watch(revproxy.New(peers), func(ev reqlog.Event) { got = ev }, opts...)
+		handler.ServeHTTP(httptest.NewRecorder(), req)
 
 		return got
 	}
@@ -117,7 +150,7 @@ func TestRequestHookCaptureIsOptIn(t *testing.T) {
 		t.Errorf("payload reported without asking: %v %q", quiet.RequestHeaders, quiet.RequestBody.Content)
 	}
 
-	loud := send(revproxy.WithRequestCapture(4096))
+	loud := send(reqlog.WithHeaders(), reqlog.WithBodyLimit(4096))
 	if string(loud.RequestBody.Content) != `{"sku":"otter-1"}` {
 		t.Errorf("request body = %q", loud.RequestBody.Content)
 	}

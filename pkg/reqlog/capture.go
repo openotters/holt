@@ -23,16 +23,6 @@ type Body struct {
 	Skipped string
 }
 
-// BodyLimit reads the body limit out of a set of options.
-func BodyLimit(opts ...Option) int {
-	var cfg config
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
-	return cfg.bodyLimit
-}
-
 // The reasons a body was not captured.
 const (
 	SkippedDisabled = "disabled"

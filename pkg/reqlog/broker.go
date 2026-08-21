@@ -11,7 +11,7 @@ import (
 // events rather than slowing the request that produced them.
 //
 //	broker := reqlog.NewBroker(0)
-//	proxy := revproxy.New(reg, revproxy.WithRequestHook(broker.Hook()))
+//	handler := reqlog.Middleware(broker.Hook(), revproxy.New(reg))
 //
 //	for ev := range broker.Watch(ctx) { ... }
 type Broker struct {
@@ -48,8 +48,8 @@ func NewBroker(recent int) *Broker {
 	return &Broker{subs: map[int]chan Event{}, recent: make([]Event, recent)}
 }
 
-// Hook returns the Hook that feeds the broker, for
-// revproxy.WithRequestHook or dial.Options.RequestHook.
+// Hook returns the Hook that feeds the broker, for Middleware or
+// dial.Options.RequestHook.
 func (b *Broker) Hook() Hook { return b.Publish }
 
 // Publish records an event and hands it to every watcher.

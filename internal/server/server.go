@@ -18,6 +18,7 @@ import (
 	"github.com/openotters/holt/internal/utils"
 	"github.com/openotters/holt/pkg/attach"
 	"github.com/openotters/holt/pkg/registry"
+	"github.com/openotters/holt/pkg/reqlog"
 	"github.com/openotters/holt/pkg/revproxy"
 )
 
@@ -274,7 +275,13 @@ func (s *Server) proxyHandler() (http.Handler, error) {
 		opts = append(opts, revproxy.WithResolvers(chain...))
 	}
 
-	return s.proxyd.Wrap(revproxy.New(s.registry, opts...)), nil
+	// The request log wraps the data plane rather than configuring it:
+	// the proxy announces the routed peer on its routing header, and
+	// reqlog reads it back from there. A nil hook wraps nothing.
+	logOpts := append([]reqlog.Option{reqlog.WithPeerHeader(revproxy.RouteHeader)}, s.proxyd.Capture...)
+	handler := reqlog.Middleware(s.proxyd.Hook, revproxy.New(s.registry, opts...), logOpts...)
+
+	return s.proxyd.Wrap(handler), nil
 }
 
 // serve binds the endpoint (unless the caller brought a listener) and

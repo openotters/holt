@@ -15,6 +15,7 @@ import (
 	"github.com/openotters/holt/cmd/holt/internal/hubmetrics"
 	"github.com/openotters/holt/pkg/attach"
 	"github.com/openotters/holt/pkg/jwtauth"
+	"github.com/openotters/holt/pkg/reqlog"
 	"github.com/openotters/holt/pkg/revproxy"
 )
 
@@ -155,22 +156,24 @@ func (h *Hub) startProxy(ctx context.Context, listeners *httpsrv.Group, rt *hubR
 	// The proxy records its own data-plane metrics (requests, duration,
 	// in-flight, routing errors) against the global provider --metrics
 	// installed above, so the CLI adds no instrumentation of its own.
-	options := []revproxy.Option{
-		revproxy.WithResolvers(resolvers...),
-		// Carried requests go to whoever is watching the console, not
-		// to the hub's log: a hub serving a fleet would drown its own
-		// output, and the console is where you go to watch traffic.
-		revproxy.WithRequestHook(rt.requests.Hook()),
-	}
+	proxy := revproxy.New(rt.registry, revproxy.WithResolvers(resolvers...))
+
+	// Carried requests go to whoever is watching the console, not to
+	// the hub's log: a hub serving a fleet would drown its own output,
+	// and the console is where you go to watch traffic. The request log
+	// wraps the proxy; the routed peer comes back on the routing header.
+	logOpts := []reqlog.Option{reqlog.WithPeerHeader(revproxy.RouteHeader)}
 
 	// Payload capture is opt-out rather than always-on: it is what
 	// makes the view useful, and it is also the only part of it that
 	// puts what peers carry in front of a console reader.
 	if h.TrafficPayloads {
-		options = append(options, revproxy.WithRequestCapture(h.TrafficBodySize))
+		logOpts = append(logOpts, reqlog.WithHeaders(), reqlog.WithBodyLimit(h.TrafficBodySize))
 	}
 
-	return listeners.Start(ctx, "proxy", h.ProxyAddr, revproxy.New(rt.registry, options...))
+	handler := reqlog.Middleware(rt.requests.Hook(), proxy, logOpts...)
+
+	return listeners.Start(ctx, "proxy", h.ProxyAddr, handler)
 }
 
 // startMetrics serves the OTel Prometheus exporter on /metrics.

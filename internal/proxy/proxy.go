@@ -16,6 +16,11 @@ type Proxy struct {
 
 	Opts []revproxy.Option
 
+	// Hook and Capture configure the request log the server wraps
+	// around the data plane; the proxy itself knows nothing of it.
+	Hook    reqlog.Hook
+	Capture []reqlog.Option
+
 	// Routing and Domain hold the configured strategy; the server
 	// resolves them at Run, so a bad pair fails before binding.
 	Routing revproxy.Routing
@@ -69,11 +74,15 @@ func WithErrorHook(hook revproxy.ErrorHook) Option {
 // WithRequestHook reports every request the proxy carried, once the
 // response is done. See reqlog.Hook.
 func WithRequestHook(hook reqlog.Hook) Option {
-	return proxyOption(func(p *Proxy) { p.Opts = append(p.Opts, revproxy.WithRequestHook(hook)) })
+	return proxyOption(func(p *Proxy) { p.Hook = hook })
 }
 
-// WithRequestCapture adds headers and bounded bodies to what the
-// request hook reports. See revproxy.WithRequestCapture.
+// WithRequestCapture adds the payload to what the request hook
+// reports: headers (credential values redacted) and up to limit bytes
+// of each body. Off by default; capture is bounded per request and
+// never stored.
 func WithRequestCapture(limit int) Option {
-	return proxyOption(func(p *Proxy) { p.Opts = append(p.Opts, revproxy.WithRequestCapture(limit)) })
+	return proxyOption(func(p *Proxy) {
+		p.Capture = []reqlog.Option{reqlog.WithHeaders(), reqlog.WithBodyLimit(limit)}
+	})
 }

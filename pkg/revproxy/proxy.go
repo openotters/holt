@@ -21,6 +21,12 @@
 //		}),
 //	)
 //
+// The request log is a wrapper, not an option: the proxy carries
+// requests and announces where each one went (see RouteHeader), and
+// whoever wants the stream composes it on top:
+//
+//	handler := reqlog.Middleware(hook, p, reqlog.WithPeerHeader(proxy.RouteHeader))
+//
 // Transport encryption is the deployment's job: put a TLS edge,
 // ingress, or mesh in front of the hub, same as its other listeners.
 package revproxy
@@ -29,11 +35,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httputil"
-	"time"
 
 	"go.opentelemetry.io/otel/metric"
-
-	"github.com/openotters/holt/pkg/reqlog"
 )
 
 // Peers is the live-tunnel half of the hub the proxy dials through;
@@ -63,79 +66,90 @@ const (
 
 // Proxy routes inbound requests to attached peers. Build it with New;
 // the zero value is not usable.
+//
+// The data plane is a middleware chain around a routing core: every
+// request crosses the stages, then routing picks the tunnel. The
+// built-in observation (metrics, the request log) is itself stages in
+// that chain, not a special case in the core.
 type Proxy struct {
 	peers     Peers
 	resolvers []Resolver
 	onError   ErrorHook
-	onRequest reqlog.Hook
-	capture   []reqlog.Option
 	metrics   *metrics
 	reverse   *httputil.ReverseProxy
+	handler   http.Handler
+}
+
+// Middleware is one stage of the data plane: it wraps the handler
+// below it and sees every request on the way through.
+type Middleware func(http.Handler) http.Handler
+
+// config is what the options build up. It only feeds New's compile
+// step: once the chain is built, the configuration is spent, which is
+// why none of it lives on the Proxy.
+type config struct {
+	resolvers []Resolver
+	onError   ErrorHook
+	chain     []Middleware
+	metrics   *metrics
 }
 
 // Option configures a Proxy.
-type Option func(*Proxy)
+type Option func(*config)
 
 // WithResolvers sets how the target peer is picked: resolvers are
 // tried in order, first peer named wins. Repeatable; later calls
 // append, and any call replaces the header-routing default.
 func WithResolvers(resolvers ...Resolver) Option {
-	return func(p *Proxy) { p.resolvers = append(p.resolvers, resolvers...) }
+	return func(c *config) { c.resolvers = append(c.resolvers, resolvers...) }
 }
 
 // WithErrorHook registers an observer for requests that could not be
 // proxied. See ErrorHook.
 func WithErrorHook(hook ErrorHook) Option {
-	return func(p *Proxy) { p.onError = hook }
+	return func(c *config) { c.onError = hook }
 }
 
-// WithRequestHook reports every request the proxy carried, once the
-// response is done. Nothing is stored; what the hook does with the
-// event is the caller's business.
-func WithRequestHook(hook reqlog.Hook) Option {
-	return func(p *Proxy) { p.onRequest = hook }
-}
-
-// WithRequestCapture adds the payload to what the request hook
-// reports: headers (credential values redacted) and up to limit bytes
-// of each body. Off by default — a proxy that keeps no payload cannot
-// leak one. Capture is bounded per request and never stored.
-func WithRequestCapture(limit int) Option {
-	return func(p *Proxy) {
-		p.capture = []reqlog.Option{reqlog.WithHeaders(), reqlog.WithBodyLimit(limit)}
-	}
+// WithMiddleware adds stages to the data plane, in the order given.
+// They run inside the built-in instruments and outside routing: a
+// stage may mutate the request (add headers, rewrite), the resolvers
+// see what the stages left, and a stage that does not call next
+// short-circuits the proxy. Observation is a stage like any other:
+// wrap the Proxy, or add it here (reqlog.Middleware, for one).
+func WithMiddleware(mw ...Middleware) Option {
+	return func(c *config) { c.chain = append(c.chain, mw...) }
 }
 
 // WithMeterProvider sets the OTel MeterProvider the data-plane
 // instruments are built from. Default: the global provider, a no-op
 // until an SDK is installed.
 func WithMeterProvider(mp metric.MeterProvider) Option {
-	return func(p *Proxy) { p.metrics = newMetrics(mp) }
+	return func(c *config) { c.metrics = newMetrics(mp) }
 }
 
 // New builds a proxy over the given peers. Without options it routes on
 // the x-tunnel-peer header alone.
 func New(peers Peers, opts ...Option) *Proxy {
+	var cfg config
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	if len(cfg.resolvers) == 0 {
+		cfg.resolvers = []Resolver{ResolveByHeader()}
+	}
+
+	if cfg.metrics == nil {
+		cfg.metrics = newMetrics(nil)
+	}
+
 	p := &Proxy{
 		peers:     peers,
-		resolvers: nil, // defaulted below, after the options ran
-		onError:   nil,
-		onRequest: nil,
-		capture:   nil,
-		metrics:   nil,
-		reverse:   nil,
-	}
-
-	for _, opt := range opts {
-		opt(p)
-	}
-
-	if len(p.resolvers) == 0 {
-		p.resolvers = []Resolver{ResolveByHeader()}
-	}
-
-	if p.metrics == nil {
-		p.metrics = newMetrics(nil)
+		resolvers: cfg.resolvers,
+		onError:   cfg.onError,
+		metrics:   cfg.metrics,
+		reverse:   nil, // built below, it closes over p
+		handler:   nil,
 	}
 
 	p.reverse = &httputil.ReverseProxy{
@@ -151,6 +165,16 @@ func New(peers Peers, opts ...Option) *Proxy {
 		ErrorHandler:  p.serveError,
 	}
 
+	// Compile the chain, innermost first, in an order the options
+	// cannot change: instruments outermost, then the configured stages,
+	// then routing at the core.
+	var handler http.Handler = http.HandlerFunc(p.route)
+	for i := len(cfg.chain) - 1; i >= 0; i-- {
+		handler = cfg.chain[i](handler)
+	}
+
+	p.handler = p.metrics.middleware(handler)
+
 	return p
 }
 
@@ -161,57 +185,29 @@ const peerHost = "peer.invalid"
 // ServeHTTP routes the request to the peer it names; one that names
 // none gets the landing page, never a 502.
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Read the request before serving it: routing rewrites headers,
-	// and the reverse proxy is free to touch the URL it was handed.
-	ev := reqlog.From(r)
-
-	var (
-		reqBody     *reqlog.BodyCapture
-		contentType string
-	)
-
-	if p.capture != nil && p.onRequest != nil {
-		ev.RequestHeaders = reqlog.Headers(r.Header)
-		contentType = r.Header.Get("Content-Type")
-		reqBody = reqlog.CaptureRequestBody(r, reqlog.BodyLimit(p.capture...))
-	}
-
-	peer, rec, took := p.metrics.observe(w, r, p.serve, p.capture...)
-	if p.onRequest == nil {
-		return
-	}
-
-	ev.At, ev.Peer = time.Now(), peer
-	ev.Status, ev.ResponseBytes, ev.Duration = rec.Status(), rec.Written(), took
-
-	if p.capture != nil {
-		ev.ResponseHeaders = reqlog.Headers(rec.Header())
-		ev.RequestBody = reqBody.Body(contentType)
-		ev.ResponseBody = rec.Body()
-	}
-
-	// On this goroutine, after the response: a blocking hook holds the
-	// request it describes.
-	p.onRequest(ev)
+	p.handler.ServeHTTP(w, r)
 }
 
-// serve routes one request, returning the peer it routed to ("" when
-// the request named none).
-func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) string {
+// route is the core of the chain: it sends the request down the peer's
+// tunnel, or serves the landing page when it named none. Either way it
+// normalises RouteHeader to the outcome, which is how anything
+// wrapping the proxy learns where a request went (see RouteHeader).
+func (p *Proxy) route(w http.ResponseWriter, r *http.Request) {
 	peer := p.peer(r)
 	if peer == "" {
+		// A header the resolvers did not accept must not read as a
+		// routed peer afterwards.
+		r.Header.Del(RouteHeader)
 		p.record(r.Context(), ReasonNoPeer)
 		writePage(w, r, http.StatusBadRequest)
 
-		return ""
+		return
 	}
 
 	// Normalise a subdomain hit onto the header so everything
 	// downstream routes the one way.
 	r.Header.Set(RouteHeader, peer)
 	p.reverse.ServeHTTP(w, r)
-
-	return peer
 }
 
 // peer runs the resolver chain; first resolver that names a peer wins.
