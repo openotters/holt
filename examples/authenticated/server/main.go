@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -29,6 +28,44 @@ import (
 	"github.com/openotters/holt"
 	"github.com/openotters/holt/pkg/registry"
 )
+
+func main() {
+	tunnelAddr := flag.String("addr", "127.0.0.1:7200", "tunnel (WebSocket) listen address for peers")
+	proxyAddr := flag.String("proxy", "127.0.0.1:7202", "proxy listen address (reach peers here)")
+	flag.Parse()
+
+	logger, _ := zap.NewDevelopment()
+	defer func() { _ = logger.Sync() }()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	tunnel := holt.NewTunnel(*tunnelAddr, holt.WithAuthBearer(peerForToken))
+	proxy := holt.NewProxy(*proxyAddr, holt.WithErrorHook(logError(logger)))
+
+	// The whole hub: a bearer-guarded tunnel endpoint peers attach to,
+	// and a proxy that reaches them. Run binds, serves, and drains on
+	// Ctrl-C.
+	srv := holt.NewServer(
+		holt.WithLogger(logger),
+		holt.WithTunnel(tunnel),
+		holt.WithProxy(proxy),
+	)
+
+	logAttachEvents(ctx, srv.Registry(), logger)
+
+	if err := srv.Run(ctx); err != nil {
+		logger.Error("server run error", zap.Error(err))
+	}
+
+	logger.Info("server stopped")
+}
+
+func logError(logger *zap.Logger) holt.ErrorHook {
+	return func(_ context.Context, reason string) {
+		logger.Info("proxy miss", zap.String("reason", reason))
+	}
+}
 
 // peerForToken maps a demo bearer token to the peer identity it
 // proves. A real hub validates a JWT signature or an mTLS certificate
@@ -46,41 +83,6 @@ func peerForToken(_ context.Context, token string) (string, error) {
 	}
 
 	return peer, nil
-}
-
-func main() {
-	tunnelAddr := flag.String("addr", "127.0.0.1:7200", "tunnel (WebSocket) listen address for peers")
-	proxyAddr := flag.String("proxy", "127.0.0.1:7202", "proxy listen address (reach peers here)")
-	flag.Parse()
-
-	if err := run(*tunnelAddr, *proxyAddr); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func run(tunnelAddr, proxyAddr string) error {
-	logger, _ := zap.NewDevelopment()
-	defer func() { _ = logger.Sync() }()
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	// The whole hub: a bearer-guarded tunnel endpoint peers attach to,
-	// and a proxy that reaches them. Run binds, serves, and drains on
-	// Ctrl-C.
-	srv := holt.NewServer(
-		holt.WithLogger(logger),
-		holt.WithTunnel(holt.NewTunnel(tunnelAddr, holt.WithAuthBearer(peerForToken))),
-		holt.WithProxy(holt.NewProxy(proxyAddr,
-			holt.WithErrorHook(func(_ context.Context, reason string) {
-				logger.Info("proxy miss", zap.String("reason", reason))
-			}),
-		)),
-	)
-
-	logAttachEvents(ctx, srv.Registry(), logger)
-
-	return srv.Run(ctx)
 }
 
 // logAttachEvents narrates attach/detach to the log.

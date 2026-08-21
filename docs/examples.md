@@ -22,7 +22,7 @@ curl -H 'x-tunnel-peer: peer' http://127.0.0.1:7202/whoami
 # I am the peer; the hub reached me through the tunnel
 ```
 
-The [examples README](../examples/README.md) has the exact commands;
+Each example directory has its own README with the exact commands.
 TLS wiring (a TLS listener on the tunnel, or end-to-end TLS inside
 it) is documented in [Library](library.md).
 

@@ -38,8 +38,6 @@ func main() {
 	fmt.Printf("tunnel on ws://%s — proxy on http://%s\n", holt.DefaultTunnelAddr, holt.DefaultProxyAddr)
 	fmt.Println("reach the peer:  curl -H 'x-tunnel-peer: peer' http://" + holt.DefaultProxyAddr + "/whoami")
 
-	// The whole hub: one call, zero configuration. Run binds, serves,
-	// and drains on Ctrl-C.
 	if err := holt.NewServer(holt.WithLogger(logger)).Run(ctx); err != nil {
 		log.Fatal(err)
 	}

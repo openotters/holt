@@ -9,73 +9,41 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#)
 
+<img src="docs/demo.gif" alt="hub up, service exposed, reached through the tunnel" width="720" />
+
 </div>
 
-A *holt* is an otter's den: a burrow in the riverbank, reachable only
-through the underwater tunnel its owner dug. Same idea here. A **peer**
-that cannot accept inbound connections (NAT, locked-down container,
-field device) dials out to a **hub**, then serves an ordinary
-`http.Handler` back through the connection it opened. The hub gets an
-`http.RoundTripper` per peer, and presence for free. No listener, no
-inbound port, nothing published on the peer.
+Your service dials **out** to a hub, then serves a plain `http.Handler`
+back through the connection it opened. Nothing listens, nothing is
+published, no hole in the NAT. To the hub, the peer is just another
+HTTP backend.
 
-holt is a **Go library first**; the `holt` CLI is one opinionated
-packaging of it.
+holt is a **Go library** first. The CLI is one opinionated packaging of
+it... made for fun.
 
-> ⚠️ Alpha, extracted from [openotters](https://github.com/openotters/openotters),
-> where it is the daemon-to-agent channel. The wire protocol may still change.
+## Features
 
-<div align="center">
-  <img src="docs/demo.gif" alt="holt in thirty seconds: hub up, service exposed, reached through the tunnel" width="720" />
-</div>
+- 🕳️ **No inbound anything.** The peer only dials out. NAT, locked-down containers and field devices are fine.
+- 🧩 **A library you embed.** Two constructors; the hub hands you an `http.RoundTripper` per peer, plus presence.
+- ☁️ **Passes anywhere.** WebSocket carrier with JWT auth: Cloudflare, ingresses and access proxies just work.
+- 🌐 **A hostname per peer.** `checkout.example.com` reaches the peer, so webhooks, OAuth callbacks and browsers work.
+- 📦 **HTTP and gRPC** through the tunnel, with optional end-to-end TLS inside it.
+- 🔎 **Live traffic view.** Headers, payloads and timings in the console; any request replays as `curl`.
+- 🪤 **Capture endpoints.** Throwaway addresses that accept any call. Inspect a webhook without exposing a service.
+- 🎛️ **Operable.** `ls` / `kill` / `block`, a web console, Prometheus metrics, a Grafana dashboard.
+- 🚀 **Deploys small.** One binary, a Docker image, a Helm chart; several hubs share one PostgreSQL.
 
-## The library
-
-Two constructors, both at the module root:
-
-```go
-// The peer: attaches to the hub, serves the handler through the
-// tunnel, redials with backoff. Cancel ctx to stop.
-c := holt.NewClient("wss://holt.example.com", myHandler,
-	holt.WithBearerToken(token))
-err := c.Run(ctx)
-```
-
-```go
-// The hub: a tunnel listener peers attach to, an optional proxy to
-// reach them from outside.
-srv := holt.NewServer(
-	holt.WithTunnel(holt.NewTunnel(":7200", holt.WithAuthBearer(peerForToken))),
-	holt.WithProxy(holt.NewProxy(":7202")),
-)
-go srv.Run(ctx)
-
-// Anywhere in the hub process, a peer is an ordinary HTTP backend:
-client := &http.Client{Transport: srv.Registry().RoundTripper(peerID)}
-```
-
-Bring your own auth, middleware, listeners and storage: everything
-the CLI adds (JWT identity, SQLite/PostgreSQL state, the console) is
-built on this surface. See [Library](docs/library.md) and
-[How it works](docs/architecture.md).
-
-## The CLI
-
-One binary for hub, peer, and operations
-([all install methods](docs/install.md)):
+## Quick start
 
 ```sh
 brew install openotters/tap/holt   # or: go install github.com/openotters/holt/cmd/holt@latest
 
-holt hub --ui &                         # hub + web console (127.0.0.1:7201)
+holt hub --ui &                         # hub + console on 127.0.0.1:7201
 holt expose localhost:3000 --peer web   # enrolls itself, serves the tunnel
 curl -H 'x-tunnel-peer: web' http://127.0.0.1:7202/
 ```
 
-Peers authenticate with a JWT and attach over a **WebSocket**, so the
-tunnel passes through Cloudflare, ingresses and access proxies. TLS is
-your edge's job: advertise its `wss://` URL. With a domain, each peer
-gets its own hostname, for a browser, a webhook, an OAuth callback:
+Give peers real hostnames by fronting the hub with your TLS edge:
 
 ```sh
 holt hub --advertise-addr wss://holt.example.com \
@@ -84,51 +52,64 @@ holt expose localhost:3000 --peer checkout
 # https://checkout.example.com/ now reaches the service
 ```
 
-Operate with `holt ls`, `holt kill web`, `holt block web`. On
-Kubernetes, `helm install holt oci://ghcr.io/openotters/charts/holt`;
-several hubs share one PostgreSQL for presence, denylist and signing
-identity ([Kubernetes](docs/kubernetes.md)).
+## As a library
+
+The peer attaches, serves your handler through the tunnel, and redials
+with backoff:
+
+```go
+cl := holt.NewClient("wss://holt.example.com", myHandler, holt.WithBearerToken(token))
+err := cl.Run(ctx)
+```
+
+The hub is one call, and every peer becomes an ordinary HTTP backend:
+
+```go
+srv := holt.NewServer(
+	holt.WithTunnel(holt.NewTunnel(":7200", holt.WithAuthBearer(peerForToken))),
+	holt.WithProxy(holt.NewProxy(":7202")),
+)
+go srv.Run(ctx)
+
+client := &http.Client{Transport: srv.Registry().RoundTripper(peerID)}
+```
+
+Bring your own auth, middleware, listeners and storage. Everything the
+CLI adds is built on this surface. See [Library](docs/library.md) and
+[How it works](docs/architecture.md).
 
 ## The console
 
-`holt hub --ui` serves a web console. **Capture endpoints** are
-throwaway addresses that accept any call and show it live. Point a
-webhook or an OAuth redirect at one and inspect what arrives, payload
-included, without exposing a real service:
+`holt hub --ui`. Point a Stripe webhook at a capture endpoint and read
+it, signature and payload included, without exposing anything:
 
 <div align="center">
   <img src="docs/console-capture.png" alt="a Stripe webhook opened in the capture inspector" width="760" />
 </div>
 
-The live tunnel roster (kill, block, call any peer), and per-peer
-traffic with payloads, where any request is one click from a curl that
-replays it:
-
 <p align="center">
-  <img src="docs/console-tunnels.png" alt="live tunnels with attach/detach activity" width="378" />
+  <img src="docs/console-tunnels.png" alt="live tunnels with attach and detach activity" width="378" />
   <img src="docs/console-traffic.png" alt="per-peer live traffic with statuses and timings" width="378" />
 </p>
 
-See [Web console](docs/console.md).
-
-Prometheus metrics and a Grafana dashboard come with it
-([Observability](docs/observability.md)).
-
-## Where holt fits
+## When to pick something else
 
 frp, ngrok and inlets do more, at a bigger scale: TCP/UDP, load
-balancing, teams, hosted service. holt is HTTP(S) and gRPC through
-one hub on your own infra: for embedding tunnels in a Go program,
-and for the simple case where your traffic should stay yours.
+balancing, teams, hosted service. holt is HTTP(S) and gRPC through one
+hub on your own infra, and a library to embed. If that is your case,
+everything stays yours.
+
+> ⚠️ Alpha, extracted from [openotters](https://github.com/openotters/openotters),
+> where it is the daemon-to-agent channel. The wire protocol may still change.
 
 ## Documentation
 
-Full docs live in [`docs/`](docs/README.md):
-
-- **Get started**: [Install](docs/install.md) · [How it works](docs/architecture.md)
-- **Use holt**: [CLI](docs/cli.md) · [Web console](docs/console.md)
-- **Operate**: [Security](docs/security.md) · [Kubernetes](docs/kubernetes.md) · [Observability](docs/observability.md)
-- **Build with holt**: [Library](docs/library.md) · [Examples](docs/examples.md) · [Development](docs/development.md)
+| | |
+|---|---|
+| **Get started** | [Install](docs/install.md) · [How it works](docs/architecture.md) |
+| **Use holt** | [CLI](docs/cli.md) · [Web console](docs/console.md) |
+| **Operate** | [Security](docs/security.md) · [Kubernetes](docs/kubernetes.md) · [Observability](docs/observability.md) |
+| **Build with holt** | [Library](docs/library.md) · [Examples](docs/examples.md) · [Development](docs/development.md) |
 
 ## License
 
